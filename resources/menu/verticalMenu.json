@@ -1,0 +1,100 @@
+{
+  "menu": [
+    {
+      "name": "Dashboard",
+      "slug": "dashboard-analytics",
+      "icon": "menu-icon icon-base ti tabler-smart-home",
+      "url": "/",
+      "permission": "dashboard"
+    },
+    {
+      "name": "Users Management",
+      "slug": [
+        "users.index"
+      ],
+      "icon": "menu-icon icon-base ti tabler-users",
+      "submenu": [
+        {
+          "name": "System Users",
+          "slug": "system_users",
+          "route": "users.index",
+          "permission": "listing_system_user"
+        },
+        {
+          "name": "Society Owners",
+          "slug": "society_owners",
+          "route": "users.index",
+          "permission": "listing_society_owner"
+        },
+        {
+          "name": "Society Managers",
+          "slug": "society_managers",
+          "route": "users.index",
+          "permission": "listing_society_manager"
+        },
+        {
+          "name": "Society Members",
+          "slug": "society_members",
+          "route": "users.index",
+          "permission": "listing_society_member"
+        }
+      ]
+    },
+    {
+      "name": "Roles & Permissions",
+      "slug": "roles_&_permissions",
+      "icon": "menu-icon icon-base ti tabler-settings",
+      "url": "roles/index",
+      "permission": "listing_role"
+    },
+    {
+      "url": "/societies/societies",
+      "icon": "menu-icon icon-base ti tabler-building-community",
+      "name": "Societies",
+      "slug": "societies",
+      "permission": "all_societies"
+    },
+    {
+      "url": "/societies/owner_societies",
+      "icon": "menu-icon icon-base ti tabler-building-community",
+      "name": "My Societies",
+      "slug": "owner_societies",
+      "permission": "owner_societies"
+    },
+    {
+      "name": "Discussions",
+      "slug": "discussions",
+      "icon": "menu-icon icon-base ti tabler-message-2",
+      "url": "posts/index/discussions",
+      "permission": "discussions"
+    },
+    {
+      "name": "Suggestions",
+      "slug": "suggestions",
+      "icon": "menu-icon icon-base ti tabler-bulb",
+      "url": "posts/index/suggestions",
+      "permission": "suggestions"
+    },
+    {
+      "name": "Issues",
+      "slug": "issues",
+      "icon": "menu-icon icon-base ti tabler-message-2-search",
+      "url": "posts/index/issues",
+      "permission": "issues"
+    },
+    {
+      "name": "Tags",
+      "slug": "tags",
+      "icon": "menu-icon icon-base ti tabler-tag",
+      "url": "tags/index",
+      "permission": "listing_tag"
+    },
+    {
+      "name": "Reports",
+      "slug": "reports",
+      "icon": "menu-icon icon-base ti tabler-flag",
+      "url": "reports/index",
+      "permission": "listing_reports"
+    }
+  ]
+}

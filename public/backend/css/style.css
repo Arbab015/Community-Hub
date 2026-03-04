@@ -1,0 +1,59 @@
+.iti {
+  width: 100%;
+}
+
+.iti input {
+  width: 100%;
+}
+.required::after {
+  content: '   *';
+  font-size: 16px;
+  color: red;
+}
+
+.file_item {
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.file_item:hover {
+  background: #f8f9fa;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* SweetAlert2 Z-Index Fix */
+.swal2-container {
+  z-index: 9999 !important;
+}
+
+/* Default card */
+.forum-post-card {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.25s ease;
+}
+
+/* Hover shadow ONLY */
+.forum-post-card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* posts */
+.post-item {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+}
+
+.post-item:hover {
+  background: #fafafa;
+}
+
+.post-item:last-child {
+  border-bottom: 0;
+}
+
+.post-item h6 a:hover {
+  color: #696cff !important;
+}
