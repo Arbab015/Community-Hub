@@ -139,12 +139,34 @@ if (report_form) {
     })
       .then(res => res.json())
       .then(data => {
+        console.log(data);
         $(`.post-item[data-id="${currentReportId}"]`).remove();
+        // Remove all related reply comments
+        // Remove main comments
+        $(`.comment-item[data-comment-id="${currentReportId}"]`).remove();
+
+// Remove all related replies
+        if (data.ids && data.ids.length > 0) {
+          data.ids.forEach(function (id) {
+            $(`.comment-item[data-comment-id="${id}"]`).remove();
+          });
+        }
+
         $(`.report_${currentReportId}`).hide();
         $(`.already_reported_${currentReportId}`).removeClass('d-none');
         bootstrap.Modal.getInstance(document.getElementById('report_modal')).hide();
         Swal.fire('Success!', data.message, 'success');
       })
-      .catch(err => console.error(err));
+      .catch(err => {
+        console.error(err);
+
+        let message = err.message || 'Something went wrong';
+
+        if (err.errors) {
+          message = Object.values(err.errors).flat().join('<br>');
+        }
+
+        Swal.fire('Error!', message, 'error');
+      });
   });
 }

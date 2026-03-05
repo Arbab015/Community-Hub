@@ -10,7 +10,7 @@
     <h4 class="mb-1">{{ ucfirst($type) }}</h4>
     <div class="d-md-none">
       <button class="btn p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#forumRightOffcanvas"
-        aria-controls="forumRightOffcanvas">
+              aria-controls="forumRightOffcanvas">
         <i class="icon-base ti tabler-menu-2 icon-md"></i>
       </button>
     </div>
@@ -105,7 +105,7 @@
                         $color = normalize_color($tag->color);
                       @endphp
                       <span class="badge me-1"
-                        style="background-color: {{ $color ?? 'rgba(102,108,232,1)' }}; color: #fff;">
+                            style="background-color: {{ $color ?? 'rgba(102,108,232,1)' }}; color: #fff;">
                         # {{ $tag->name }}
                       </span>
                     @endforeach
@@ -136,21 +136,16 @@
                   @endif
                 </div>
 
-                {{-- Date --}}
-                <div class="text-muted small lh-1">
-                  {{ $post->created_at->format('F d, Y h:i A') }}
-                </div>
-
               </div>
 
               @if ($isAuthor || $noComments || (!$canReport && $roleMember))
                 <div class="dropdown">
                   <button class="btn btn-sm p-0 border-0" type="button" id="postActionDropdown{{ $post->id }}"
-                    data-bs-toggle="dropdown" aria-expanded="false">
+                          data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="ti tabler-dots-vertical" style="font-size: 1rem;"></i>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end shadow-sm small"
-                    aria-labelledby="postActionDropdown{{ $post->id }}">
+                      aria-labelledby="postActionDropdown{{ $post->id }}">
                     @if ($isAuthor)
                       <li>
                         <a class="dropdown-item py-1 small" href="{{ route('posts.edit', [$type, $post->slug]) }}">
@@ -160,7 +155,7 @@
                       @if ($noComments)
                         <li>
                           <a class="dropdown-item py-1 small text-danger"
-                            href="{{ route('posts.destroy', $post->uuid) }}">
+                             href="{{ route('posts.destroy', $post->uuid) }}">
                             <i class="ti tabler-trash me-1"></i> Delete
                           </a>
                         </li>
@@ -169,7 +164,7 @@
                       @if (!$canReport && $roleMember)
                         <li class="report_{{ $post->id }}">
                           <a class="dropdown-item py-1 small" href="#"
-                            onclick="openReport({{ $post->id }}, 'post')">
+                             onclick="openReport({{ $post->id }}, 'post')">
                             <i class="ti tabler-flag me-1"></i> Report an issue
                           </a>
                         </li>
@@ -212,13 +207,13 @@
           <div class="d-flex justify-content-between mb-3 px-2 post-actions">
             <div>
               <span class="post_react me-3 cursor-pointer" data-id="{{ $post->id }}" data-type="post"
-                data-reaction="like">
+                    data-reaction="like">
                 <i
                   class="icon-base ti {{ $reaction === 'like' ? 'tabler-thumb-up-filled' : 'tabler-thumb-up' }} react-like-icon me-1"></i>
                 <span class="post-like-count">{{ $post->likes->count() }}</span>
               </span>
               <span class="post_react cursor-pointer" data-id="{{ $post->id }}" data-type="post"
-                data-reaction="dislike">
+                    data-reaction="dislike">
                 <i
                   class="icon-base ti
                  {{ $reaction === 'dislike' ? 'tabler-thumb-down-filled' : 'tabler-thumb-down' }}
@@ -253,7 +248,7 @@
             @endforeach
             <div class="btn-group">
               <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown"
-                aria-expanded="false">
+                      aria-expanded="false">
                 {{ request('sort') === 'oldest' ? 'Oldest' : 'Latest' }}
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
@@ -306,7 +301,7 @@
       </div>
       {{-- Right section offcanvas mobile only --}}
       <div class="offcanvas offcanvas-end" tabindex="-1" id="forumRightOffcanvas"
-        aria-labelledby="forumRightOffcanvasLabel">
+           aria-labelledby="forumRightOffcanvasLabel">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title" id="forumRightOffcanvasLabel"></h5>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -527,17 +522,17 @@
       const reaction = btn.dataset.reaction;
 
       fetch("{{ route('react') }}", {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': "{{ csrf_token() }}"
-          },
-          body: JSON.stringify({
-            reactionable_id: id,
-            reactionable_type: type,
-            type: reaction
-          })
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': "{{ csrf_token() }}"
+        },
+        body: JSON.stringify({
+          reactionable_id: id,
+          reactionable_type: type,
+          type: reaction
         })
+      })
         .then(res => res.json())
         .then(res => {
           if (!res.status) return;
@@ -712,40 +707,196 @@
       closeMobileCommentBox();
     });
 
-    // See more replies functionality
+    // ── Inline "See replies" button (next to username) ──────────────────────
     document.addEventListener('click', e => {
-      if (!e.target.closest('.see-more-replies')) return;
+      const btn = e.target.closest('.see-replies-inline');
+      if (!btn) return;
       e.preventDefault();
-      const btn = e.target.closest('.see-more-replies');
-      // Handle See less for inline btn
-      if (btn.dataset.mode === 'less') {
-        const replyItem = btn.closest('.comment-item');
-        const highlightWrap = replyItem.querySelector('.replies-highlight-wrap');
-        if (highlightWrap) highlightWrap.remove();
-        const parentHighlight = replyItem.closest('.parent-reply-highlight');
-        if (parentHighlight) {
-          parentHighlight.insertAdjacentElement('afterend', replyItem);
-          parentHighlight.remove();
+
+      // Guard: prevent double-fetch from fast/multiple clicks
+      if (btn.dataset.loading === '1') return;
+      btn.dataset.loading = '1';
+      btn.style.pointerEvents = 'none';
+      btn.style.opacity = '0.5';
+
+      const commentId = btn.dataset.commentId;
+      const skip      = parseInt(btn.dataset.skip);
+      const total     = parseInt(btn.dataset.total || 0);
+
+      // Use the comment-item whose data-comment-id matches this button exactly
+      // Do NOT use .closest() — it may grab a parent comment-item instead
+      const replyItem = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+      if (!replyItem) { btn.dataset.loading = ''; return; }
+
+      // Each reply gets its OWN scoped highlight block, keyed by commentId
+      const highlightKey = `reply-highlight-${commentId}`;
+
+      fetch(`/posts/view/{{ $type }}/{{ $post->uuid }}?comment_id=${commentId}&skip=${skip}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      })
+        .then(res => res.json())
+        .then(data => {
+          // Find or create the highlight wrapper scoped ONLY to this reply
+          let parentHighlight = document.querySelector(`.parent-reply-highlight[data-highlight-key="${highlightKey}"]`);
+          if (!parentHighlight) {
+            parentHighlight = document.createElement('div');
+            parentHighlight.className = 'parent-reply-highlight';
+            parentHighlight.dataset.highlightKey = highlightKey;
+            parentHighlight.style.cssText =
+              'background: rgba(102,108,232,0.07); border-radius: 8px; padding: 8px 8px 4px 8px; margin-top: 6px;';
+            replyItem.insertAdjacentElement('beforebegin', parentHighlight);
+            parentHighlight.appendChild(replyItem);
+          }
+
+          // Replies wrapper scoped to this highlight only
+          let highlightWrap = parentHighlight.querySelector(':scope > .replies-highlight-wrap');
+          if (!highlightWrap) {
+            highlightWrap = document.createElement('div');
+            highlightWrap.className = 'replies-highlight-wrap';
+            parentHighlight.appendChild(highlightWrap);
+          }
+          if (skip === 0) highlightWrap.innerHTML = '';
+
+          data.replies.forEach(reply => {
+            if (data.reportedIds.includes(reply.id)) {
+              return; // skip
+            }
+            highlightWrap.insertAdjacentHTML('beforeend', renderReply(reply));
+          });
+
+          const newSkip = skip + data.count;
+
+          // Remove the inline "See replies" link
+          btn.remove();
+
+          // Inject/update the bottom control scoped to this highlight only
+          let bottomCtrl = parentHighlight.querySelector(':scope > .inline-replies-bottom-ctrl');
+          if (!bottomCtrl) {
+            bottomCtrl = document.createElement('div');
+            bottomCtrl.className = 'inline-replies-bottom-ctrl ms-6 ps-6 mt-2';
+            parentHighlight.appendChild(bottomCtrl);
+          }
+
+          if (newSkip >= total) {
+            bottomCtrl.innerHTML =
+              `<a href="javascript:void(0);" class="text-primary fw-semibold inline-replies-see-less"
+                  data-comment-id="${commentId}" data-total="${total}" style="font-size:0.85rem;">
+                <i class="ti tabler-caret-right-filled" style="font-size:0.78rem;"></i> See less
+              </a>`;
+          } else {
+            bottomCtrl.innerHTML =
+              `<a href="javascript:void(0);" class="text-primary fw-semibold inline-replies-see-more"
+                  data-comment-id="${commentId}" data-skip="${newSkip}" data-total="${total}"
+                  data-highlight-key="${highlightKey}" style="font-size:0.85rem;">
+                See more replies
+              </a>`;
+          }
+        })
+        .catch(err => console.error('Error loading replies:', err));
+    });
+
+    // ── "See more replies" inside an inline highlight block ──────────────────
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.inline-replies-see-more');
+      if (!btn) return;
+      e.preventDefault();
+
+      const commentId    = btn.dataset.commentId;
+      const skip         = parseInt(btn.dataset.skip);
+      const total        = parseInt(btn.dataset.total || 0);
+      const highlightKey = btn.dataset.highlightKey;
+
+      const parentHighlight = document.querySelector(`.parent-reply-highlight[data-highlight-key="${highlightKey}"]`);
+      const highlightWrap   = parentHighlight ? parentHighlight.querySelector(':scope > .replies-highlight-wrap') : null;
+      const bottomCtrl      = parentHighlight ? parentHighlight.querySelector(':scope > .inline-replies-bottom-ctrl') : null;
+
+      if (!parentHighlight || !highlightWrap || !bottomCtrl) return;
+
+      fetch(`/posts/view/{{ $type }}/{{ $post->uuid }}?comment_id=${commentId}&skip=${skip}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      })
+        .then(res => res.json())
+        .then(data => {
+          data.replies.forEach(reply => {
+            if (data.reportedIds.includes(reply.id)) {
+              return; // skip
+            }
+            highlightWrap.insertAdjacentHTML('beforeend', renderReply(reply));
+          });
+
+          const newSkip = skip + data.count;
+
+          if (newSkip >= total) {
+            bottomCtrl.innerHTML =
+              `<a href="javascript:void(0);" class="text-primary fw-semibold inline-replies-see-less"
+                  data-comment-id="${commentId}" data-total="${total}" style="font-size:0.85rem;">
+                <i class="ti tabler-caret-right-filled" style="font-size:0.78rem;"></i> See less
+              </a>`;
+          } else {
+            btn.dataset.skip = newSkip;
+          }
+        })
+        .catch(err => console.error('Error loading more replies:', err));
+    });
+
+    // ── "See less" inside an inline highlight block
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.inline-replies-see-less');
+      if (!btn) return;
+      e.preventDefault();
+
+      const commentId = btn.dataset.commentId;
+      const total     = parseInt(btn.dataset.total || 0);
+
+      // Find only the highlight block that directly owns this "See less" button
+      const parentHighlight = btn.closest('.parent-reply-highlight');
+      if (!parentHighlight) return;
+
+      // Remove rendered replies scoped to this block only
+      const highlightWrap = parentHighlight.querySelector(':scope > .replies-highlight-wrap');
+      if (highlightWrap) highlightWrap.remove();
+
+      // Move the reply item back out
+      const replyItem = parentHighlight.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+      if (replyItem) {
+        parentHighlight.insertAdjacentElement('afterend', replyItem);
+
+        // Re-inject the "See replies" link next to the username
+        const authorEl = replyItem.querySelector('.comment-author');
+        if (authorEl && !authorEl.querySelector('.see-replies-inline')) {
+          const repliesCount = total || parseInt(replyItem.dataset.repliesCount || 1);
+          const link = document.createElement('a');
+          link.href = 'javascript:void(0);';
+          link.className = 'see-replies-inline text-primary fw-semibold';
+          link.style.fontSize = '0.78em';
+          link.dataset.commentId = commentId;
+          link.dataset.skip      = '0';
+          link.dataset.total     = repliesCount;
+          link.innerHTML = `<i class="ti tabler-caret-right-filled"></i> ${repliesCount === 1 ? 'See reply' : 'See replies'}`;
+          authorEl.appendChild(link);
         }
-        btn.dataset.mode = '';
-        btn.dataset.skip = '0';
-        btn.innerHTML = `<i class="ti tabler-caret-right-filled" style="font-size:0.78rem;"></i> See replies`;
-        return;
       }
 
-      // Handle See less for bottom see more replies btn
+      parentHighlight.remove();
+    });
+
+    // ── Bottom "See more replies" button (outside inline highlight) ───────────
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.see-more-replies');
+      if (!btn) return;
+      e.preventDefault();
+
+      // "See less" mode — collapse extra loaded replies
       if (btn.dataset.mode === 'see-less-bottom') {
         const seeMoreContainer = btn.parentElement;
-        const parentComment = btn.closest('.comment-item');
+        const parentComment    = btn.closest('.comment-item');
         const repliesContainerDiv = parentComment.querySelector('[class*="replies-container-"]');
         if (repliesContainerDiv) {
           let next = repliesContainerDiv.nextElementSibling;
           while (next && next !== seeMoreContainer) {
             const toRemove = next;
             next = next.nextElementSibling;
-            if (toRemove.classList.contains('comment-item')) {
-              toRemove.remove();
-            }
+            if (toRemove.classList.contains('comment-item')) toRemove.remove();
           }
         }
         btn.dataset.skip = '3';
@@ -755,67 +906,29 @@
       }
 
       const commentId = btn.dataset.commentId;
-      const skip = parseInt(btn.dataset.skip);
-      const isInlineBtn = btn.closest('.comment-author') !== null;
+      const skip      = parseInt(btn.dataset.skip);
 
       fetch(`/posts/view/{{ $type }}/{{ $post->uuid }}?comment_id=${commentId}&skip=${skip}`, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json'
-          }
-        })
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      })
         .then(res => res.json())
         .then(data => {
-          if (isInlineBtn) {
-            const replyItem = btn.closest('.comment-item');
-
-            let parentHighlight = replyItem.closest('.parent-reply-highlight');
-            if (!parentHighlight) {
-              parentHighlight = document.createElement('div');
-              parentHighlight.className = 'parent-reply-highlight';
-              parentHighlight.style.cssText =
-                'background: rgba(102,108,232,0.07); border-radius: 8px; padding: 8px 8px 4px 8px; margin-top: 6px;';
-              replyItem.insertAdjacentElement('beforebegin', parentHighlight);
-              parentHighlight.appendChild(replyItem);
+          const seeMoreContainer = btn.parentElement;
+          data.replies.forEach(reply => {
+            if (data.reportedIds.includes(reply.id)) {
+              return; // skip
             }
+            seeMoreContainer.insertAdjacentHTML('beforebegin', renderReply(reply));
+          });
 
-            let highlightWrap = parentHighlight.querySelector('.replies-highlight-wrap');
-            if (!highlightWrap) {
-              highlightWrap = document.createElement('div');
-              highlightWrap.className = 'replies-highlight-wrap';
-              parentHighlight.appendChild(highlightWrap);
-            }
+          const newSkip    = skip + data.count;
+          btn.dataset.skip = newSkip;
+          const parentComment = btn.closest('.comment-item');
+          const totalReplies  = parentComment ? parseInt(parentComment.dataset.repliesCount || 0) : 0;
 
-            data.replies.forEach(reply => {
-              highlightWrap.insertAdjacentHTML('beforeend', renderReply(reply));
-            });
-
-            const newSkip = skip + data.count;
-            btn.dataset.skip = newSkip;
-            const total = parseInt(btn.dataset.total || 0);
-
-            if (newSkip >= total) {
-              btn.innerHTML = `<i class="ti tabler-caret-right-filled" style="font-size:0.78rem;"></i> See less`;
-              btn.dataset.mode = 'less';
-            } else {
-              btn.innerHTML = `<i class="ti tabler-caret-right-filled" style="font-size:0.78rem;"></i> See more`;
-            }
-
-          } else {
-            const seeMoreContainer = btn.parentElement;
-            data.replies.forEach(reply => {
-              seeMoreContainer.insertAdjacentHTML('beforebegin', renderReply(reply));
-            });
-
-            const newSkip = skip + data.count;
-            btn.dataset.skip = newSkip;
-            const parentComment = btn.closest('.comment-item');
-            const totalReplies = parentComment ? parseInt(parentComment.dataset.repliesCount || 0) : 0;
-
-            if (newSkip >= totalReplies) {
-              btn.innerHTML = `See less`;
-              btn.dataset.mode = 'see-less-bottom';
-            }
+          if (newSkip >= totalReplies) {
+            btn.innerHTML    = `See less`;
+            btn.dataset.mode = 'see-less-bottom';
           }
         })
         .catch(err => console.error('Error loading more replies:', err));
@@ -858,7 +971,7 @@
     </ul>
   </div>` :
         `{{ Auth()->user()->hasRole('Society Member') ? 'show' : 'hide' }}` === 'show' ?
-        `<div class="dropdown">
+          `<div class="dropdown">
     <button class="btn btn-sm p-0 border-0" type="button" id="commentActionDropdown${reply.id}"
       data-bs-toggle="dropdown" aria-expanded="false">
       <i class="ti ti tabler-dots-vertical"></i>
@@ -891,7 +1004,7 @@
               <h6 class="mb-0 fw-semibold comment-author d-flex align-items-center gap-2 flex-wrap">
                 ${reply.user.first_name.charAt(0).toUpperCase() + reply.user.first_name.slice(1)}
                 ${reply.user.last_name.charAt(0).toUpperCase() + reply.user.last_name.slice(1)}
-                ${(reply.replies_count > 0) ? `<a href="javascript:void(0);" class="see-more-replies text-primary fw-semibold" style="font-size:0.75rem;" data-comment-id="${reply.id}" data-skip="0" data-total="${reply.replies_count}"><i class="ti tabler-caret-right-filled" ></i> ${reply.replies_count === 1 ? 'See reply' : 'See replies'}</a>` : ''}
+                ${(reply.replies_count > 0) ? `<a href="javascript:void(0);" class="see-replies-inline text-primary fw-semibold" style="font-size:0.75rem;" data-comment-id="${reply.id}" data-skip="0" data-total="${reply.replies_count}"><i class="ti tabler-caret-right-filled"></i> ${reply.replies_count === 1 ? 'See reply' : 'See replies'}</a>` : ''}
               </h6>
               <small class="text-muted d-block mt-1 ">${createdAt}</small>
           ${reply.parent && reply.parent.user ? `
@@ -945,24 +1058,44 @@
       const commentId = btn.dataset.id;
 
       fetch(`/forum/{{ $type }}/comments/${commentId}`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': "{{ csrf_token() }}",
-            'Accept': 'application/json'
-          }
-        })
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': "{{ csrf_token() }}",
+          'Accept': 'application/json'
+        }
+      })
         .then(res => {
           if (!res.ok) throw new Error('Delete failed');
           return res.json();
         })
         .then(data => {
-          const item = document.querySelector(`[data-comment-id="${commentId}"]`);
-          if (item) {
-            item.style.transition = 'opacity 0.3s';
-            item.style.opacity = '0';
-            setTimeout(() => item.remove(), 300);
-          }
+            const item = document.querySelector(`[data-comment-id="${commentId}"]`);
+            if (item) {
+              const allItems = [item];
+
+              // Remove replies container for level-0 comments
+              const repliesContainer = document.querySelector(`.replies-container-${commentId}`);
+              if (repliesContainer) allItems.push(repliesContainer);
+
+              // Remove orphaned "See more replies" button wrapper
+              const seeMoreBtn = document.querySelector(`.see-more-replies[data-comment-id="${commentId}"]`);
+              if (seeMoreBtn && seeMoreBtn.closest('div')) allItems.push(seeMoreBtn.closest('div'));
+
+              // Remove any inline highlight blocks that belong to this comment
+              document.querySelectorAll('.parent-reply-highlight').forEach(block => {
+                if (block.querySelector(`.comment-item[data-comment-id="${commentId}"]`)) {
+                  allItems.push(block);
+                }
+              });
+
+              allItems.forEach(el => {
+                if (!el) return;
+                el.style.transition = 'opacity 0.3s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 300);
+              });
+            }
 
           const countEls = document.querySelectorAll('.text-dark');
           countEls.forEach(el => {

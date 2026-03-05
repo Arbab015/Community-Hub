@@ -57,12 +57,11 @@ class ReportsController extends Controller
                             ->count();
                         return $postReports + $commentReports;
                     }
-                    return 0;
+
                 })
 
                 ->addColumn('actions', function ($report) use ($login_user) {
                     $view = "";
-                    $delete = "";
                     if (!$report->reportable) return '';
                     $url  = route(
                         'reports.show',
@@ -75,28 +74,24 @@ class ReportsController extends Controller
                        title="View details"></i>
                  </a>';
                     }
-                    if ($login_user->can('delete_reports')) {
-                        $delete =  '<form action="' . route('reports.dismiss', [$report->id]) . '" method="POST" style="display:inline;">'
-                            . csrf_field()
-                            . method_field('DELETE')
-                            . '<i class="fa-solid fa-trash-can text-danger" role="button" title="Delete" onclick="confirmDelete(event)">
-                                </i>'
-                            . '</form>';
-                        return $view . ' ' . $delete;
-                    }
+                        return $view;
                 })
                 ->rawColumns(['checkbox', 'actions'])
                 ->make(true);
         }
         $can_edit = $login_user->can('edit_user');
-        $can_delete = $login_user->can('delete_user');
-        $show_actions = $can_edit || $can_delete;
+        $show_actions = $can_edit;
         return view("content.reports.index", compact('show_actions'));
     }
 
 
     public function store(Request $request)
     {
+      $related_comments_ids = "";
+      if ($request->reportable_type == Comment::class) {
+        $comment = Comment::findOrFail($request->reportable_id);
+        $related_comments_ids = $comment->replies->pluck('id');
+      }
         $request->validate([
             'reportable_id'   => 'required|integer',
             'reportable_type' => 'required|in:post,comment',
@@ -108,7 +103,7 @@ class ReportsController extends Controller
             'comment' => Comment::class,
         ];
         $modelClass = $modelMap[$request->reportable_type];
-        $model = $modelClass::findOrFail($request->reportable_id);
+        $model = $modelClass::findOrfail($request->reportable_id);
 
         // Check if already reported
         $alreadyReported = Report::where('user_id', auth()->id())
@@ -117,7 +112,7 @@ class ReportsController extends Controller
             ->exists();
 
         if ($alreadyReported) {
-            return response()->json(['message' => 'You have already reported this.'], 422);
+          return response()->json(['message' => 'You have already reported this.'], 422);
         }
 
         Report::create([
@@ -127,7 +122,7 @@ class ReportsController extends Controller
             'reason'          => $request->reason,
             'type' => $request->type,
         ]);
-        return response()->json(['message' => 'Report submitted successfully.']);
+        return response()->json(['message' => 'Report submitted successfully.', "ids" => $related_comments_ids ]);
     }
 
 
@@ -135,16 +130,15 @@ class ReportsController extends Controller
     {
         // dd($type);
         $post  = Post::with(['reports.user', 'user'])->findOrFail($id);
-        // reported comments of this post 
+        // reported comments of this post
         $reportedComments = $post->comments()
             ->whereHas('reports')
             ->with(['reports.user', 'user'])
             ->latest()
             ->get();
 
-        dd($reportedComments);
         $reports = $post->reports()->with('user')->latest()->get();
-        return view('content.reports.view', compact('post', 'reports',));
+        return view('content.reports.view', compact('post', 'reports', 'reportedComments'));
     }
 
     public function dismissReport($id)

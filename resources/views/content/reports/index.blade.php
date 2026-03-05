@@ -14,7 +14,7 @@
   </nav>
   <div class="card">
     <div>
-      <div aclass="card-header pb-1">
+      <div class="card-header pb-1">
         <div class="dt-scroll-wrapper">
           <div class="dt-actions-bar">
             <div id="dt-right-actions" class="d-none">

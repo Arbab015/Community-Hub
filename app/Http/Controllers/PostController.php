@@ -67,7 +67,7 @@ class PostController extends Controller
         $counts = $this->getPostCounts($user);
         $admin_tags = Tag::all()->pluck('color', 'name');
         $reportedIds = Report::where('user_id', auth()->id())
-            ->where('reportable_type', \App\Models\Post::class)
+            ->where('reportable_type', Post::class)
             ->pluck('reportable_id')
             ->toArray();
         return view('content.forum.index', compact(
@@ -147,6 +147,10 @@ class PostController extends Controller
     {
         $user = Auth::user();
         $counts = $this->getPostCounts($user);
+      $reportedIds = Report::where('user_id', auth()->id())
+        ->where('reportable_type', Comment::class)
+        ->pluck('reportable_id')
+        ->toArray();
         if ($request->ajax() && $request->has('comment_id')) {
             $skip = (int) $request->skip;
             $replies = Comment::where('parent_id', $request->comment_id)
@@ -158,7 +162,8 @@ class PostController extends Controller
                 ->get();
             return response()->json([
                 'replies' => $replies,
-                'count' => $replies->count()
+                'count' => $replies->count(),
+              'reportedIds' => $reportedIds
             ]);
         }
 
@@ -175,10 +180,7 @@ class PostController extends Controller
             ->orderBy('created_at', request('sort') === 'oldest' ? 'asc' : 'desc')
             ->paginate(8);
         $admin_tags = Tag::pluck('color', 'name')->toArray();
-        $reportedIds = Report::where('user_id', auth()->id())
-            ->where('reportable_type', Comment::class)
-            ->pluck('reportable_id')
-            ->toArray();
+
         return view('content.forum.post', compact('type', 'post', 'admin_tags', 'comments', 'counts', 'reportedIds', 'report'));
     }
 
