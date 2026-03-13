@@ -22,13 +22,13 @@ class CommentsController extends Controller
     {
         try {
             // dd($request->all());
-            $request->validate([
-                'message' => 'required',
-                'post_id' => 'required|integer|exists:posts,id',
-                'image'   => 'nullable|image|max:5120',
-                'parent_id' => 'nullable|integer|exists:comments,id',
-                'edit_id' => 'nullable|integer|exists:comments,id',
-            ]);
+          $request->validate([
+            'message' => 'required_without:image|nullable|string',
+            'image'   => 'required_without:message|nullable|image|max:5120',
+            'post_id' => 'required|integer|exists:posts,id',
+            'parent_id' => 'nullable|integer|exists:comments,id',
+            'edit_id' => 'nullable|integer|exists:comments,id',
+          ]);
 
             // Edit mode
             if ($request->edit_id) {
@@ -52,7 +52,6 @@ class CommentsController extends Controller
                 $comment->save();
                 return redirect()->back()->with('success', 'Comment updated successfully!');
             }
-
             // Create new comment
             $comment = Comment::create([
                 'message' => $request->message,
@@ -60,12 +59,10 @@ class CommentsController extends Controller
                 'parent_id' => $request->parent_id,
                 'user_id' => auth()->id(),
             ]);
-
             if ($request->hasFile('image')) {
                 app(FileServices::class)
                     ->compressAndStore($request->file('image'), $comment, true, true);
             }
-
             return redirect()->back()->with('success', 'Comment posted successfully!');
         } catch (\Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());

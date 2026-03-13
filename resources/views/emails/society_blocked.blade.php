@@ -6,10 +6,10 @@
 </head>
 
 <body>
-  <h2>Hello {{ $society->owner->first_name }} {{ $society->owner->last_name }},</h2>
+<h2><strong> Subject: </strong>  Society Blocked Notification,</h2>
 
-  <p><strong>Dear Administrator, </strong><br>
-    This is a formal notification to inform you that your society, {{ $society->name }} (ID: {{ $society->id }}), has
+<strong> Dear {{ $society->name }} Team, </strong> <br>
+    This is a formal notification to inform you that your society, {{ $society->name }} (Address: {{ $society->address }}) (City: {{ $society->city }}), has
     been blocked. This action was taken due to a violation of our terms of service or a security policy.
     As a result, access to the account is currently suspended. To initiate a review and resolve this matter, please
     contact our support team.<br>
@@ -20,7 +20,7 @@
 
   <br>
   <p>Regards,<br>
-    {{ config('app.name') }}</p>
+    Support Team</p>
 </body>
 
 </html>

@@ -65,21 +65,31 @@ Route::middleware(['auth'])->group(function () {
     Route::get('society/create/{slug}', 'create')->name('society.create')->middleware('permission:add_society'); // for creation
     Route::get('/societies/{slug}', 'index')->name('societies.index')->middleware('permission:listing_society');
     Route::post('society/store/{slug}/{uuid?}', 'storeOrUpdate')->name('society.store')->middleware('permission:add_society');
-    Route::get('/societies/{slug}/{uuid}', 'show')->name('societies.show');
+    Route::get('/societies/{user_type}/{uuid}', 'show')->name('societies.show');
     Route::get('attachment/delete/{id}', 'destroy')->name('attachment.delete');
     Route::post('/societites/bulk_delete', 'bulkDelete')->name('societies.bulk_delete');
     Route::get('society/delete/{slug}/{uuid}', 'deleteSociety')->name('society.delete');
     Route::get('society/block/{slug}/{uuid}', 'blockSociety')->name('society.block');
   });
 
+  Route::post('/society/switch', [\App\Http\Controllers\SocietySwitcherController::class, 'switch'])
+    ->name('society.switch');
+
 
   Route::controller(PostController::class)->group(function () {
     Route::get('posts/index/{type}', 'index')->where('type', 'discussions|suggestions|issues')->name('posts.index');
     Route::get('posts/create/{type}', 'create')->where('type', 'discussions|suggestions|issues')->name('posts.create');
+    Route::get('societies/{user_type}/{uuid}/posts/create/{type}', 'createAdminView')->where('type', 'discussions|suggestions|issues')->name('posts.create_in_admin');
     Route::post('posts/store', 'storeOrUpdate')->name('posts.store');
     Route::get('posts/edit/{type}/{slug}', 'edit')->where('type', 'discussions|suggestions|issues')->name('posts.edit');
+    Route::get('societies/{user_type}/{uuid}/posts/edit/{type}/{slug}', 'editInAdmin')->where('type', 'discussions|suggestions|issues')->name('posts.edit_in_admin');
+
     Route::get('posts/delete/{uuid}', 'destroy')->name('posts.destroy');
-    Route::get('posts/view/{type}/{slug}/{report?}', 'postView')->where('type', 'discussions|suggestions|issues')->name('posts.view');
+    Route::get('posts/view/{type}/{slug}/{report?}', 'postView')->name('posts.view');
+
+    Route::get('societies/{user_type}/{uuid}/posts/view/{type}/{slug}/{report?}', 'societyPostView')
+      ->name('society_posts.view');
+    Route::get('posts/pin/{uuid}', 'postPin')->where('type', 'discussions|suggestions|issues')->name('posts.pin');
     // my posts
     Route::get('my_posts/index/{type}/{uuid}', 'index')->where('type', 'discussions|suggestions|issues')->name('my_posts.index');
   });
@@ -116,6 +126,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/view/{id}', 'show')->name('reports.show');
     Route::delete('reports/dismiss/{id}', 'dismissReport')->name('reports.dismiss');
     Route::post('/reports/{type}/{id}', 'takeAction')->name('reports.action');
+    Route::post('/reports/bulk_delete',  'bulkDelete')->name('reports.bulk_delete');
   });
 
   // Notification routes

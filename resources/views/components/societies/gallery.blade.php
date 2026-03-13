@@ -8,9 +8,11 @@
             <i class="fa-solid fa-images text-primary me-2"></i>
             Gallery
           </h5>
+          @if (auth()->user()->can('edit_society') && $society->status == 'active')
           <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
             <i class="fa-solid fa-cloud-upload me-2"></i>Upload Media
           </button>
+            @endif
         </div>
         @php
           // Filter only images and videos using the extensions column
@@ -104,9 +106,11 @@
             </div>
             <h5 class="text-muted mb-2">No media files yet</h5>
             <p class="text-muted mb-3">Upload images or videos to create your gallery</p>
+            @if (auth()->user()->can('edit_society') && $society->status == 'active')
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
               <i class="fa-solid fa-cloud-upload me-2"></i>Upload First Media
             </button>
+              @endif
           </div>
         @endif
       </div>

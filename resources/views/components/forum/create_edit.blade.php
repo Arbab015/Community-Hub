@@ -17,6 +17,11 @@
             <input type="hidden" name="post_uuid" value="{{ $post->uuid }}">
           @endif
 
+          @if($user_type)
+            <input type="hidden" name="user_type" value="{{ $user_type }}">
+             {{--          society uuid--}}
+            <input type="hidden" name="uuid" value="{{ $uuid }}">
+            @endif
           <!-- Title -->
           <div class="form-control-validation mb-4">
             <label class="form-label-input fw-bolder required" for="title">Title</label>

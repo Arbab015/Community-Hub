@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\Post;
 use App\Models\Comment;
+use App\Models\Tag;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Yajra\DataTables\DataTables;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
@@ -37,17 +39,27 @@ class ReportsController extends Controller
                     })
             )
                 ->addColumn('checkbox', function ($report) {
+                  $postId = $report->reportable->post
+                    ? $report->reportable->post->id
+                    : $report->reportable->id;
                     return '<input type="checkbox" class="form-check-input checkbox"
-                value="' . $report->id . '">';
+                value="' . $postId . '">';
                 })
+              ->addColumn('post', function ($report) {
+                if ($report->reportable) {
+                  $title = $report->reportable->title ?? $report->reportable->post->title;
 
-                ->addColumn('post', function ($report) {
-                    if ($report->reportable) {
-                        return $report->reportable->title ?? $report->reportable->post->title;
-                    }
-                    return '';
-                })
-
+                  $postId = $report->reportable->post
+                    ? $report->reportable->post->id
+                    : $report->reportable->id;
+                  $url = route('reports.show', $postId);
+                  $shortTitle = Str::limit($title, 55, '...');
+                  return '<a href="'.$url.'" title="'.$title.'" class="badge bg-label-info text-truncate d-inline-block" >
+                    '.$shortTitle.'
+                </a>';
+                }
+                return '';
+              })
                 ->addColumn('no_of_reports', function ($report) {
                     if ($report->reportable) {
                         $post = $report->reportable->post ?? $report->reportable;
@@ -76,7 +88,7 @@ class ReportsController extends Controller
                     }
                         return $view;
                 })
-                ->rawColumns(['checkbox', 'actions'])
+                ->rawColumns(['checkbox', 'actions', 'post'])
                 ->make(true);
         }
         $can_edit = $login_user->can('edit_user');
@@ -95,8 +107,7 @@ class ReportsController extends Controller
         $request->validate([
             'reportable_id'   => 'required|integer',
             'reportable_type' => 'required|in:post,comment',
-            'type' =>  'required|in:spam,misleading,hate_speech,harassment,violence,adult_content,scam,copyright,illegal_activity,off_topic,other',
-            'reason'     => 'required|max:500',
+            'reason'     => 'required|max:100',
         ]);
         $modelMap = [
             'post'    => Post::class,
@@ -120,7 +131,6 @@ class ReportsController extends Controller
             'reportable_id'   => $model->id,
             'reportable_type' => $modelClass,
             'reason'          => $request->reason,
-            'type' => $request->type,
         ]);
         return response()->json(['message' => 'Report submitted successfully.', "ids" => $related_comments_ids ]);
     }
@@ -155,19 +165,37 @@ class ReportsController extends Controller
 
     public function takeAction(Request $request, $type, $id)
     {
-        try {
-            if ($type === 'post') {
-                $post = Post::findOrFail($id);
-                $post->reports()->delete();
-                $post->blocked = "blocked";
-            } else {
-                $comment = Comment::findOrFail($id)->delete();
-                $comment->reports()->delete();
-                $comment->delete();
-            }
-            return redirect()->route('reports.index')->with('success', ucfirst($type) . ' deleted successfully.');
-        } catch (Exception $e) {
-            return back()->with('error', $e->getMessage());
+      try {
+        $item = $type == 'post' ? Post::findOrFail($id) : Comment::findOrFail($id);
+        $item->reports()->delete();
+        if ($type == 'post') {
+          $item->blocked = true;
+          $item->save();
+          $message = "Post blocked successfully.";
+        } else {
+          $item->delete();
+          $message = "Message deleted successfully.";
         }
+        return redirect()->route('reports.index')->with('success', $message);
+      } catch (Exception $e) {
+        return back()->with('error', $e->getMessage());
+      }
     }
+
+
+  public function bulkDelete(Request $request)
+  {
+    try {
+      foreach ($request->ids as $id) {
+        $post = Post::findOrFail($id);
+        $post->reports()->delete();
+        foreach ($post->comments as $comment) {
+          $comment->reports()->delete();
+        }
+      }
+      return response()->json(['success' => true]);
+    } catch (Exception $e) {
+      return redirect()->back()->withInput()->with('error', $e->getMessage());
+    }
+  }
 }

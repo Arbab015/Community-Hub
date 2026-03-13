@@ -6,7 +6,7 @@
       <div class="text-center mb-6 ">
         <h4 class="mb-2 fw-bolder ">Edit Basic Information</h4>
       </div>
-      <form id="editSocietyForm" method="POST" action="{{ route('society.store', [$slug, $society->uuid]) }}">
+      <form id="editSocietyForm" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}">
         @csrf
         <div class="card-body ">
           <div class="row g-4">

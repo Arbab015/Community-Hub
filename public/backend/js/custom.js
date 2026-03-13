@@ -122,9 +122,10 @@ function openReport(id, type) {
   currentReportId = id;
   document.getElementById('report_id').value = id;
   document.getElementById('report_type').value = type;
-  document.getElementById('reason_id').value = '';
+  // document.getElementById('reason_id').value = '';
   new bootstrap.Modal(document.getElementById('report_modal')).show();
 }
+
 let report_form = document.getElementById('reportForm');
 if (report_form) {
   report_form.addEventListener('submit', function (e) {
@@ -139,34 +140,28 @@ if (report_form) {
     })
       .then(res => res.json())
       .then(data => {
-        console.log(data);
-        $(`.post-item[data-id="${currentReportId}"]`).remove();
-        // Remove all related reply comments
-        // Remove main comments
-        $(`.comment-item[data-comment-id="${currentReportId}"]`).remove();
-
-// Remove all related replies
-        if (data.ids && data.ids.length > 0) {
-          data.ids.forEach(function (id) {
-            $(`.comment-item[data-comment-id="${id}"]`).remove();
-          });
-        }
-
-        $(`.report_${currentReportId}`).hide();
-        $(`.already_reported_${currentReportId}`).removeClass('d-none');
+        const allIds = [currentReportId, ...(data.ids || [])];
+        allIds.forEach(function (id) {
+          // Remove post item
+          $(`.post-item[data-id="${id}"]`).remove();
+          // Remove comment item
+          const commentItem = document.querySelector(`.comment-item[data-comment-id="${id}"]`);
+          if (commentItem) {
+            document.querySelector(`.replies-container-${id}`)?.remove();
+            document.querySelector(`.see-more-replies[data-comment-id="${id}"]`)?.closest('div')?.remove();
+            // If inside highlight block, remove whole block, else just the item
+            const highlightBlock = commentItem.closest('.parent-reply-highlight');
+            highlightBlock ? highlightBlock.remove() : commentItem.remove();
+          }
+          $(`.report_${id}`).hide();
+          $(`.already_reported_${id}`).removeClass('d-none');
+        });
         bootstrap.Modal.getInstance(document.getElementById('report_modal')).hide();
         Swal.fire('Success!', data.message, 'success');
       })
       .catch(err => {
         console.error(err);
-
-        let message = err.message || 'Something went wrong';
-
-        if (err.errors) {
-          message = Object.values(err.errors).flat().join('<br>');
-        }
-
-        Swal.fire('Error!', message, 'error');
+        Swal.fire('Error!', err.message || 'Something went wrong', 'error');
       });
   });
 }

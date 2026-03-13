@@ -27,23 +27,18 @@ if (!function_exists('normalize_color')) {
 
 
     if (preg_match('/hsva\((\d+),\s*(\d+)%?,\s*(\d+)%?,\s*([0-9.]+)\)/i', $color, $m)) {
-
       $h = $m[1];
       $s = $m[2] / 100;
       $v = $m[3] / 100;
       $a = $m[4];
-
       $l = $v * (1 - $s / 2);
       $newS = ($l == 0 || $l == 1) ? 0 : ($v - $l) / min($l, 1 - $l);
-
       return 'hsla('
         . round($h) . ','
         . round($newS * 100) . '%,'
         . round($l * 100) . '%,'
         . $a . ')';
     }
-
-
     return $color;
   }
 }

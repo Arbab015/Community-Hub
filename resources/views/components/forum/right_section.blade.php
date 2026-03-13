@@ -5,18 +5,21 @@
 {{-- Right Section --}}
 <div class="forum-right-sidebar">
   {{-- Create Post Button --}}
+  @if ( ($society->status == 'active') || auth()->user()->hasRole('Society Owner'))
   <div class="card border-0 shadow-sm mb-5">
-    <a href="{{ route('posts.create', $type) }}" class="btn btn-primary w-100">
+    <a href="{{ isset($user_type)
+    ? route('posts.create_in_admin', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type]) : route('posts.create', ['type' => $type]) }}" class="btn btn-primary w-100">
       Create Post
     </a>
   </div>
+  @endif
 
   <div class="row row-cols-1 row-cols-md-1 g-4 g-xl-0">
     {{-- My Contributions --}}
     <div class="col mb-xl-5">
       <div class="card border-0 shadow-sm h-100 position-sticky" style="top: 20px;">
         <div class="card-header bg-label-dark text-white py-2 mb-2">
-          <h6 class="mb-0">Me</h6>
+          <h6 class="mb-0">Me </h6>
         </div>
         <div class="card-body px-3">
           <div class="d-flex mb-2">
@@ -127,6 +130,5 @@
         </div>
       </div>
     </div>
-
   </div>{{-- end .row --}}
 </div>

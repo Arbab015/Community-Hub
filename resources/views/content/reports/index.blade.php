@@ -82,8 +82,8 @@
           ">",
         columns: [{
             data: 'checkbox',
-            orderable: false,
-            searchable: false
+            orderable: true,
+            searchable: true
           },
           {
             data: 'post'
@@ -102,7 +102,7 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('tags.bulk_delete') }}">
+            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('reports.bulk_delete') }}">
               Bulk Delete
             </button>
           `);
@@ -119,7 +119,7 @@
       width: 100% !important;
     }
 
-    .dt-search label {
+    .dt-search  {
       display: none !important;
     }
 

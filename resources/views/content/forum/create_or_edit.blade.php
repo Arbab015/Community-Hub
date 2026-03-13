@@ -22,12 +22,24 @@
         <a href="{{ route('dashboard.analytics') }}">Home</a>
         <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
+      @if(isset($user_type))
       <li class="breadcrumb-item">
-        <a href="{{ route('posts.index', $type) }}">Discussions</a>
+        <a href="{{ route('societies.index', $user_type) }}">Societies</a>
         <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
-      <li class="breadcrumb-item active">{{ isset($post) ? 'Edit' : 'Create' }}</li>
+      <li class="breadcrumb-item">
+        <a href="{{ route('societies.show', [$user_type, $uuid]) }}">Soceity</a>
+        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+      </li>
+      @else
+      <li class="breadcrumb-item">
+        <a href="{{ route('posts.index', $type) }}">{{$type}}</a>
+        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+      </li>
+      @endif
+      <li class="breadcrumb-item active">{{ isset($post) ? 'Post edit' : 'Post create' }}</li>
     </ol>
+
   </nav>
   @if (session('success'))
     <div class="alert alert-success"> {{ session('success') }} </div>
@@ -45,7 +57,6 @@
     </div>
   @endif
   @include('components.forum.create_edit')
-
 @endsection
 
 @push('scripts')
@@ -108,7 +119,7 @@
       });
     });
 
-    // slug on title 
+    // slug on title
     const titleInput = document.getElementById('title');
     const slugInput = document.getElementById('slug');
     titleInput.addEventListener('input', function() {

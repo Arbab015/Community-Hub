@@ -13,7 +13,7 @@
               <i class="fa-solid fa-camera text-white bg-primary  p-2 cursor-pointer"
                 onclick="document.getElementById('avatarInput').click();"></i>
             </span>
-            <form id="add_img_form" method="POST" action="{{ route('society.store', [$slug, $society->uuid]) }}"
+            <form id="add_img_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
               enctype="multipart/form-data">
               @csrf
               <input type="file" id="avatarInput" name="main_pic" class="d-none" accept="image/*"
@@ -67,7 +67,7 @@
                 class="btn btn-xs btn-icon btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
                 <i class="fa-solid fa-trash fa-sm"></i>
               </span>
-              <form id="add_files_form" method="POST" action="{{ route('society.store', [$slug, $society->uuid]) }}"
+              <form id="add_files_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
                 enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="type" value="document"></input>
@@ -243,7 +243,7 @@
     @php
       $canDelete = auth()->user()->can('delete_society');
       $canBlock =
-          auth()->user()->can('block_society') && auth()->user()->can('all_societies') && $society->status === 'active';
+          auth()->user()->can('block_society') && auth()->user()->can('all_societies');
     @endphp
 
     @if ($canDelete || $canBlock)
@@ -265,25 +265,24 @@
               remove the society and all associated data.
               This action cannot be undone.
             </p>
-            <a href="{{ route('society.delete', [$slug, $society->uuid]) }}" class="btn btn-danger"
+            <a href="{{ route('society.delete', [$user_type, $society->uuid]) }}" class="btn btn-danger"
               onclick="confirmDelete(event)">
               <i class="fa-solid fa-trash me-1"></i>
               Delete Society
             </a>
           @endif
 
-          {{-- BLOCK --}}
+          {{-- Block / Un-block --}}
           @if ($canBlock)
             <p class="mt-4 mb-3">
-              Blocking this society will
-              <strong class="text-warning fst-italic">temporarily</strong>
-              disable all activities for society users.
-              You can unblock the society at any time.
+              {{ $society->status === "active" ? 'Blocking this society will temporarily disable all activities for society users. You can unblock the society at any time. set this for unblockng' : 'Unblocking this society will restore all activities for society users. You can block the society again at any time.' }}
+
             </p>
-            <a href="{{ route('society.block', [$slug, $society->uuid]) }}" class="btn btn-warning"
+
+            <a href="{{ route('society.block', [$user_type, $society->uuid]) }}" class="btn btn-warning"
               onclick="confirmBlock(event)">
               <i class="fa-solid fa-ban me-1"></i>
-              Block Society
+              {{ $society->status === "active" ? 'Block' : 'Un-block' }} Society
             </a>
           @endif
         </div>

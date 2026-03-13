@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Mail\SocietyBlockedMail;
+use App\Mail\SocietyUnBlockMail;
 use App\Models\Post;
+use App\Models\Report;
 use App\Models\Society;
+use App\Models\Tag;
 use App\Models\User;
 use App\Services\FileServices;
 use Exception;
@@ -30,11 +33,13 @@ class SocietiesController extends Controller
 
     public function index(Request $request, $slug)
     {
+        $user_type = $slug;
         $skip = $request->input('skip', 0);
         $total_skip = 6 + $skip;
         $take = 6;
         $query = Society::with(['attachment', 'owner'])->latest();
-        if ($slug == "owner_societies") {
+        $user_role = auth()->user()->roles()->first();
+        if ($user_type == "owner_societies" && $user_role->name == "Society Owner") {
             $query->where('owner_id', auth()->id());
         }
         $query->when($request->name, fn($q) => $q->where('name', $request->name));
@@ -44,12 +49,12 @@ class SocietiesController extends Controller
         $total_societies = $query->count();
         $societies = $query->skip($skip)->take($take)->get();
         $dropdownQuery = Society::query();
-        if ($slug == "owner_societies") {
+        if ($user_type == "owner_societies") {
             $dropdownQuery->where('owner_id', auth()->id());
         }
         $societyNames = $dropdownQuery->distinct('id')->pluck('name');
         $cities = $dropdownQuery->distinct('id')->pluck('city');
-        $owners = $slug == "owner_societies"
+        $owners = $user_type == "owner_societies"
             ? collect()
             : User::whereHas('roles', fn($q) => $q->where('name', 'Society Owner'))->get();
 
@@ -64,7 +69,7 @@ class SocietiesController extends Controller
             'societies',
             'total_societies',
             'total_skip',
-            'slug',
+            'user_type',
             'societyNames',
             'cities',
             'owners'
@@ -158,7 +163,7 @@ class SocietiesController extends Controller
     }
 
 
-    public function show($slug, $uuid)
+    public function show($user_type, $uuid)
     {
         $society = Society::where('uuid', $uuid)->with(['attachment', 'attachments'])->first();
         $documents = $society->attachments->filter(function ($attachment) {
@@ -178,29 +183,29 @@ class SocietiesController extends Controller
                 ->where('category', 'issue')
                 ->count(),
         ];
-        $discussions = Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
+        $discussions = Post::orderByDesc('is_pinned')->with(['user', 'tags', 'likes', 'dislikes', 'comments'])
             ->where('society_id', $society->id)
             ->where('category', 'discussion')
             ->latest()
             ->paginate(10, ['*'], 'discussion_page');
-        $suggestions = \App\Models\Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
+        $suggestions = Post::orderByDesc('is_pinned')->with(['user', 'tags', 'likes', 'dislikes', 'comments'])
             ->where('society_id', $society->id)
             ->where('category', 'suggestion')
             ->latest()
             ->paginate(10, ['*'], 'suggestion_page');
-        $issues = \App\Models\Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
+        $issues = Post::orderByDesc('is_pinned')->with(['user', 'tags', 'likes', 'dislikes', 'comments'])
             ->where('society_id', $society->id)
             ->where('category', 'issue')
             ->latest()
             ->paginate(10, ['*'], 'issue_page');
-        $admin_tags = \App\Models\Tag::all()->pluck('color', 'name');
-        $reportedIds = \App\Models\Report::where('user_id', auth()->id())
+        $admin_tags = Tag::all()->pluck('color', 'name');
+        $reportedIds = Report::where('user_id', auth()->id())
             ->where('reportable_type', \App\Models\Post::class)
             ->pluck('reportable_id')
             ->toArray();
         $user = Auth::user();
         return view('content.societies.show', compact(
-            'slug',
+            'user_type',
             'uuid',
             'society',
             'discussions',
@@ -209,7 +214,8 @@ class SocietiesController extends Controller
             'admin_tags',
             'reportedIds',
             'counts',
-            'documents'
+            'documents',
+
         ));
     }
 
@@ -262,14 +268,20 @@ class SocietiesController extends Controller
     {
         try {
             $requested_society = Society::with('owner')->where('uuid', $uuid)->first();
-            if ($requested_society) {
+            if ($requested_society->status == "active") {
                 $requested_society->update(['status' => 'in-active']);
-            }
-
-            Mail::to($requested_society->owner->email)
+                $message = "Society has been blocked successfully.";
+              Mail::to($requested_society->owner->email)
                 ->send(new SocietyBlockedMail($requested_society));
-            return redirect()->route('societies.index', compact('slug'))->with('success', "Society has been blocked successfully.");
-        } catch (\Exception $e) {
+            }
+            else{
+              $requested_society->update(['status' => 'active']);
+              $message = "Society has been unblocked successfully.";
+              Mail::to($requested_society->owner->email)
+                ->send(new SocietyUnBlockMail($requested_society));
+            }
+            return redirect()->route('societies.index', compact('slug'))->with('success', $message);
+        } catch (Exception $e) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', $e->getMessage());

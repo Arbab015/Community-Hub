@@ -52,7 +52,7 @@ class PermissionsSeeder extends Seeder
             'add_reports',
             'view_post_reports',
             'delete_reports',
-
+            'can_pin',
         ];
 
         // Create permissions
@@ -97,6 +97,7 @@ class PermissionsSeeder extends Seeder
             'add_reports',
             'view_post_reports',
             'delete_reports',
+          'can_pin',
         ];
         // Get all users with Society Admin role
         $societyAdmins = User::role('Society Owner')->get();

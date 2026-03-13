@@ -9,7 +9,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" id="upload_media_society" action="{{ route('society.store', [$slug, $society->uuid]) }}"
+      <form method="POST" id="upload_media_society" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
         enctype="multipart/form-data">
         @csrf
         <input type="hidden" name="type" value="media"></input>

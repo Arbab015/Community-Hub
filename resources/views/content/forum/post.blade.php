@@ -7,7 +7,10 @@
   @endphp
 
   <div class="d-flex justify-content-between">
-    <h4 class="mb-1">{{ ucfirst($type) }}</h4>
+    <h4 class="mb-1">
+      {{ isset($user_type) ? 'Society Post Details' : ucfirst($type) }}
+    </h4>
+
     <div class="d-md-none">
       <button class="btn p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#forumRightOffcanvas"
               aria-controls="forumRightOffcanvas">
@@ -32,7 +35,16 @@
           <a href="{{ route('reports.show', $post->id) }}">Details</a>
           <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
         </li>
-      @else
+      @elseif(isset($user_type))
+          <li class="breadcrumb-item">
+            <a href="{{ route('societies.index', $user_type) }}">Societies</a>
+            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+          </li>
+          <li class="breadcrumb-item">
+            <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}">Soceity</a>
+            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+          </li>
+         @else
         <li class="breadcrumb-item">
           <a href="{{ route('posts.index', $type) }}">{{ ucfirst($type) }}</a>
           <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
@@ -89,56 +101,66 @@
               $roleMember = Auth()->user()->hasRole('Society Member');
             @endphp
             <div class="d-flex justify-content-between">
-              <div>
+              <div class=" w-100">
                 {{-- Title --}}
                 <div class="d-flex">
-                  <h6 class="fs-5 fw-bolder mb-1">{{ ucfirst($post->title) }}</h6>
+                  <h6 class="fs-5 fw-bolder mb-1 text-break">{{ ucfirst($post->title) }}</h6>
                   @if ($post->status == 'close')
                     <span class="ms-3 badge bg-warning"> Blocked </span>
                   @endif
                 </div>
+
                 {{-- Tags --}}
-                @if ($post->tags && count($post->tags) > 0)
-                  <div class="mb-2">
-                    @foreach ($post->tags as $tag)
-                      @php
-                        $color = normalize_color($tag->color);
-                      @endphp
-                      <span class="badge me-1"
-                            style="background-color: {{ $color ?? 'rgba(102,108,232,1)' }}; color: #fff;">
+                <div class="d-flex justify-content-between mt-2">
+                  @if ($post->tags)
+                    <div class="mb-2 tags">
+                      @foreach ($post->tags as $tag)
+                        @php
+                          $color = normalize_color($tag->color);
+                        @endphp
+                        <span class="badge "
+                              style="background-color: {{ $color ?? 'rgba(102,108,232,1)' }}; color: #fff; margin: 1px;">
                         # {{ $tag->name }}
                       </span>
-                    @endforeach
-                  </div>
-                @endif
+                      @endforeach
+                    </div>
+                  @endif
 
-                {{-- Actions --}}
-                <div class="d-flex gap-3 text-muted small mb-2 post-status">
+                  {{-- Actions --}}
+                  <div class="d-flex gap-3 text-muted small mb-2 post-status">
                   <span>
                     <i class="post_react icon-base ti ti tabler-thumb-up-filled me-1"></i>{{ $post->likes->count() }}
                   </span>
-                  <span>
+                    <span>
                     <i
                       class=" post_react icon-base ti ti tabler-thumb-down-filled me-1"></i>{{ $post->dislikes->count() }}
                   </span>
-                  <span>
+                    <span>
                     <i class="icon-base ti ti tabler-message-circle-filled me-1"></i>{{ $post->comments->count() }}
                   </span>
-                  @if (auth()->id() === $post->user_id)
-                    <span>
+                    @if (auth()->id() === $post->user_id)
+                      <span>
                       <i class="icon-base ti ti tabler-flag-filled me-1"></i>{{ $post->reports->count() }}
                     </span>
-                  @endif
-                  @if ($post->is_pinned)
-                    <span class="text-warning">
-                      <i class="ti ti tabler-pin-filled"></i>
+                    @endif
+                    @if ($post->is_pinned)
+                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Pinned">
+                      <i class="fas fa-thumbtack"></i>
                     </span>
-                  @endif
+                      @if ($post->blocked)
+                        <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Blocked">
+                      <i class="icon-base ti ti tabler-ban icon-sm text-danger"></i>
+                    </span>
+                      @endif
+
+                    @endif
+                  </div>
+
                 </div>
 
               </div>
 
-              @if ($isAuthor || $noComments || (!$canReport && $roleMember))
+              @if ($isAuthor || $noComments || (!$canReport || $roleMember))
                 <div class="dropdown">
                   <button class="btn btn-sm p-0 border-0" type="button" id="postActionDropdown{{ $post->id }}"
                           data-bs-toggle="dropdown" aria-expanded="false">
@@ -146,9 +168,17 @@
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end shadow-sm small"
                       aria-labelledby="postActionDropdown{{ $post->id }}">
+                    @can('can_pin')
+                      <li>
+                        <a class="dropdown-item py-1 small"
+                           href="{{ route('posts.pin', $post->uuid) }}">
+                          <i class="ti tabler-pin me-1"></i>  {{$post->is_pinned == true ? "Un-pin" : "Pin" }} Post
+                        </a>
+                      </li>
+                    @endcan
                     @if ($isAuthor)
                       <li>
-                        <a class="dropdown-item py-1 small" href="{{ route('posts.edit', [$type, $post->slug]) }}">
+                        <a class="dropdown-item py-1 small" href="{{ isset($user_type) ? route('posts.edit_in_admin', [$user_type, $society->uuid, $type,  $post->slug]) :  route('posts.edit', [$type, $post->slug]) }}">
                           <i class="ti tabler-edit me-1"></i> Edit
                         </a>
                       </li>
@@ -268,7 +298,7 @@
         </div>
       </div>
 
-
+     @if($post->comments->count() > 0)
       <div class="card border-0 shadow-sm">
         <div class="card-body post_details">
           {{-- All comments --}}
@@ -287,11 +317,7 @@
           </div>
         </div>
       </div>
-
-
-
-
-
+       @endif
 
     </div>
     @if (!$report)

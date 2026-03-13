@@ -12,17 +12,16 @@
 @section('page-script')
   @vite(['resources/assets/js/cards-actions.js'])
 @endsection
-
 @section('content')
   @php
-    $colClass = $slug == 'owner_societies' ? 'col-12 col-md-4 col-lg-4' : 'col-12 col-md-4 col-lg-3';
+    $colClass = $user_type == 'owner_societies' ? 'col-12 col-md-4 col-lg-4' : 'col-12 col-md-4 col-lg-3';
   @endphp
   <div class="d-flex justify-content-between text-align-center">
     <h4 class="mb-2">Societies</h4>
     @can('add_society')
       <div>
         <span class="d-flex justify-content-end">
-          <a type="button" href="{{ route('society.create', $slug) }}"
+          <a type="button" href="{{ route('society.create', $user_type) }}"
             class="btn btn-primary waves-effect waves-light btn-sm">
             Create New Society
           </a>
@@ -50,7 +49,7 @@
     <div class="col-12 ">
       <div class="card">
         <div class="card-body p-4">
-          <form id="filterForm" method="GET" action="{{ route('societies.index', $slug) }}">
+          <form id="filterForm" method="GET" action="{{ route('societies.index', $user_type) }}">
             <div class="row g-3">
               <div class="{{ $colClass }}">
                 <label class="form-label">Society Name </label>
@@ -82,7 +81,7 @@
                   <option value="in-active" {{ request('status') == 'in-active' ? 'selected' : '' }}>In-active</option>
                 </select>
               </div>
-              @if ($slug != 'owner_societies')
+              @if ($user_type != 'owner_societies')
                 <div class="col-12 col-md-4 col-lg-3">
                   <label class="form-label">Owner</label>
                   <select name="owner" class="form-select" onchange="document.getElementById('filterForm').submit()">
@@ -129,22 +128,23 @@
             alt="{{ $society->name }}" height="170px" style="object-fit: cover;" />
           <div class="card-body py-2 px-4">
             <h5 class="card-title fs-6 mb-0 ">{{ $society->name }}, {{ $society->city }} </h5>
-            @if ($slug == 'owner_societies')
+            @if ($user_type == 'owner_societies')
               <p class="card-text mb-0">
-                <small class="text-body">{{ $society->address }} </small>
+
+                <small class="text-body address-clamp" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-custom-class="tooltip-secondary" data-bs-original-title="{{ $society->address }}">{{ $society->address }} </small>
               </p>
               <p class="card-text mb-2 ">
                 <small class="text-body">{{ $society->country }}</small>
               </p>
             @endif
-            @if ($slug != 'owner_societies')
+            @if ($user_type != 'owner_societies')
               <p class="card-text mb-2 ">
                 <small class="text-body"><b>Owner:</b> {{ ucfirst($society->owner->first_name) }}
                   {{ ucfirst($society->owner->last_name) }}</small>
               </p>
             @endif
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <a href="{{ route('societies.show', [$slug, $society->uuid]) }}"
+              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
                 class="btn btn-outline-primary waves-effect btn-sm">
                 <i class="fa-regular fa-eye me-1"></i> View Details
               </a>
@@ -186,12 +186,12 @@
         name: $('select[name="name"]').val(),
         city: $('select[name="city"]').val(),
         status: $('select[name="status"]').val(),
-        @if ($slug != 'owner_societies')
+        @if ($user_type != 'owner_societies')
           owner: $('select[name="owner"]').val(),
         @endif
       };
       $.ajax({
-        url: "{{ route('societies.index', $slug) }}",
+        url: "{{ route('societies.index', $user_type) }}",
         type: "GET",
         data: data, // Changed this line
         success: function(response) {
@@ -201,7 +201,7 @@
               "{{ asset('storage/') }}/" + society.attachment.link :
               "{{ asset('assets/img/my_images/dummy_society_image.png') }}";
             var ownerInfo = '';
-            @if ($slug != 'owner_societies')
+            @if ($user_type != 'owner_societies')
               ownerInfo = `<p class="card-text mb-2">
               <small class="text-body"><b>Owner:</b> ${society.owner.first_name} ${society.owner.last_name}</small>
             </p>`;
@@ -214,7 +214,7 @@
             </p>`;
             @endif
             var statusBadgeClass = society.status == 'active' ? 'bg-primary' : 'bg-secondary';
-            var link = "{{ route('societies.show', [$slug, '__UUID__']) }}".replace('__UUID__', society
+            var link = "{{ route('societies.show', [$user_type, '__UUID__']) }}".replace('__UUID__', society
               .uuid);
             $('.societies_cards').append(`
             <div class="col-md-6 col-xl-4">
@@ -236,7 +236,7 @@
             </div>
           `);
           });
-          if (response.total_societies >= response.total_skip) {
+          if (response.total_societies > response.total_skip) {
             $("#load_more").show();
             spinner.addClass("d-none");
             $('#load_more_text').show();

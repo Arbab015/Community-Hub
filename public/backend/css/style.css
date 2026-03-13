@@ -1,7 +1,6 @@
 .iti {
   width: 100%;
 }
-
 .iti input {
   width: 100%;
 }
@@ -57,3 +56,19 @@
 .post-item h6 a:hover {
   color: #696cff !important;
 }
+
+.fs-xs {
+  font-size: 0.75rem !important; /* 12px */
+}
+.address-clamp{
+  display: -webkit-box;
+  -webkit-line-clamp: 2;   /* number of lines */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tags{
+  max-width:  66%;
+}
+
+

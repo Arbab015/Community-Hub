@@ -32,8 +32,6 @@
 @endif
 
 <div class="navbar-nav-right d-flex align-items-center justify-content-end" id="navbar-collapse">
-
-
   <!-- Search -->
   <div class="navbar-nav align-items-center">
     <div class="nav-item navbar-search-wrapper px-md-0 px-2 mb-0">
@@ -46,7 +44,29 @@
   <!-- /Search -->
   <ul class="navbar-nav flex-row align-items-center ms-md-auto">
 
-
+    <!-- Societies Switcher -->
+    @role('Society Member')
+    <li class="nav-item dropdown-language dropdown">
+      <a class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
+         href="javascript:void(0);" data-bs-toggle="dropdown">
+        <i class="icon-base ti tabler-transfer icon-22px text-heading"></i>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        @foreach($memberSocieties as $society)
+          <li>
+            <form action="{{ route('society.switch') }}" method="POST">
+              @csrf
+              <input type="hidden" name="society_id" value="{{ $society->id }}">
+              <button type="submit"
+                      class="dropdown-item {{ session('active_society_id') == $society->id ? 'active' : '' }}">
+                {{ $society->name . ' - ' . $society->city  }}
+              </button>
+            </form>
+          </li>
+        @endforeach
+      </ul>
+    </li>
+    @endrole
 
     <!-- Style Switcher -->
     <li class="nav-item dropdown">
@@ -209,7 +229,7 @@
           <ul class="list-group list-group-flush">
             @foreach ($userNotifications as $notification)
               <li
-                class="list-group-item list-group-item-action dropdown-notifications-item 
+                class="list-group-item list-group-item-action dropdown-notifications-item
                       {{ $notification->read_at ? 'marked_as_read' : '' }}">
                 <div class="d-flex">
 
@@ -284,19 +304,18 @@
                         ? asset('storage/' . Auth::user()->attachment->link)
                         : asset('assets/img/avatars/1.png') }}"
                     class="rounded-circle" />
-
                 </div>
               </div>
               <div class="flex-grow-1">
                 <h6 class="mb-0">
                   @if (Auth::check())
-                    {{ Auth::user()->first_name }} {{ Auth::user()->last_name }}
+                    {{ ucfirst(Auth::user()->first_name) }} {{ ucfirst(Auth::user()->last_name) }}
                   @else
                     User Name
                   @endif
                 </h6>
                 <small class="text-body-secondary"> @Auth
-                    {{ Auth::user()->roles->pluck('name')->implode(', ') }}
+                    {{ ucfirst(Auth::user()->roles->pluck('name')->implode(', ')) }}
                   @endauth
                 </small>
               </div>
