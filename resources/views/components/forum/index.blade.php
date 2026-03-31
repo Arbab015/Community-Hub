@@ -4,10 +4,19 @@
       @php
         $isAuthor = auth()->id() === $post->user_id;
         $noComments = $post->comments->count() === 0;
-        $canReport = in_array($post->id, $reportedIds);
+        $reported_post = in_array($post->id, $reportedIds);
         $roleMember = Auth()->user()->hasRole('Society Member');
+        $showPost = false;
+        $slug = isset($slug) ? $slug : 'my_posts';
+        if($slug === 'my_posts') {
+        $showPost = !$reported_post && (!$post->blocked || $isAuthor);
+        } elseif($slug === 'blocked_posts') {
+        $showPost = !$reported_post && $post->blocked;
+        } elseif($slug === 'requested_posts') {
+        $showPost = !$reported_post && $post->blocked && $post->is_unblock_requested;
+    }
       @endphp
-      @if(!$canReport && (!$post->blocked || $isAuthor))
+      @if($showPost)
         <div class="post-item" data-id="{{ $post->id }}">
           <div class="d-flex gap-3">
             <img src="{{ optional($post->user->attachment)->link
@@ -25,9 +34,8 @@
                     <span class="fw-medium">{{ $post->user->first_name }} {{ $post->user->last_name }}</span>
                     <span class="mx-1">•</span>
                     <span>{{ $post->created_at->diffForHumans() }}</span>
-                    @if ($post->blocked == true)
-                      <span class="ms-3 badge bg-label-secondary"> <i
-                          class="icon-base ti ti tabler-ban  me-1 icon-xs text-warning"></i>  Blocked </span>
+                    @if($isAuthor)
+                      <span class="badge bg-label-info ms-2"> Author </span>
                     @endif
                   </div>
                   @if ($post->tags && $post->tags->count() > 0)
@@ -44,8 +52,7 @@
                     </div>
                   @endif
                   <div class="d-flex gap-3 text-muted small">
-                          <span><i
-                              class="icon-base ti ti tabler-thumb-up-filled me-1"></i>{{ $post->likes->count() }}</span>
+                          <span><i class="icon-base ti ti tabler-thumb-up-filled me-1"></i>{{ $post->likes->count() }}</span>
                     <span><i
                         class="icon-base ti ti tabler-thumb-down-filled me-1"></i>{{ $post->dislikes->count() }}</span>
                     <span><i
@@ -53,15 +60,20 @@
                     @if ($isAuthor)
                       <span>
                               <i class="icon-base ti ti tabler-flag-filled me-1"></i>{{ $post->reports->count() }}
-                            </span>
+                      </span>
                     @endif
                     @if ($post->is_pinned)
                       <span class="text-warning"><i class="fas fa-thumbtack"></i></span>
                     @endif
+                    @if ($post->blocked)
+                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Blocked">
+                      <i class="icon-base ti ti tabler-ban icon-sm text-danger"></i>
+                      </span>
+                    @endif
                   </div>
                 </div>
 
-                @if ($isAuthor || $noComments || (!$canReport || $roleMember) )
+                @if ($isAuthor || $noComments || (!$reported_post || $roleMember) )
                   <div class="dropdown">
                     <button class="btn btn-sm p-0 border-0" type="button"
                             id="postActionDropdown{{ $post->id }}" data-bs-toggle="dropdown" aria-expanded="false">
@@ -77,14 +89,27 @@
                           </a>
                         </li>
                       @endcan
+
+                        @can('un-block_post')
+                          @if($post->is_unblock_requested)
+                            <li>
+                              <a class="dropdown-item py-1 small"
+                                 href="{{ route('posts.unblock',[$user_type, $uuid, $post->uuid]) }}">
+                                <i class="ti tabler-lock-open me-1"></i> Un-block Post
+                              </a>
+                            </li>
+                          @endif
+                        @endcan
+
                       @if($isAuthor)
+
                         <li>
                           <a class="dropdown-item py-1 small"
                              href="{{ isset($user_type) ? route('posts.edit_in_admin', ['user_type' => $user_type, 'uuid' => $society->uuid,'type' => $type,'slug' => $post->slug]): route('posts.edit', [$type, $post->slug])}}">
                             <i class="ti tabler-edit me-1"></i> Edit
                           </a>
                         </li>
-                        @if ($noComments)
+                        @if ($noComments || $post->blocked)
                           <li>
                             <a class="dropdown-item py-1 small text-danger"
                                href="{{ route('posts.destroy', $post->uuid) }}">
@@ -92,8 +117,9 @@
                             </a>
                           </li>
                         @endif
+
                       @else
-                        @if (!$canReport && $roleMember)
+                        @if (!$reported_post && $roleMember)
                           <li class="report_{{ $post->id }}">
                             <a class="dropdown-item py-1 small" href="#"
                                onclick="openReport({{ $post->id }}, 'post')">

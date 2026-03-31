@@ -6,7 +6,7 @@
 <!-- Navbar -->
 @if (isset($navbarDetached) && $navbarDetached == 'navbar-detached')
   <nav
-    class="layout-navbar container-fluid {{ $navbarDetached }} navbar navbar-expand-xl align-items-center bg-navbar-theme"
+    class="layout-navbar container-fluid {{ $navbarDetached }} navbar navbar-expand-xl align-items-center bg-navbar-theme "
     id="layout-navbar">
     @include('layouts/sections/navbar/navbar-partial')
   </nav>

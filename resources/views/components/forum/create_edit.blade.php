@@ -45,30 +45,33 @@
               <div class="invalid-feedback d-block">{{ $message }}</div>
             @enderror
           </div>
-          <div class="d-flex justify-content-between">
-            <div class="col-md-6">
+          <div class="row align-items-end g-3">
+            <div class="col-md-8 col-12">
               <label for="tags" class="form-label fw-bolder">Tags</label>
               <div class="select2-primary">
                 <select id="select2Primary" name="tags[]"
-                  class="select2 form-select @error('tags') is-invalid @enderror" multiple required>
+                        class="select2 form-select @error('tags') is-invalid @enderror" multiple required>
                   @foreach ($tags as $tag)
-                    <option value="{{ $tag->id }}" @if ((old('tags') && in_array($tag->id, old('tags'))) || (isset($post) && $post->tags->pluck('id')->contains($tag->id))) selected @endif>
+                    <option value="{{ $tag->id }}"
+                            @if ((old('tags') && in_array($tag->id, old('tags'))) || (isset($post) && $post->tags->pluck('id')->contains($tag->id))) selected @endif>
                       {{ $tag->name }}
                     </option>
                   @endforeach
                 </select>
                 @error('tags')
-                  <div class="invalid-feedback d-block">{{ $message }}</div>
+                <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
               </div>
             </div>
-            <div class="mt-5">
-              <button type="submit" class="btn btn-primary">{{ isset($post) ? 'Update Post' : 'Post Now' }}</button>
+
+            <div class="col-md-4 col-12 d-flex align-items-end">
+              <button type="submit" class="btn btn-primary w-100">
+                {{ isset($post) ? 'Update Post' : 'Post Now' }}
+              </button>
             </div>
           </div>
         </form>
       </div>
     </div>
   </div>
-
 </div>

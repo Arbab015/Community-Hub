@@ -44,6 +44,11 @@ class PermissionsSeeder extends Seeder
             'complaints',
             'listing_tag',
             'block_post',
+          'listing_block_post',
+          'listing_requested_post',
+            'un-block_request_post',
+          'cancel_unblock_request_post',
+            'un-block_post',
             'add_tag',
             'edit_tag',
             'delete_tag',
@@ -53,6 +58,10 @@ class PermissionsSeeder extends Seeder
             'view_post_reports',
             'delete_reports',
             'can_pin',
+            'listing_rule',
+          'add_rule',
+          'edit_rule',
+            'delete_rule',
         ];
 
         // Create permissions
@@ -74,6 +83,11 @@ class PermissionsSeeder extends Seeder
                 'issues',
                 'complaints',
                 'add_reports',
+                'listing_rule',
+                'add_rule',
+                'edit_rule',
+                'delete_rule',
+
             ])->get()
         );
         $user = User::where('email', 'arbabr904@gmail.com')->first();
@@ -92,13 +106,23 @@ class PermissionsSeeder extends Seeder
             'listing_society_manager',
             'listing_society_member',
             'block_post',
+            'listing_block_post',
+            'listing_requested_post',
+            'un-block_request_post',
+            'cancel_unblock_request_post',
+            'un-block_post',
             'listing_reports',
             'report_actions',
             'add_reports',
             'view_post_reports',
             'delete_reports',
-          'can_pin',
+            'can_pin',
+            'listing_rule',
+            'add_rule',
+            'edit_rule',
+            'delete_rule',
         ];
+
         // Get all users with Society Admin role
         $societyAdmins = User::role('Society Owner')->get();
         // Assign permissions directly to users
@@ -115,6 +139,7 @@ class PermissionsSeeder extends Seeder
                 'issues',
                 'complaints',
                 'add_reports',
+                'un-block_request_post',
             ])->get()
         );
     }

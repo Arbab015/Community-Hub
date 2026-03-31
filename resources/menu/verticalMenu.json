@@ -95,6 +95,21 @@
       "icon": "menu-icon icon-base ti tabler-flag",
       "url": "reports/index",
       "permission": "listing_reports"
+    },
+    {
+      "name": "Requested Posts",
+      "slug": "posts",
+      "icon": "menu-icon icon-base ti tabler-file-description",
+      "url": "unblock-requests/index",
+      "permission": "cancel_unblock_request_post"
+    },
+    {
+      "name": "Rules",
+      "slug": "rules",
+      "icon": "menu-icon icon-base ti tabler-clipboard-list",
+      "url": "rules/index",
+      "permission": "listing_rule"
     }
+
   ]
 }

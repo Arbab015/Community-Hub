@@ -1,4 +1,4 @@
-function confirmDelete(event) {
+function confirmDelete(event , action = null) {
   event.preventDefault();
   const el = event.currentTarget;
   const form = el.closest('form');
@@ -10,7 +10,7 @@ function confirmDelete(event) {
     showCancelButton: true,
     confirmButtonColor: '#3085d6',
     cancelButtonColor: '#d33',
-    confirmButtonText: 'Yes, delete it!'
+    confirmButtonText: action === true ? 'Yes, approve it!' : action === false ? 'Yes, cancel it!' : 'Yes, delete it!'
   }).then(result => {
     if (!result.isConfirmed) return;
     // form delete

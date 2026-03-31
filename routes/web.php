@@ -11,11 +11,14 @@ use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ReactionsController;
 use App\Http\Controllers\ReportsController;
-use App\Http\Controllers\RoleController;
+//use App\Http\Controllers\RoleController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\SocietiesController;
 use App\Http\Controllers\TagsController;
 use App\Http\Controllers\UsersController;
+use App\Http\Controllers\RulesController;
+use App\Http\Controllers\unblockRequestsController;
+
 
 // Main Page Route
 Route::middleware(['guest'])->group(function () {
@@ -65,7 +68,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('society/create/{slug}', 'create')->name('society.create')->middleware('permission:add_society'); // for creation
     Route::get('/societies/{slug}', 'index')->name('societies.index')->middleware('permission:listing_society');
     Route::post('society/store/{slug}/{uuid?}', 'storeOrUpdate')->name('society.store')->middleware('permission:add_society');
+
     Route::get('/societies/{user_type}/{uuid}', 'show')->name('societies.show');
+    Route::get('/societies/{user_type}/{uuid}/{type}/{slug}', 'renderPosts')->name('society.render_posts');
     Route::get('attachment/delete/{id}', 'destroy')->name('attachment.delete');
     Route::post('/societites/bulk_delete', 'bulkDelete')->name('societies.bulk_delete');
     Route::get('society/delete/{slug}/{uuid}', 'deleteSociety')->name('society.delete');
@@ -74,7 +79,6 @@ Route::middleware(['auth'])->group(function () {
 
   Route::post('/society/switch', [\App\Http\Controllers\SocietySwitcherController::class, 'switch'])
     ->name('society.switch');
-
 
   Route::controller(PostController::class)->group(function () {
     Route::get('posts/index/{type}', 'index')->where('type', 'discussions|suggestions|issues')->name('posts.index');
@@ -85,11 +89,19 @@ Route::middleware(['auth'])->group(function () {
     Route::get('societies/{user_type}/{uuid}/posts/edit/{type}/{slug}', 'editInAdmin')->where('type', 'discussions|suggestions|issues')->name('posts.edit_in_admin');
 
     Route::get('posts/delete/{uuid}', 'destroy')->name('posts.destroy');
-    Route::get('posts/view/{type}/{slug}/{report?}', 'postView')->name('posts.view');
 
-    Route::get('societies/{user_type}/{uuid}/posts/view/{type}/{slug}/{report?}', 'societyPostView')
+    Route::get('posts/view/{type}/{slug}', 'postView')->where('type', 'discussions|suggestions|issues')->name('posts.view');
+
+    Route::get('societies/{user_type}/{uuid}/posts/view/{type}/{slug}/{report?}', 'societyPostView')->where('type', 'discussions|suggestions|issues')
       ->name('society_posts.view');
     Route::get('posts/pin/{uuid}', 'postPin')->where('type', 'discussions|suggestions|issues')->name('posts.pin');
+
+    // handle block request and unblock post in society member case
+
+   // handle block request and unblock post in admins case routes
+    Route::get('posts/un-block_request/{identifier}', 'handleUnblockRequest')->where('type', 'discussions|suggestions|issues')->name('posts.unblock_request');
+    Route::get('societies/{user_type}/{uuid}/posts/un-block/{identifier}', 'postUnBlock')->where('type', 'discussions|suggestions|issues')->name('posts.unblock');
+
     // my posts
     Route::get('my_posts/index/{type}/{uuid}', 'index')->where('type', 'discussions|suggestions|issues')->name('my_posts.index');
   });
@@ -133,5 +145,18 @@ Route::middleware(['auth'])->group(function () {
   Route::controller(NotificationsController::class)->group(function () {
     Route::post('notification/read/{id?}', 'markAsRead')->name('notification.read');
     Route::post('notification/delete/{id?}', 'destroy')->name('notification.delete');
+  });
+
+  Route::controller(RulesController::class)->group(function () {
+    Route::get('rules/index', 'index')->name('rules.index');
+    Route::post('rules/store', 'store')->name('rules.store');
+    Route::delete('rules/destroy/{id}', 'destroy')->name('rules.destroy');
+    Route::post('/rules/bulk_delete',  'bulkDelete')->name('rules.bulk_delete');
+  });
+
+  Route::controller(unblockRequestsController::class)->group(function () {
+    Route::get('unblock-requests/index/{uuid?}', 'index')->name('requests.index');
+    Route::post('unblock-requests/cancel-post/{uuid}', 'requestCancel')->name('requests.cancel');
+    Route::post('unblock-requests/accept-post/{uuid}', 'requestApprove')->name('requests.approve');
   });
 });

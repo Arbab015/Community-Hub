@@ -1,5 +1,4 @@
 @extends('layouts/layoutMaster')
-
 @section('title', 'Society Details - ' . $society->name)
 @section('vendor-style')
   @vite(['resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/dropzone/dropzone.scss'])
@@ -57,7 +56,7 @@
     </div>
   @endif
 
-  @if (auth()->user()->can('owner_societies') || auth()->user()->can('all_societies') ) <!--  && $society->status == 'active' -->
+  @if (auth()->user()->can('owner_societies') || auth()->user()->can('all_societies') )
     <div class="col-12">
       <div class="card mb-4 shadow-sm rounded-3">
         <div class="card-header p-2 ">
@@ -72,7 +71,6 @@
                 Gallery
               </button>
             </li>
-
             <!-- Forum Dropdown -->
             <li class="nav-item dropdown">
               <button class="nav-link dropdown-toggle tab-danger" data-bs-toggle="dropdown" type="button">
@@ -102,7 +100,6 @@
                 Complaints
               </button>
             </li>
-
           </ul>
         </div>
       </div>
@@ -134,24 +131,39 @@
     </div>
   </div>
 
-  {{-- Right section offcanvas mobile only --}}
-
 @endsection
 
 @push('scripts')
   <script>
-    const forumTabIds = ['#discussions', '#suggestions', '#issues'];
     const offcanvasBtn = document.getElementById('forum_canvas_btn');
+    const offcanvasBtnInner = offcanvasBtn.querySelector('button');
+    const forumTabIds = ['#discussions', '#suggestions', '#issues'];
 
-    // Show offcanvas btn when any forum dropdown item is clicked
-    document.querySelectorAll('.dropdown-item[data-bs-toggle="tab"]').forEach(item => {
-      item.addEventListener('click', function () {
-        const target = this.getAttribute('data-bs-target');
-        if (forumTabIds.includes(target)) {
-          offcanvasBtn.classList.remove('d-none');
-          offcanvasBtn.classList.add('d-md-none');
+    document.addEventListener('shown.bs.tab', function (e) {
+      const target = e.target.getAttribute('data-bs-target');
+
+      if (forumTabIds.includes(target)) {
+        // Problem 1: show the button
+        offcanvasBtn.classList.remove('d-none');
+        offcanvasBtn.classList.add('d-md-none');
+
+        // Problem 2: point offcanvas button to the correct tab pane's offcanvas
+        // Each forum.blade.php include renders its own #forumRightOffcanvas inside the tab pane
+        // Find the visible/active one and retarget the button
+        const activePane = document.querySelector(target);
+        const activeOffcanvas = activePane ? activePane.querySelector('[id="forumRightOffcanvas"]') : null;
+        if (activeOffcanvas) {
+          // Give it a unique id based on the tab
+          const uniqueId = 'forumRightOffcanvas_' + target.replace('#', '');
+          activeOffcanvas.setAttribute('id', uniqueId);
+          offcanvasBtnInner.setAttribute('data-bs-target', '#' + uniqueId);
+          offcanvasBtnInner.setAttribute('aria-controls', uniqueId);
         }
-      });
+      } else {
+        // Problem 1: hide the button
+        offcanvasBtn.classList.add('d-none');
+        offcanvasBtn.classList.remove('d-md-none');
+      }
     });
   </script>
 @endpush

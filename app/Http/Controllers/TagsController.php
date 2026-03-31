@@ -44,14 +44,14 @@ class TagsController extends Controller
                             . '<i class="fa-solid fa-trash-can text-danger" role="button" title="Delete" onclick="confirmDelete(event)">
                                 </i>'
                             . '</form>';
-                        return $edit . ' ' . $delete;
                     }
+                   return $edit . ' ' . $delete;
                 })
                 ->rawColumns(['actions', 'checkbox', 'name'])
                 ->make(true);
         }
-        $can_edit = $login_user->can('edit_user');
-        $can_delete = $login_user->can('delete_user');
+        $can_edit = $login_user->can('edit_tag');
+        $can_delete = $login_user->can('delete_tag');
         $show_actions = $can_edit || $can_delete;
         return view("content.tags.index", compact('show_actions'));
     }

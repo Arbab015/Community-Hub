@@ -18,7 +18,17 @@
         <a href="{{ route('dashboard.analytics') }}">Home</a>
         <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
-      <li class="breadcrumb-item active">{{ ucfirst($type) }}</li>
+
+      @if($is_my_post ?? false)
+        <li class="breadcrumb-item">
+          <a href="{{ route('posts.index', $type) }}"> {{ ucfirst($type) }}</a>
+          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+        </li>
+      @endif
+
+      <li class="breadcrumb-item active">
+        {{ ($is_my_post ?? false) ? 'My Posts' : ucfirst($type) }}
+      </li>
     </ol>
   </nav>
 
@@ -40,13 +50,15 @@
               </div>
 
               {{-- Sort Dropdown --}}
-              <div class="col-12 col-sm-3 col-lg-2">
+
+              <div class="col-12 col-sm-3 col-xxl-2 ">
                 <select name="sort" class="form-select" onchange="this.form.submit()">
                   <option value="latest" {{ request('sort') == 'latest' || !request('sort') ? 'selected' : '' }}>Latest
                   </option>
                   <option value="oldest" {{ request('sort') == 'oldest' ? 'selected' : '' }}>Oldest</option>
                 </select>
               </div>
+
             </div>
           </form>
         </div>
@@ -68,9 +80,6 @@
 
       {{-- posts cards --}}
       @include('components.forum.index')
-
-
-
       {{-- pagination section --}}
       <div class="mt-3">
         {!! $posts->withQueryString()->links('pagination::bootstrap-5') !!}

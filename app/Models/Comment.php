@@ -7,10 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 
 class Comment extends Model
-{ 
+{
      use HasUuids;
     protected $guarded = [];
-
 
      public function uniqueIds(): array
     {

@@ -1,14 +1,14 @@
 @extends('layouts/layoutMaster')
 @section('title', 'Reports')
 @section('content')
-  <h4 class="mb-1">Reports</h4>
+  <h4 class="mb-1">Requested Posts</h4>
   <nav aria-label="breadcrumb" class="pt-2 pb-3">
     <ol class="breadcrumb breadcrumb-custom-icon">
       <li class="breadcrumb-item">
         <a href="{{ route('dashboard.analytics') }}">Home</a>
         <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
-      <li class="breadcrumb-item active">Reports</li>
+      <li class="breadcrumb-item active">Requested Posts</li>
     </ol>
   </nav>
   <div class="card">
@@ -42,16 +42,15 @@
 
           <!-- TABLE -->
           <div class="card-datatable">
-            <table id="reports_table" class="table table_to_reload datatables-users">
+            <table id="requested_reports_table" class="table table_to_reload datatables-users">
               <thead class="bg-label-primary">
-                <tr>
-                  <th><input type="checkbox" class="form-check-input" id="select_all"></th>
-                  <th>Post</th>
-                  <th>No or reports</th>
-                  @if ($show_actions)
-                    <th>Actions</th>
-                  @endif
-                </tr>
+              <tr>
+                <th><input type="checkbox" class="form-check-input" id="select_all"></th>
+                <th>Post</th>
+                @if ($show_actions)
+                  <th>Actions</th>
+                @endif
+              </tr>
               </thead>
             </table>
           </div>
@@ -64,12 +63,16 @@
 
 @push('scripts')
   <script>
+    let uuid = "{{ $uuid ?? '' }}";
+    let url = uuid
+      ? "{{ url('unblock-requests/index') }}/" + uuid
+      : "{{ url('unblock-requests/index') }}";
     $(function() {
       // DataTable initialization
-      let table = $('#reports_table').DataTable({
+      let table = $('#requested_reports_table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: `/reports/index`,
+        ajax: url,
         dom: "<'row align-items-center'" +
           "<'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0'l f <'#bulk-delete-wrap'>>" +
           "<'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start'<'dt-actions'>>" +
@@ -80,22 +83,19 @@
           "<'col-md-6 d-flex justify-content-end'p>" +
           ">",
         columns: [{
-            data: 'checkbox',
-            orderable: true,
-            searchable: true
-          },
+          data: 'checkbox',
+          orderable: true,
+          searchable: true
+        },
           {
             data: 'post'
           },
+            @if ($show_actions)
           {
-            data: 'no_of_reports'
+            data: 'actions',
+            orderable: false,
+            searchable: false
           },
-          @if ($show_actions)
-            {
-              data: 'actions',
-              orderable: false,
-              searchable: false
-            },
           @endif
         ],
         initComplete: function() {
@@ -117,15 +117,12 @@
     #color-picker-wrapper .pickr .pcr-button {
       width: 100% !important;
     }
-
     .dt-search  {
       display: none !important;
     }
-
     .dt-length label {
       display: none !important;
     }
-
     table.dataTable thead th {
       border-bottom: 2px solid #cdcdcf !important;
     }
@@ -135,7 +132,6 @@
         flex-direction: column !important;
         align-items: flex-start !important;
       }
-
       .dataTables_wrapper .dt-actions {
         width: 100% !important;
         display: flex !important;
@@ -144,18 +140,15 @@
         margin-top: 10px !important;
       }
     }
-
     @media (max-width: 991px) {
       .dt-scroll-wrapper {
         overflow-x: auto;
         width: 100%;
         -webkit-overflow-scrolling: touch;
       }
-
       .dt-scroll-wrapper>* {
         min-width: 1100px;
       }
-
       table.dataTable {
         white-space: nowrap;
       }

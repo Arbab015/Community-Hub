@@ -1,10 +1,10 @@
 /* The color-scheme CSS property https://web.dev/color-scheme/ */
 
 :root,
-[data-bs-theme="light"] {
-  @if ($bordered-style == true){
+[data-bs-theme='light'] {
+  @if ($bordered-style == true) {
     /* Bordered Skin Variables */
-    &[data-skin="bordered"]{
+    &[data-skin='bordered'] {
       --#{$prefix}body-bg: var(--#{$prefix}paper-bg);
       --#{$prefix}navbar-bg: var(--#{$prefix}paper-bg);
       --#{$prefix}navbar-box-shadow: none;
@@ -20,7 +20,7 @@
         box-shadow: 0 0 0 1px var(--#{$prefix}border-color);
       }
 
-      .footer{
+      .footer {
         --#{$prefix}footer-border-width: 1px;
         --#{$prefix}footer-box-shadow: none;
       }
@@ -46,7 +46,7 @@
       }
 
       // modal
-      .modal:not(.modal-transparent) .modal-content{
+      .modal:not(.modal-transparent) .modal-content {
         --#{$prefix}modal-box-shadow: none;
         --#{$prefix}modal-border-width: #{$border-width};
       }
@@ -181,11 +181,10 @@
   }
 }
 
-
 @if ($bordered-style == true) {
   /* Bordered Skin Variables */
-  [data-skin="bordered"] {
-    [data-bs-theme="dark"] {
+  [data-skin='bordered'] {
+    [data-bs-theme='dark'] {
       --#{$prefix}menu-horizontal-menu-box-shadow: 0 0 0 1px #{$border-color-dark};
       --#{$prefix}menu-horizontal-menu-sub-box-shadow: 0 0 0 1px #{$border-color-dark};
     }

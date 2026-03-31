@@ -5,18 +5,18 @@
   @php
     $reaction = $post->userReaction?->type;
   @endphp
-
   <div class="d-flex justify-content-between">
-    <h4 class="mb-1">
-      {{ isset($user_type) ? 'Society Post Details' : ucfirst($type) }}
-    </h4>
-
+      <h4 class="mb-1">
+        {{ isset($user_type) ? 'Society Post Details' : (isset($request_on) ? 'Post Details' : ucfirst($type)) }}
+      </h4>
+    @if (!$request_on)
     <div class="d-md-none">
       <button class="btn p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#forumRightOffcanvas"
               aria-controls="forumRightOffcanvas">
         <i class="icon-base ti tabler-menu-2 icon-md"></i>
       </button>
     </div>
+    @endif
   </div>
 
   <nav aria-label="breadcrumb" class="pt-2 pb-3">
@@ -25,26 +25,32 @@
         <a href="{{ route('dashboard.analytics') }}">Home</a>
         <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
-      @if ($report)
+      @if ($request_on)
+        @if($request_on == 'report')
         <li class="breadcrumb-item">
           <a href="{{ route('reports.index') }}">Reports</a>
           <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
         </li>
-
         <li class="breadcrumb-item">
           <a href="{{ route('reports.show', $post->id) }}">Details</a>
           <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
         </li>
+        @else
+          <li class="breadcrumb-item">
+            <a href="{{ route('requests.index', $in_society ? $society->uuid : null) }}">Requested Posts</a>
+            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+          </li>
+        @endif
       @elseif(isset($user_type))
-          <li class="breadcrumb-item">
-            <a href="{{ route('societies.index', $user_type) }}">Societies</a>
-            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-          </li>
-          <li class="breadcrumb-item">
-            <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}">Soceity</a>
-            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-          </li>
-         @else
+        <li class="breadcrumb-item">
+          <a href="{{ route('societies.index', $user_type) }}">Societies</a>
+          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+        </li>
+        <li class="breadcrumb-item">
+          <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}">Soceity</a>
+          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
+        </li>
+      @else
         <li class="breadcrumb-item">
           <a href="{{ route('posts.index', $type) }}">{{ ucfirst($type) }}</a>
           <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
@@ -79,9 +85,11 @@
             <small>{{ now()->diffForHumans() }}</small>
             <button type="button" class="btn-close " data-bs-dismiss="toast" aria-label="Close"></button>
           </div>
+
           <div class="toast-body">
             {{ session('error') }}
           </div>
+
         </div>
       @endif
     </div>
@@ -89,13 +97,13 @@
 
   <div class="row g-5">
     {{-- Left Section --}}
-    <div class="@if (!$report) col-md-9 @endif col-12">
+    <div class="@if (!$request_on) col-md-9 @endif col-12">
       {{-- Post Card --}}
       <div class="card border-0 shadow-sm mb-5">
         <div class="card-body py-2 py-4 px-6 ps-5">
           <div class="flex-grow-1">
             @php
-              $isAuthor = auth()->id() === $post->user_id;
+               $isAuthor = auth()->id() === $post->user_id;
               $noComments = $post->comments->count() === 0;
               $canReport = in_array($post->id, $reportedIds);
               $roleMember = Auth()->user()->hasRole('Society Member');
@@ -147,17 +155,14 @@
                       <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Pinned">
                       <i class="fas fa-thumbtack"></i>
                     </span>
-                      @if ($post->blocked)
+                    @endif
+                    @if ($post->blocked)
                         <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Blocked">
                       <i class="icon-base ti ti tabler-ban icon-sm text-danger"></i>
-                    </span>
+                      </span>
                       @endif
-
-                    @endif
                   </div>
-
                 </div>
-
               </div>
 
               @if ($isAuthor || $noComments || (!$canReport || $roleMember))
@@ -176,13 +181,36 @@
                         </a>
                       </li>
                     @endcan
+
+                      @can('un-block_request_post')
+                        @if($post->blocked && $isAuthor && $is_updated)
+                          <li>
+                            <a class="dropdown-item py-1 small"
+                               href="{{ route('posts.unblock_request', $post->uuid) }}">
+                              <i class="ti tabler-send me-1"></i> Request for Un-block
+                            </a>
+                          </li>
+                        @endif
+                      @endcan
+
+{{--                      @can('un-block_post')--}}
+{{--                        @if($post->is_unblock_requested)--}}
+{{--                          <li>--}}
+{{--                            <a class="dropdown-item py-1 small"--}}
+{{--                               href="{{ route('posts.unblock',[$user_type, $uuid, $post->uuid]) }}">--}}
+{{--                              <i class="ti tabler-lock-open me-1"></i> Un-block Post--}}
+{{--                            </a>--}}
+{{--                          </li>--}}
+{{--                        @endif--}}
+{{--                      @endcan--}}
+
                     @if ($isAuthor)
                       <li>
                         <a class="dropdown-item py-1 small" href="{{ isset($user_type) ? route('posts.edit_in_admin', [$user_type, $society->uuid, $type,  $post->slug]) :  route('posts.edit', [$type, $post->slug]) }}">
                           <i class="ti tabler-edit me-1"></i> Edit
                         </a>
                       </li>
-                      @if ($noComments)
+                      @if ($noComments || $post->blocked)
                         <li>
                           <a class="dropdown-item py-1 small text-danger"
                              href="{{ route('posts.destroy', $post->uuid) }}">
@@ -268,7 +296,7 @@
       {{-- all comments section --}}
       <div class="d-flex justify-content-between my-5 ">
         <div class="text-dark">
-          {{ $post->comments->count() }} comments
+          {{ $comments->count() }} comments
         </div>
 
         <div>
@@ -298,29 +326,39 @@
         </div>
       </div>
 
-     @if($post->comments->count() > 0)
-      <div class="card border-0 shadow-sm">
-        <div class="card-body post_details">
-          {{-- All comments --}}
-          @foreach ($comments as $comment)
-            @if (!in_array($comment->id, $reportedIds))
-              @include('components.forum.comment_item', [
-                  'comment' => $comment,
-                  'level' => 0,
-              ])
-              <hr class="my-4">
-            @endif
-          @endforeach
-          {{-- pagination section --}}
-          <div class="mt-3">
-            {!! $comments->withQueryString()->links('pagination::bootstrap-5') !!}
+      @if($comments->count() > 0)
+        <div class="card border-0 shadow-sm p-0">
+          <div class="card-body post_details">
+            {{-- All comments --}}
+            @foreach ($comments as $comment)
+              @if (!in_array($comment->id, $reportedIds))
+                @include('components.forum.comment_item', [
+                    'comment' => $comment,
+                    'level' => 0,
+                ])
+                <hr class="my-4">
+              @endif
+            @endforeach
+            {{-- pagination section --}}
+            <div class="mt-3">
+              {!! $comments->withQueryString()->links('pagination::bootstrap-5') !!}
+            </div>
           </div>
         </div>
-      </div>
-       @endif
+      @else
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+        <div class="text-center">
+          <i class="fas fa-inbox fa-3x text-muted mb-3 opacity-75"></i>
+          <h6 class="text-muted mb-1">No Comments found</h6>
+          <p class="text-muted small">Be the first to create one!</p>
+        </div>
+          </div>
+        </div>
+        @endif
 
     </div>
-    @if (!$report)
+    @if (!$request_on)
       {{-- Right section desktop only --}}
       <div class="d-none d-md-block col-md-3">
         @include('components.forum.right_section')
@@ -1096,32 +1134,32 @@
           return res.json();
         })
         .then(data => {
-            const item = document.querySelector(`[data-comment-id="${commentId}"]`);
-            if (item) {
-              const allItems = [item];
+          const item = document.querySelector(`[data-comment-id="${commentId}"]`);
+          if (item) {
+            const allItems = [item];
 
-              // Remove replies container for level-0 comments
-              const repliesContainer = document.querySelector(`.replies-container-${commentId}`);
-              if (repliesContainer) allItems.push(repliesContainer);
+            // Remove replies container for level-0 comments
+            const repliesContainer = document.querySelector(`.replies-container-${commentId}`);
+            if (repliesContainer) allItems.push(repliesContainer);
 
-              // Remove orphaned "See more replies" button wrapper
-              const seeMoreBtn = document.querySelector(`.see-more-replies[data-comment-id="${commentId}"]`);
-              if (seeMoreBtn && seeMoreBtn.closest('div')) allItems.push(seeMoreBtn.closest('div'));
+            // Remove orphaned "See more replies" button wrapper
+            const seeMoreBtn = document.querySelector(`.see-more-replies[data-comment-id="${commentId}"]`);
+            if (seeMoreBtn && seeMoreBtn.closest('div')) allItems.push(seeMoreBtn.closest('div'));
 
-              // Remove any inline highlight blocks that belong to this comment
-              document.querySelectorAll('.parent-reply-highlight').forEach(block => {
-                if (block.querySelector(`.comment-item[data-comment-id="${commentId}"]`)) {
-                  allItems.push(block);
-                }
-              });
+            // Remove any inline highlight blocks that belong to this comment
+            document.querySelectorAll('.parent-reply-highlight').forEach(block => {
+              if (block.querySelector(`.comment-item[data-comment-id="${commentId}"]`)) {
+                allItems.push(block);
+              }
+            });
 
-              allItems.forEach(el => {
-                if (!el) return;
-                el.style.transition = 'opacity 0.3s';
-                el.style.opacity = '0';
-                setTimeout(() => el.remove(), 300);
-              });
-            }
+            allItems.forEach(el => {
+              if (!el) return;
+              el.style.transition = 'opacity 0.3s';
+              el.style.opacity = '0';
+              setTimeout(() => el.remove(), 300);
+            });
+          }
 
           const countEls = document.querySelectorAll('.text-dark');
           countEls.forEach(el => {

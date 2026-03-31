@@ -30,14 +30,13 @@
             {{ $comment->created_at->format('F d, Y h:i A') }}
           </small>
         </div>
-
         @php
           $isAuther = auth()->id() === $comment->user_id;
-          $canReport = in_array($comment->id, $reportedIds);
+          $reported_comment = in_array($comment->id, $reportedIds);
           $roleMember = Auth()->user()->hasRole('Society Member');
         @endphp
         {{-- Dropdown for edit/delete --}}
-        @if ((!$canReport && $roleMember) || $isAuther)
+        @if ($isAuther || (!$reported_comment && $roleMember))
           <div class="dropdown">
             <button class="btn btn-sm p-0 border-0" type="button" id="commentActionDropdown{{ $comment->id }}"
                     data-bs-toggle="dropdown" aria-expanded="false">
@@ -58,7 +57,7 @@
                   </button>
                 </li>
               @else
-                @if (!$canReport && $roleMember)
+                @if (!$reported_comment && $roleMember)
                   {{-- Not yet reported - show button --}}
                   <li class="report_{{ $comment->id }}">
                     <a class="dropdown-item py-1 small" href="#"
@@ -72,7 +71,6 @@
           </div>
         @endif
       </div>
-
 
       {{-- Reply indicator (if this is a reply) --}}
       @if ($level > 0 && $comment->parent)

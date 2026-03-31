@@ -6,6 +6,7 @@ use App\Mail\SocietyBlockedMail;
 use App\Mail\SocietyUnBlockMail;
 use App\Models\Post;
 use App\Models\Report;
+use App\Models\Rule;
 use App\Models\Society;
 use App\Models\Tag;
 use App\Models\User;
@@ -169,16 +170,13 @@ class SocietiesController extends Controller
         $documents = $society->attachments->filter(function ($attachment) {
             return in_array($attachment->extension, ['pdf', 'doc', 'docx', 'xls', 'xlsx']);
         });
-        // dd($society->posts);
         $counts = [
             'discussionsCount' => $society->posts()
                 ->where('category', 'discussion')
                 ->count(),
-
             'suggestionsCount' => $society->posts()
                 ->where('category', 'suggestion')
                 ->count(),
-
             'issuesCount' => $society->posts()
                 ->where('category', 'issue')
                 ->count(),
@@ -204,10 +202,12 @@ class SocietiesController extends Controller
             ->pluck('reportable_id')
             ->toArray();
         $user = Auth::user();
-        return view('content.societies.show', compact(
+      $rules = Rule::where('society_owner_id', $society->owner_id)->get();
+      return view('content.societies.show', compact(
             'user_type',
             'uuid',
             'society',
+            'rules',
             'discussions',
             'suggestions',
             'issues',
@@ -215,7 +215,6 @@ class SocietiesController extends Controller
             'reportedIds',
             'counts',
             'documents',
-
         ));
     }
 
@@ -287,4 +286,36 @@ class SocietiesController extends Controller
                 ->with('error', $e->getMessage());
         }
     }
+
+  public function renderPosts($user_type, $uuid, $type, $slug)
+  {
+    $society = Society::where('uuid', $uuid)->first();
+    $type = rtrim($type, 's');
+    $counts = [
+      'discussionsCount' => $society->posts()->where('category', 'discussion')->count(),
+      'suggestionsCount' => $society->posts()->where('category', 'suggestion')->count(),
+      'issuesCount' => $society->posts()->where('category', 'issue')->count(),
+    ];
+    $query = Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
+      ->where('society_id', $society->id)
+      ->where('category', $type)
+      ->orderByDesc('is_pinned')
+      ->latest();
+    if ($slug === 'my_posts') {
+      $query->where('user_id', auth()->id());
+    } elseif ($slug === 'blocked_posts') {
+      $query->where('blocked', 1)->where('is_unblock_requested', 0);
+    } elseif ($slug === 'requested_posts') {
+      $query->where('blocked', 1)->where('is_unblock_requested', 1);
+    }
+    $posts = $query->paginate(10);
+    $reportedIds = [];
+    $rules = Rule::where('society_owner_id', $society->owner_id)->get();
+    logger($type);
+    $type = $type . 's';
+    logger($type);
+    return view('content.societies.me', compact(
+      'user_type', 'uuid', 'type', 'posts', 'society', 'counts', 'rules', 'reportedIds', 'slug'
+    ));
+  }
 }

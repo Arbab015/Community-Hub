@@ -35,11 +35,13 @@
         <div class="card-header d-flex justify-content-between align-items-center py-3">
           <div class="d-flex align-items-center gap-2">
             <h5 class="fw-bold mb-0">Post Details</h5>
+
             @php $category = $post->category . 's'; @endphp
             <a data-bs-toggle="tooltip" data-bs-placement="top" title="View Post"
-               href="{{ route('posts.view', ['type' => $category, 'slug' => $post->slug, 'report' => 'yes']) }}">
+               href="{{ route('posts.view', ['type' => $category, 'slug' => $post->slug, 'request_on' => 'report']) }}">
               <i class="ti tabler-external-link fs-5"></i>
             </a>
+
           </div>
 
           @if($post->reports->count() > 0)
@@ -50,6 +52,7 @@
               </button>
             </form>
           @endif
+
         </div>
 
         <div class="card-body">
@@ -217,7 +220,6 @@
         font-size: 0.91rem;
       }
     }
-
 
   </style>
 @endpush

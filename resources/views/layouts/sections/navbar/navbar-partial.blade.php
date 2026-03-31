@@ -59,7 +59,7 @@
               <input type="hidden" name="society_id" value="{{ $society->id }}">
               <button type="submit"
                       class="dropdown-item {{ session('active_society_id') == $society->id ? 'active' : '' }}">
-                {{ $society->name . ' - ' . $society->city  }}
+                {{ ucfirst($society->name) . ' - ' . ucfirst($society->city)  }}
               </button>
             </form>
           </li>
