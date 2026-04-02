@@ -38,7 +38,7 @@
   </nav>
 
   @if (session('success'))
-    <div class="alert alert-success">
+    <div class="alert alert-warning">
       {{ session('success') }}
     </div>
   @endif
