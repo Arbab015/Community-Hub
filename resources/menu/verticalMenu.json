@@ -103,6 +103,24 @@
       "url": "unblock-requests/index",
       "permission": "cancel_unblock_request_post"
     },
+
+    {
+      "name": "Property Management",
+      "slug": [
+        "users.index"
+      ],
+      "icon": "menu-icon icon-base ti tabler-building-skyscraper",
+      "submenu": [
+        {
+          "name": "Property Blocks",
+          "slug": "",
+          "route": "blocks.index",
+          "permission": "listing_block"
+        }
+      ]
+    },
+
+
     {
       "name": "Rules",
       "slug": "rules",

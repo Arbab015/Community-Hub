@@ -17,7 +17,9 @@ use App\Http\Controllers\SocietiesController;
 use App\Http\Controllers\TagsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\RulesController;
-use App\Http\Controllers\unblockRequestsController;
+use App\Http\Controllers\UnblockRequestsController;
+use App\Http\Controllers\PropertiesController;
+use App\Http\Controllers\BlocksController;
 
 
 // Main Page Route
@@ -117,6 +119,8 @@ Route::middleware(['auth'])->group(function () {
   });
 
 
+
+
   Route::controller(ReactionsController::class)->group(function () {
     Route::post('/react', 'react')->name('react');
   });
@@ -154,9 +158,25 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/rules/bulk_delete',  'bulkDelete')->name('rules.bulk_delete');
   });
 
-  Route::controller(unblockRequestsController::class)->group(function () {
+  Route::controller(UnblockRequestsController::class)->group(function () {
     Route::get('unblock-requests/index/{uuid?}', 'index')->name('requests.index');
     Route::post('unblock-requests/cancel-post/{uuid}', 'requestCancel')->name('requests.cancel');
     Route::post('unblock-requests/accept-post/{uuid}', 'requestApprove')->name('requests.approve');
   });
+
+
+  //Properties Management
+  Route::controller(BlocksController::class)->group(function () {
+    Route::get('blocks/index', 'index')->name('blocks.index')->middleware('permission:listing_block');
+    Route::post('blocks/store', 'store')->name('blocks.store')->middleware('permission:add_block');
+    Route::delete('blocks/destroy/{uuid}', 'destroy')->name('blocks.destroy')->middleware('permission:delete_block');
+    Route::post('/blocks/bulk_delete',  'bulkDelete')->name('blocks.bulk_delete')->middleware('permission:delete_block');
+  });
+
+  Route::controller(PropertiesController::class)->group(function () {
+    Route::get('blocks/view/{uuid}', 'show')->name('blocks.view')->middleware('permission:view_block');
+    Route::get('property/create', 'create')->name('property.create')->middleware('permission:create_property');
+    Route::post('property/store', 'store')->name('property.store')->middleware('permission:create_property');
+  });
+
 });

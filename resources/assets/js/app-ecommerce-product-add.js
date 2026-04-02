@@ -7,9 +7,7 @@
 
 (function () {
   // Comment editor
-
   const commentEditor = document.querySelector('.comment-editor');
-
   if (commentEditor) {
     new Quill(commentEditor, {
       modules: {
@@ -21,7 +19,6 @@
   }
 
   // previewTemplate: Updated Dropzone default previewTemplate
-
   // ! Don't change it unless you really know what you are doing
 
   const previewTemplate = `<div class="dz-preview dz-file-preview">
@@ -41,21 +38,19 @@
 </div>
 </div>`;
 
-  // ? Start your code from here
-
   // Basic Dropzone
 
-  const dropzoneBasic = document.querySelector('#dropzone-basic');
-  if (dropzoneBasic) {
-    const myDropzone = new Dropzone(dropzoneBasic, {
-      previewTemplate: previewTemplate,
-      parallelUploads: 1,
-      maxFilesize: 5,
-      acceptedFiles: '.jpg,.jpeg,.png,.gif',
-      addRemoveLinks: true,
-      maxFiles: 1
-    });
-  }
+  // const dropzoneBasic = document.querySelector('#dropzone-basic');
+  // if (dropzoneBasic) {
+  //   const myDropzone = new Dropzone(dropzoneBasic, {
+  //     previewTemplate: previewTemplate,
+  //     parallelUploads: 1,
+  //     maxFilesize: 5,
+  //     acceptedFiles: '.jpg,.jpeg,.png,.gif',
+  //     addRemoveLinks: true,
+  //     maxFiles: 1
+  //   });
+  // }
 
   // Basic Tags
 

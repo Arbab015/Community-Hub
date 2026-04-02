@@ -196,6 +196,8 @@
                 <div class="text-danger mt-2">{{ $message }}</div>
               @enderror
             </div>
+
+
             <div class="col-12 form-control-validation">
               <button type="submit" name="submitButton"
                 class="btn btn-primary">{{ isset($society) ? 'Update' : 'Save' }} Society</button>

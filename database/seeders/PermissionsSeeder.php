@@ -59,9 +59,20 @@ class PermissionsSeeder extends Seeder
             'delete_reports',
             'can_pin',
             'listing_rule',
-          'add_rule',
-          'edit_rule',
+            'add_rule',
+            'edit_rule',
             'delete_rule',
+
+            'listing_block',
+            'add_block',
+            'edit_block',
+            'delete_block',
+            'view_block',
+
+            'create_property',
+            'edit_property',
+            'delete_property',
+            'view_property',
         ];
 
         // Create permissions
@@ -87,6 +98,15 @@ class PermissionsSeeder extends Seeder
                 'add_rule',
                 'edit_rule',
                 'delete_rule',
+                'listing_block',
+                'add_block',
+                'edit_block',
+                'delete_block',
+                'view_block',
+               'create_property',
+              'edit_property',
+              'delete_property',
+              'view_property',
 
             ])->get()
         );
@@ -121,6 +141,17 @@ class PermissionsSeeder extends Seeder
             'add_rule',
             'edit_rule',
             'delete_rule',
+
+          'listing_block',
+          'add_block',
+          'edit_block',
+          'delete_block',
+          'view_block',
+
+          'create_property',
+          'edit_property',
+          'delete_property',
+          'view_property',
         ];
 
         // Get all users with Society Admin role

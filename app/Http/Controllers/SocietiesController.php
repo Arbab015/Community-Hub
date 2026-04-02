@@ -20,11 +20,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SocietiesController extends Controller
 {
-    protected $compressor;
-    public function __construct(FileServices $compressor)
-    {
-        $this->compressor = $compressor;
-    }
+
 
     public function create($slug)
     {
@@ -80,7 +76,8 @@ class SocietiesController extends Controller
 
     public function storeOrUpdate(Request $request, $slug, $uuid = null)
     {
-        $type = $type = strtolower($request->input('type', ''));
+      dd($request->all());
+        $type = strtolower($request->input('type', ''));
         $is_picture   = $request->hasFile('main_pic');
         $is_documents = $request->hasFile('documents');
         $is_basic     = !$is_picture && !$is_documents;

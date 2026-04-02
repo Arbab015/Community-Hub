@@ -215,7 +215,6 @@ class UsersController extends Controller
         // Validate
         $data = $request->validate($rules);
         try {
-
             // Password hashing
             if (array_key_exists('password', $data)) {
                 if ($data['password']) {

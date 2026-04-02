@@ -37,7 +37,7 @@ class Society extends Model
         return $this->morphMany(Attachment::class, 'attachable')->where('is_main', false);
     }
 
-    // Societies owned by user 
+    // Societies owned by user
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');
@@ -49,7 +49,7 @@ class Society extends Model
     }
 
 
-    // society members 
+    // society members
     public function members()
     {
         return $this->belongsToMany(
@@ -57,4 +57,9 @@ class Society extends Model
             'member_societies'
         );
     }
+
+    // property blocks
+  public function blocks(){
+      return $this->hasMany(Block::class, 'society_id');
+  }
 }

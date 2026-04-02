@@ -44,7 +44,6 @@
   // --------------------------------------------------------------------
   const dropzoneMulti = document.querySelector('.dropzone_multi');
   const isRestricted = dropzoneMulti.getAttribute('isRestricted');
-  console.log(isRestricted);
   let myDropzoneMulti = null;
   if (dropzoneMulti) {
     myDropzoneMulti = new Dropzone(dropzoneMulti, {
@@ -63,12 +62,16 @@
   // Handle form submission - Add files to hidden inputs before submit
   const create_society_form = document.querySelector('#create_society_form');
   const upload_media_form = document.querySelector('#upload_media_society');
+  const property_form = document.querySelector('#property_form');
   let form = '';
   if (create_society_form) {
     form = create_society_form;
   }
   if (upload_media_form) {
     form = upload_media_form;
+  }
+  if (property_form){
+    form = property_form;
   }
   if (form) {
     form.addEventListener('submit', function (e) {

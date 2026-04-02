@@ -46,7 +46,6 @@ class ReportsController extends Controller
       $scope = SocietyAccessResolver::resolver($login_user);
       if ($scope['isSocietyScoped']) {
         $ownedSocietyIds = $scope['ownedSocietyIds'];
-
         $query->where(function ($q) use ($ownedSocietyIds) {
           $q->where(function ($q2) use ($ownedSocietyIds) {
             $q2->where('reportable_type', Post::class)

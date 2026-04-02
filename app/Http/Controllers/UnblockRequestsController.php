@@ -8,7 +8,7 @@ use App\Models\Society;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Yajra\DataTables\DataTables;
-class unblockRequestsController extends Controller
+class UnblockRequestsController extends Controller
 {
   public function index(Request $request, $uuid = null)
   {
