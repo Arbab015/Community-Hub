@@ -38,12 +38,29 @@
               content. This content is a little bit longer.</p>
             <p class="card-text"><small class="text-body-secondary">Last updated 3 mins ago</small></p>
           </div>
+
+          <!-- Footer -->
+          <div class="card-footer bg-white border-0 d-flex justify-content-between">
+            <a href="{{ route('property.details', $property->uuid) }}" class="btn btn-sm btn-outline-primary w-100">
+              View Details
+            </a>
+          </div>
+
         </div>
       </div>
-    </div>
+
+    @empty
+      <!-- Empty State -->
+      <div class="card ">
+        <div class="text-center py-5">
+          <i class="ti tabler-building-skyscraper fs-1 not_found_icon"> </i>
+          <h6 class="text-muted">No properties found</h6>
+        </div>
+      </div>
+
+    @endforelse
   </div>
 
-
-  </div>
+  @include('_partials._modals.lightbox_model')
 @endsection
 
