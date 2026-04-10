@@ -125,6 +125,7 @@
   <script>
     // Lightbox
     function openLightbox(url, isVideo) {
+      console.log(url);
       const modal = new bootstrap.Modal(document.getElementById('lightboxModal'));
       const img = document.getElementById('lightboxImage');
       const video = document.getElementById('lightboxVideo');

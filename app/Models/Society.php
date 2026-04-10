@@ -2,29 +2,19 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-
+use Illuminate\Database\Eloquent\Model;
 
 class Society extends Model
 {
     use HasUuids;
-    protected $fillable = [
-        'name',
-        'status',
-        'address',
-        'country',
-        'city',
-        'owner_id'
-    ];
-
+    protected $guarded = [];
 
     public function uniqueIds(): array
     {
         return ['uuid'];
     }
+
     // Single main attachment (society  picture)
     public function attachment()
     {
@@ -48,7 +38,6 @@ class Society extends Model
         return $this->hasMany(Post::class, 'society_id');
     }
 
-
     // society members
     public function members()
     {
@@ -59,7 +48,8 @@ class Society extends Model
     }
 
     // property blocks
-  public function blocks(){
-      return $this->hasMany(Block::class, 'society_id');
-  }
+    public function blocks()
+    {
+        return $this->hasMany(Block::class, 'society_id');
+    }
 }

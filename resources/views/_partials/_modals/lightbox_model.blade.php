@@ -1,7 +1,7 @@
 <!-- Lightbox Modal -->
 <div class="modal fade" id="lightboxModal" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content bg-dark">
+    <div class="modal-content bg-dark p-3">
       <div class="modal-header border-0">
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>

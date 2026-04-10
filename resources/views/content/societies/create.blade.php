@@ -58,10 +58,12 @@
             enctype="multipart/form-data" class="row g-6 validation_form">
             @csrf
             <div class="alert alert-warning alert-dismissible mb-0" role="alert">
-              <h5 class="alert-heading mb-1">Ensure that these requirements are met</h5>
-              <span>Related documents are important documents connected to the society's identity, <br> such as
+              <h5 class="alert-heading mb-1"> Ensure that these requirements are met</h5>
+              <span><i class="ti tabler-point"></i> Related documents are important documents connected to the society's identity, <br> such as
                 agreements,
-                registration papers, and other official records.</span>
+                registration papers, and other official records. <br>
+                <i class="ti tabler-point"></i> Property marla size must be in <strong>Square Feet's </strong>.
+              </span>
               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             <!-- Account Details -->
@@ -158,6 +160,16 @@
 
               @error('address')
                 <div class="invalid-feedback d-block">{{ $message }}</div>
+              @enderror
+            </div>
+
+            <div class="col-md-6 form-control-validation">
+              <label class="form-label fw-bolder required" for="marla_size">Property Marla Size:</label>
+              <input type="number" class="form-control @error('marla_size') is-invalid @enderror" name="marla_size" step="0.01"
+                     id="marla_size" placeholder="Enter marla size in square feet's " value="{{ old('marla_size') }}" required />
+
+              @error('marla_size')
+              <div class="invalid-feedback d-block">{{ $message }}</div>
               @enderror
             </div>
 

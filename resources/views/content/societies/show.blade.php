@@ -56,24 +56,31 @@
     </div>
   @endif
 
+
   @if (auth()->user()->can('owner_societies') || auth()->user()->can('all_societies') )
     <div class="col-12">
       <div class="card mb-4 shadow-sm rounded-3">
         <div class="card-header p-2 ">
           <ul class="nav nav-pills flex-wrap gap-1" role="tablist">
+
             <li class="nav-item">
               <button class="nav-link  active" data-bs-toggle="tab" data-bs-target="#info" type="button">
+                <i class="fa-solid fa-circle-info me-2"></i>
                 Info
               </button>
             </li>
+
             <li class="nav-item">
-              <button class="nav-link tab-warning" data-bs-toggle="tab" data-bs-target="#gallery" type="button">
+              <button class="nav-link " data-bs-toggle="tab" data-bs-target="#gallery" type="button">
+                <i class="fa-solid fa-image me-2"></i>
                 Gallery
               </button>
             </li>
+
             <!-- Forum Dropdown -->
             <li class="nav-item dropdown">
               <button class="nav-link dropdown-toggle tab-danger" data-bs-toggle="dropdown" type="button">
+                <i class="fa-solid fa-inbox me-2"></i>
                 Forum
               </button>
               <ul class="dropdown-menu">
@@ -95,20 +102,18 @@
               </ul>
             </li>
 
-            <li class="nav-item">
-              <button class="nav-link tab-danger" data-bs-toggle="tab" data-bs-target="#complaints" type="button">
-                Complaints
-              </button>
-            </li>
+
           </ul>
         </div>
       </div>
     </div>
   @endif
 
+
   {{-- show tabs content --}}
   <div class="tab-content p-0">
     <div class="tab-pane fade show active" id="info">
+
       @include('components.societies.info')
     </div>
     <div class="tab-pane fade" id="gallery">

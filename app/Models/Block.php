@@ -21,4 +21,9 @@ class Block extends Model
     return $this->belongsTo(Society::class, 'society_id');
   }
 
+
+  public function properties(){
+    return $this->hasMany(Property::class, 'block_id');
+  }
+
 }

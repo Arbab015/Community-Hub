@@ -2,16 +2,23 @@
 
 @section('title', 'Blocks/Sectors')
 @section('content')
+  <div class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Property Management</p>
   <h4 class="mb-1">Property Blocks/Sectors</h4>
-  <nav aria-label="breadcrumb" class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
+  <nav aria-label="breadcrumb" >
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item">
         <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
       </li>
       <li class="breadcrumb-item active">Blocks/Sectors</li>
     </ol>
   </nav>
+    </div>
+    <i class="ti tabler-building-estate text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+  </div>
+
+
   <div class="card">
     <div class="">
       <div class="card-header pb-1">

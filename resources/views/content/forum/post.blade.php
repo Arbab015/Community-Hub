@@ -171,13 +171,14 @@
                           data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="ti tabler-dots-vertical" style="font-size: 1rem;"></i>
                   </button>
+
                   <ul class="dropdown-menu dropdown-menu-end shadow-sm small"
                       aria-labelledby="postActionDropdown{{ $post->id }}">
                     @can('can_pin')
                       <li>
                         <a class="dropdown-item py-1 small"
                            href="{{ route('posts.pin', $post->uuid) }}">
-                          <i class="ti tabler-pin me-1"></i>  {{$post->is_pinned == true ? "Un-pin" : "Pin" }} Post
+                          <i class="ti tabler-pin me-1"></i>  {{ $post->is_pinned == true ? "Un-pin" : "Pin" }} Post
                         </a>
                       </li>
                     @endcan

@@ -20,12 +20,11 @@ use Illuminate\Support\Facades\Storage;
 
 class SocietiesController extends Controller
 {
-
-
     public function create($slug)
     {
         $user = Auth::user();
-        return view('content.societies.create',  compact('slug'));
+
+        return view('content.societies.create', compact('slug'));
     }
 
     public function index(Request $request, $slug)
@@ -36,24 +35,24 @@ class SocietiesController extends Controller
         $take = 6;
         $query = Society::with(['attachment', 'owner'])->latest();
         $user_role = auth()->user()->roles()->first();
-        if ($user_type == "owner_societies" && $user_role->name == "Society Owner") {
+        if ($user_type == 'owner_societies' && $user_role->name == 'Society Owner') {
             $query->where('owner_id', auth()->id());
         }
-        $query->when($request->name, fn($q) => $q->where('name', $request->name));
-        $query->when($request->city, fn($q) => $q->where('city', $request->city));
-        $query->when($request->status, fn($q) => $q->where('status', $request->status));
-        $query->when($request->owner, fn($q) => $q->where('owner_id', $request->owner));
+        $query->when($request->name, fn ($q) => $q->where('name', $request->name));
+        $query->when($request->city, fn ($q) => $q->where('city', $request->city));
+        $query->when($request->status, fn ($q) => $q->where('status', $request->status));
+        $query->when($request->owner, fn ($q) => $q->where('owner_id', $request->owner));
         $total_societies = $query->count();
         $societies = $query->skip($skip)->take($take)->get();
         $dropdownQuery = Society::query();
-        if ($user_type == "owner_societies") {
+        if ($user_type == 'owner_societies') {
             $dropdownQuery->where('owner_id', auth()->id());
         }
         $societyNames = $dropdownQuery->distinct('id')->pluck('name');
         $cities = $dropdownQuery->distinct('id')->pluck('city');
-        $owners = $user_type == "owner_societies"
+        $owners = $user_type == 'owner_societies'
             ? collect()
-            : User::whereHas('roles', fn($q) => $q->where('name', 'Society Owner'))->get();
+            : User::whereHas('roles', fn ($q) => $q->where('name', 'Society Owner'))->get();
 
         if ($request->ajax()) {
             return response()->json([
@@ -62,6 +61,7 @@ class SocietiesController extends Controller
                 'total_skip' => $total_skip,
             ]);
         }
+
         return view('content.societies.index', compact(
             'societies',
             'total_societies',
@@ -73,14 +73,13 @@ class SocietiesController extends Controller
         ));
     }
 
-
     public function storeOrUpdate(Request $request, $slug, $uuid = null)
     {
-      dd($request->all());
+//                dd($request->all());
         $type = strtolower($request->input('type', ''));
-        $is_picture   = $request->hasFile('main_pic');
+        $is_picture = $request->hasFile('main_pic');
         $is_documents = $request->hasFile('documents');
-        $is_basic     = !$is_picture && !$is_documents;
+        $is_basic = ! $is_picture && ! $is_documents;
         $rules = match (true) {
             $is_picture => [
                 'main_pic' => 'required|image|max:20000',
@@ -110,27 +109,29 @@ class SocietiesController extends Controller
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
+                'marla_size' => 'required|decimal:2',
             ],
         };
         // Creation requires basic info even if files come first
-        if (!$uuid) {
+        if (! $uuid) {
             $rules += [
                 'name' => 'required|string|min:6',
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
+                'marla_size' => 'required|decimal:2',
             ];
         }
         $request->validate($rules);
         try {
             DB::beginTransaction();
             $society = $uuid ? Society::where('uuid', $uuid)->firstOrFail() : new Society(['owner_id' => Auth::id()]);
-            if ($is_basic || !$uuid) {
-                $society->fill($request->only(['name', 'country', 'city', 'address']))->save();
+            if ($is_basic || ! $uuid) {
+                $society->fill($request->only(['name', 'country', 'city', 'address', 'marla_size']))->save();
             }
             if ($is_picture) {
                 if ($society->attachment && Storage::disk('public')->exists($society->attachment->link)) {
-                    //delete form disk
+                    // delete form disk
                     Storage::disk('public')->delete($society->attachment->link);
                 }
                 app(FileServices::class)->compressAndStore(
@@ -156,10 +157,10 @@ class SocietiesController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             report($e);
+
             return back()->with('error', $e->getMessage());
         }
     }
-
 
     public function show($user_type, $uuid)
     {
@@ -199,8 +200,9 @@ class SocietiesController extends Controller
             ->pluck('reportable_id')
             ->toArray();
         $user = Auth::user();
-      $rules = Rule::where('society_owner_id', $society->owner_id)->get();
-      return view('content.societies.show', compact(
+        $rules = Rule::where('society_owner_id', $society->owner_id)->get();
+
+        return view('content.societies.show', compact(
             'user_type',
             'uuid',
             'society',
@@ -219,11 +221,13 @@ class SocietiesController extends Controller
     {
         try {
             app(FileServices::class)->deleteByIds([$id]);
+
             return redirect()
                 ->back()
                 ->with('success', 'File deleted successfully');
         } catch (\Throwable $e) {
             report($e);
+
             return redirect()
                 ->back()
                 ->withInput()
@@ -231,17 +235,18 @@ class SocietiesController extends Controller
         }
     }
 
-
     public function bulkDelete(Request $request)
     {
         try {
             app(FileServices::class)->deleteByIds($request->ids);
+
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {
             report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -251,7 +256,8 @@ class SocietiesController extends Controller
         try {
             $requested_society = Society::where('uuid', $uuid)->first();
             $requested_society->delete();
-            return redirect()->route('societies.index', compact('slug'))->with('success', "Society has been deleted successfully.");
+
+            return redirect()->route('societies.index', compact('slug'))->with('success', 'Society has been deleted successfully.');
         } catch (\Exception $e) {
             return redirect()->back()
                 ->withInput()
@@ -259,23 +265,22 @@ class SocietiesController extends Controller
         }
     }
 
-
     public function blockSociety($slug, $uuid)
     {
         try {
             $requested_society = Society::with('owner')->where('uuid', $uuid)->first();
-            if ($requested_society->status == "active") {
+            if ($requested_society->status == 'active') {
                 $requested_society->update(['status' => 'in-active']);
-                $message = "Society has been blocked successfully.";
-              Mail::to($requested_society->owner->email)
-                ->send(new SocietyBlockedMail($requested_society));
+                $message = 'Society has been blocked successfully.';
+                Mail::to($requested_society->owner->email)
+                    ->send(new SocietyBlockedMail($requested_society));
+            } else {
+                $requested_society->update(['status' => 'active']);
+                $message = 'Society has been unblocked successfully.';
+                Mail::to($requested_society->owner->email)
+                    ->send(new SocietyUnBlockMail($requested_society));
             }
-            else{
-              $requested_society->update(['status' => 'active']);
-              $message = "Society has been unblocked successfully.";
-              Mail::to($requested_society->owner->email)
-                ->send(new SocietyUnBlockMail($requested_society));
-            }
+
             return redirect()->route('societies.index', compact('slug'))->with('success', $message);
         } catch (Exception $e) {
             return redirect()->back()
@@ -284,35 +289,36 @@ class SocietiesController extends Controller
         }
     }
 
-  public function renderPosts($user_type, $uuid, $type, $slug)
-  {
-    $society = Society::where('uuid', $uuid)->first();
-    $type = rtrim($type, 's');
-    $counts = [
-      'discussionsCount' => $society->posts()->where('category', 'discussion')->count(),
-      'suggestionsCount' => $society->posts()->where('category', 'suggestion')->count(),
-      'issuesCount' => $society->posts()->where('category', 'issue')->count(),
-    ];
-    $query = Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
-      ->where('society_id', $society->id)
-      ->where('category', $type)
-      ->orderByDesc('is_pinned')
-      ->latest();
-    if ($slug === 'my_posts') {
-      $query->where('user_id', auth()->id());
-    } elseif ($slug === 'blocked_posts') {
-      $query->where('blocked', 1)->where('is_unblock_requested', 0);
-    } elseif ($slug === 'requested_posts') {
-      $query->where('blocked', 1)->where('is_unblock_requested', 1);
+    public function renderPosts($user_type, $uuid, $type, $slug)
+    {
+        $society = Society::where('uuid', $uuid)->first();
+        $type = rtrim($type, 's');
+        $counts = [
+            'discussionsCount' => $society->posts()->where('category', 'discussion')->count(),
+            'suggestionsCount' => $society->posts()->where('category', 'suggestion')->count(),
+            'issuesCount' => $society->posts()->where('category', 'issue')->count(),
+        ];
+        $query = Post::with(['user', 'tags', 'likes', 'dislikes', 'comments'])
+            ->where('society_id', $society->id)
+            ->where('category', $type)
+            ->orderByDesc('is_pinned')
+            ->latest();
+        if ($slug === 'my_posts') {
+            $query->where('user_id', auth()->id());
+        } elseif ($slug === 'blocked_posts') {
+            $query->where('blocked', 1)->where('is_unblock_requested', 0);
+        } elseif ($slug === 'requested_posts') {
+            $query->where('blocked', 1)->where('is_unblock_requested', 1);
+        }
+        $posts = $query->paginate(10);
+        $reportedIds = [];
+        $rules = Rule::where('society_owner_id', $society->owner_id)->get();
+        logger($type);
+        $type = $type.'s';
+        logger($type);
+
+        return view('content.societies.me', compact(
+            'user_type', 'uuid', 'type', 'posts', 'society', 'counts', 'rules', 'reportedIds', 'slug'
+        ));
     }
-    $posts = $query->paginate(10);
-    $reportedIds = [];
-    $rules = Rule::where('society_owner_id', $society->owner_id)->get();
-    logger($type);
-    $type = $type . 's';
-    logger($type);
-    return view('content.societies.me', compact(
-      'user_type', 'uuid', 'type', 'posts', 'society', 'counts', 'rules', 'reportedIds', 'slug'
-    ));
-  }
 }

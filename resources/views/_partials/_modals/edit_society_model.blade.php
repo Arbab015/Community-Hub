@@ -17,9 +17,9 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label fw-bolder fw-medium">Owner</label>
-              <input type="text" class="form-control" disabled
-                value="{{ $society->owner->first_name }} {{ $society->owner->last_name }}">
+              <label class="form-label fw-bolder fw-medium required">Default Marla Size:</label>
+              <input type="number" class="form-control" required name="marla_size" step="0.01"
+                     value="{{ old('marla_size', $society->marla_size) }}">
             </div>
 
             <div class="col-12">

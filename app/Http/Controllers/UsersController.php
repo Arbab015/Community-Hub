@@ -3,19 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Society;
-use App\Models\SocietyOwner;
 use App\Models\User;
-use App\Services\FileCompressionService;
 use App\Services\FileServices;
 use App\Services\PermissionMatrixService;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Yajra\DataTables\DataTables;
 
@@ -27,6 +23,7 @@ class UsersController extends Controller
     {
         $this->compressor = $compressor;
     }
+
     public function index(Request $request, $slug)
     {
         // dd($slug);
@@ -72,40 +69,43 @@ class UsersController extends Controller
             }
 
             $usersQuery->orderBy('id', 'desc');
+
             return DataTables::of($usersQuery)
                 ->addColumn('checkbox', function ($user) {
-                    return '<input type="checkbox" class="form-check-input checkbox" value="' . $user->id . '" data_type="user">';
+                    return '<input type="checkbox" class="form-check-input checkbox" value="'.$user->id.'" data_type="user">';
                 })
                 ->addColumn('role', function ($user) {
                     return $user->roles->pluck('name')->implode(', ');
                 })
                 ->addColumn('name', function ($user) use ($slug) {
                     $url = route('user.edit', [$user->uuid, $slug]);
+
                     return '
-                    <a href="' . $url . '" class="badge bg-label-secondary">
-                     ' . $user->first_name . ' ' . $user->last_name . '
+                    <a href="'.$url.'" class="badge bg-label-secondary">
+                     '.$user->first_name.' '.$user->last_name.'
                      </a>';
                 })
                 ->addColumn('actions', function ($user) use ($slug, $login_user) {
-                    $edit = "";
-                    $delete = "";
+                    $edit = '';
+                    $delete = '';
                     if ($login_user->can('edit_user')) {
-                        $edit = '<a href="' . route('user.edit', [$user->uuid, $slug]) . '" class="me-2">
+                        $edit = '<a href="'.route('user.edit', [$user->uuid, $slug]).'" class="me-2">
                               <i class="fa-solid fa-pen-to-square text-primary"></i>
                              </a>';
                     }
 
                     if ($login_user->can('delete_user')) {
-                        $delete = '<form action="' . route('users.destroy', $user->uuid) . '"
+                        $delete = '<form action="'.route('users.destroy', $user->uuid).'"
                           method="POST" style="display:inline;">
-                          ' . csrf_field() . method_field('DELETE') . '
+                          '.csrf_field().method_field('DELETE').'
                           <i class="fa-solid fa-trash text-danger"
                              style="cursor:pointer"
                              onclick="confirmDelete(event)">
                           </i>
                        </form>';
                     }
-                    return $edit . ' ' . $delete;
+
+                    return $edit.' '.$delete;
                 })
                 ->rawColumns(['checkbox', 'name', 'actions'])
                 ->make(true);
@@ -120,8 +120,6 @@ class UsersController extends Controller
         return view('content.users.index', compact(['roles', 'slug', 'show_actions']));
     }
 
-
-
     public function create($slug)
     {
         $roles = null;
@@ -129,20 +127,21 @@ class UsersController extends Controller
         if ($slug === 'society_owners') {
             // Only Society Owner role
             $roles = Role::where('name', 'Society Owner')->get();
-        } else if ($slug === 'society_members') {
+        } elseif ($slug === 'society_members') {
             $societies = Society::where('owner_id', Auth()->id())->get();
-        } else if ($slug === 'system_users') {
+        } elseif ($slug === 'system_users') {
             $roles = Role::whereNotIn('name', ['Super Admin', 'Society Owner', 'Society Member'])
                 ->where('user_id', Auth::id())
                 ->orderBy('name', 'desc')
                 ->get();
-        } else if ($slug === 'society_managers') {
+        } elseif ($slug === 'society_managers') {
             $roles = Role::whereNotIn('name', ['Super Admin', 'Society Owner'])
                 ->orderBy('name', 'desc')
                 ->where('user_id', Auth::id())
                 ->get();
             logger($roles);
         }
+
         return view('content.users.create', compact('societies', 'roles', 'slug'));
     }
 
@@ -170,14 +169,14 @@ class UsersController extends Controller
         // dd($request->all());
         $user = $uuid
             ? User::where('uuid', $uuid)->firstOrFail()
-            : new User();
+            : new User;
         $section = $request->input('section');
         $allRules = [
             'basic' => [
                 'first_name' => 'required|string|max:255|min:2',
-                'last_name'  => 'nullable|string|max:255',
-                'contact'    => 'required|string|max:20',
-                'picture'    => $uuid ? 'nullable|image|max:5120' : 'required|image|max:5120',
+                'last_name' => 'nullable|string|max:255',
+                'contact' => 'required|string|max:20',
+                'picture' => $uuid ? 'nullable|image|max:5120' : 'required|image|max:5120',
             ],
             'security' => [
                 'password' => $uuid
@@ -185,19 +184,19 @@ class UsersController extends Controller
                     : 'required|string|min:8|confirmed',
             ],
             'other' => [
-                'dob'               => 'required|date',
-                'country'           => 'required|string|max:50',
-                'cnic_passport'     => [
+                'dob' => 'required|date',
+                'country' => 'required|string|max:50',
+                'cnic_passport' => [
                     'required',
                     'string',
                     'max:50',
                     Rule::unique('users', 'cnic_passport')->ignore($uuid, 'uuid'),
                 ],
-                'gender'            => 'required|in:male,female,other',
-                'marital_status'    => 'required|in:married,un-married',
-                'profession'        => 'required|string|max:100',
+                'gender' => 'required|in:male,female,other',
+                'marital_status' => 'required|in:married,un-married',
+                'profession' => 'required|string|max:100',
                 'emergency_contact' => 'required|string|max:20',
-                'present_address'   => 'required|string|min:15',
+                'present_address' => 'required|string|min:15',
                 'permanent_address' => 'required|string|min:15',
             ],
             'meta' => [
@@ -235,7 +234,7 @@ class UsersController extends Controller
 
             if (
                 $request->filled('role') &&
-                ($section === 'roles' || !$uuid)
+                ($section === 'roles' || ! $uuid)
             ) {
                 // dd($request->filled('role'));
                 $user->assignRole(Role::find($request->role));
@@ -256,7 +255,7 @@ class UsersController extends Controller
                     'society' => 'required|exists:societies,id',
                 ]);
                 $user->memberSocieties()->syncWithoutDetaching([
-                    $request->society
+                    $request->society,
                 ]);
             }
 
@@ -272,7 +271,6 @@ class UsersController extends Controller
         }
     }
 
-
     public function destroy($uuid)
     {
         try {
@@ -285,6 +283,7 @@ class UsersController extends Controller
                 $old->delete();
             }
             $user->delete();
+
             return redirect()->route('users.index')->with('success', 'User deleted successfully');
         } catch (Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
@@ -295,6 +294,7 @@ class UsersController extends Controller
     {
         try {
             User::whereIn('id', $request->ids)->delete();
+
             return response()->json(['success' => true]);
         } catch (Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
@@ -304,9 +304,9 @@ class UsersController extends Controller
     public function downloadTemplate(Request $request)
     {
         $path = public_path('templates/Users-Community_Hub.csv');
+
         return response()->download($path, 'users_template.csv');
     }
-
 
     public function importUsers(Request $request)
     {

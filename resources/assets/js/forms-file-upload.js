@@ -62,7 +62,7 @@
   // Handle form submission - Add files to hidden inputs before submit
   const create_society_form = document.querySelector('#create_society_form');
   const upload_media_form = document.querySelector('#upload_media_society');
-  const property_form = document.querySelector('#property_form');
+  const property_form = document.querySelector('#upload_media_property');
   let form = '';
   if (create_society_form) {
     form = create_society_form;

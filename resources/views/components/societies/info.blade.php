@@ -1,3 +1,4 @@
+
 {{-- OverView --}}
 <div class="row g-4">
   {{-- Left Column --}}
@@ -6,18 +7,18 @@
       <div class="card-body text-center">
         <div class="position-relative d-inline-block mb-3">
           <img id="societyAvatarPreview" class="rounded border img-fluid"
-            src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
-            width="165" height="165">
+               src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
+               width="165" height="165">
           @if (auth()->user()->can('edit_society') && $society->status == 'active')
             <span class="position-absolute bottom-0 end-0" title="Click to change picture">
               <i class="fa-solid fa-camera text-white bg-primary  p-2 cursor-pointer"
-                onclick="document.getElementById('avatarInput').click();"></i>
+                 onclick="document.getElementById('avatarInput').click();"></i>
             </span>
             <form id="add_img_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
-              enctype="multipart/form-data">
+                  enctype="multipart/form-data">
               @csrf
               <input type="file" id="avatarInput" name="main_pic" class="d-none" accept="image/*"
-                onchange="previewAvatar(event), this.form.submit();">
+                     onchange="previewAvatar(event), this.form.submit();">
             </form>
           @endif
         </div>
@@ -64,15 +65,15 @@
 
             <div class="d-flex align-items-center gap-1">
               <span data-url="{{ route('societies.bulk_delete') }}"
-                class="btn btn-xs btn-icon btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
+                    class="btn btn-xs btn-icon btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
                 <i class="fa-solid fa-trash fa-sm"></i>
               </span>
               <form id="add_files_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
-                enctype="multipart/form-data">
+                    enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="type" value="document"></input>
                 <button type="submit" id="save_files_btn"
-                  class="btn btn-xs btn-icon btn-outline-info waves-effect d-none">
+                        class="btn btn-xs btn-icon btn-outline-info waves-effect d-none">
                   <i class="fa-solid fa-floppy-disk fa-sm"></i>
                 </button>
               </form>
@@ -111,18 +112,18 @@
                           @endphp
                           @if (!in_array($ext, ['xls', 'xlsx', 'csv']))
                             <a href="{{ asset('storage/' . $attachment->link) }}" target="_blank"
-                              class="btn btn-xs btn-icon btn-outline-primary">
+                               class="btn btn-xs btn-icon btn-outline-primary">
                               <i class="fa-regular fa-eye fa-sm"></i>
                             </a>
                           @endif
                         @endcan
                         <a href="{{ asset('storage/' . $attachment->link) }}" download title="Download"
-                          class="btn btn-xs btn-icon btn-outline-success">
+                           class="btn btn-xs btn-icon btn-outline-success">
                           <i class="fa-solid fa-download fa-sm"></i>
                         </a>
                         @if (auth()->user()->can('edit_society') && $society->status == 'active')
                           <a href="{{ route('attachment.delete', [$attachment->id]) }}" title="Delete"
-                            onclick="confirmDelete(event)" class="btn btn-xs btn-icon btn-outline-danger">
+                             onclick="confirmDelete(event)" class="btn btn-xs btn-icon btn-outline-danger">
                             <i class="fa-solid fa-trash fa-sm"></i>
                           </a>
                         @endif
@@ -158,7 +159,7 @@
           </span>
           @if (auth()->user()->can('edit_society') && $society->status == 'active')
             <button type="button" class="btn btn-text-info waves-effect" data-bs-toggle="modal"
-              data-bs-target="#edit_society_info"><i class="fa-solid fa-pen-to-square"></i></button>
+                    data-bs-target="#edit_society_info"><i class="fa-solid fa-pen-to-square"></i></button>
           @endif
         </h5>
       </div>
@@ -195,6 +196,12 @@
             <div class="info-container">
               <small class="text-muted text-uppercase d-block mb-1">Country</small>
               <h6 class="mb-0">{{ ucfirst($society->country) ?? 'N/A' }}</h6>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-container">
+              <small class="text-muted text-uppercase d-block mb-1">Default Marla Size:</small>
+              <h6 class="mb-0">{{ ucfirst($society->marla_size)  }} Square feet's </h6>
             </div>
           </div>
           <div class="col-md-6">
@@ -266,7 +273,7 @@
               This action cannot be undone.
             </p>
             <a href="{{ route('society.delete', [$user_type, $society->uuid]) }}" class="btn btn-danger"
-              onclick="confirmDelete(event)">
+               onclick="confirmDelete(event)">
               <i class="fa-solid fa-trash me-1"></i>
               Delete Society
             </a>
@@ -280,7 +287,7 @@
             </p>
 
             <a href="{{ route('society.block', [$user_type, $society->uuid]) }}" class="btn btn-warning"
-              onclick="confirmBlock(event)">
+               onclick="confirmBlock(event)">
               <i class="fa-solid fa-ban me-1"></i>
               {{ $society->status === "active" ? 'Block' : 'Un-block' }} Society
             </a>
