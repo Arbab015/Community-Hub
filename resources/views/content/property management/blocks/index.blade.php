@@ -18,6 +18,25 @@
     <i class="ti tabler-building-estate text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
   </div>
 
+  @if (session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+
+  @if (session('error'))
+    <div class="alert alert-danger">
+      {{ session('error') }}
+    </div>
+  @endif
+
+  @if ($errors->any())
+    <div class="alert alert-danger">
+      <ul>
+        @foreach ($errors->all() as $error)
+          <li>{{ $error }}</li>
+        @endforeach
+      </ul>
+    </div>
+  @endif
 
   <div class="card">
     <div class="">
@@ -33,25 +52,6 @@
             </div>
           </div>
 
-          @if (session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-          @endif
-
-          @if (session('error'))
-            <div class="alert alert-danger">
-              {{ session('error') }}
-            </div>
-          @endif
-
-          @if ($errors->any())
-            <div class="alert alert-danger">
-              <ul>
-                @foreach ($errors->all() as $error)
-                  <li>{{ $error }}</li>
-                @endforeach
-              </ul>
-            </div>
-          @endif
           <!-- TABLE -->
           <div class="card-datatable">
             <table id="blocks_table" class="table table_to_reload datatables-users">

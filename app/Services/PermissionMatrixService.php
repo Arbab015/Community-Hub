@@ -2,9 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Auth;
-use Spatie\Permission\Models\Permission;
-
 class PermissionMatrixService
 {
     public static function build()

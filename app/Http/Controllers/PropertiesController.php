@@ -568,19 +568,7 @@ class PropertiesController extends Controller
                 'success' => ucfirst($section).' deleted successfully.',
             ]);
 
-        } catch (QueryException $e) {
-            // MySQL foreign key error code = 1451
-            if ($e->errorInfo[1] == 1451) {
-                return back()->with([
-                    'error' => $this->getConstraintMessage($section),
-                ], 400);
-            }
-
-            return back()->with([
-                'error' => 'Database error occurred.',
-            ], 500);
-
-        } catch (\Exception $e) {
+        }catch (\Exception $e) {
             return back()->with([
                 'error' => $e->getMessage(),
             ], 500);

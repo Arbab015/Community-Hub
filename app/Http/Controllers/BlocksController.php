@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\SocietyAccessResolver;
 use App\Models\Block;
 use App\Models\Society;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Mockery\Exception;
@@ -88,6 +89,10 @@ class BlocksController extends Controller
             );
 
             return back()->with('success', $request->id ? 'Block updated successfully.' : 'Block created successfully.');
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return back()->withInput()->with('error', 'Block already exists in this society.');
+            }
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
