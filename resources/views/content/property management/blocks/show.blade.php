@@ -12,7 +12,7 @@
         <a href="{{ route('dashboard.analytics') }}">Home</a>
       </li>
       <li class="breadcrumb-item">
-        <a href="{{ route('blocks.index') }}">Blocks</a>
+        <a href="{{ route('blocks.index', "society_blocks") }}">Blocks</a>
       </li>
       <li class="breadcrumb-item active">Block details</li>
     </ol>
@@ -32,13 +32,13 @@
       <h5 class="mb-1 fw-semibold ">
         {{ ucfirst($block->name) }} ---  {{  ucfirst($block->society->name) }}
       </h5>
-      <a href="{{ route('property.create', ['block' => $block]) }}"
+      <a href="{{ route('property.create', ['block_uuid' => $block->uuid]) }}"
          class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
         <i class="ti tabler-plus"></i>
         Add Property
       </a>
     </div>
-
+     <hr class="mt-0 mb-3">
     <div class="card-body">
          <form method="Get" action="{{ route('blocks.view', $block->uuid) }}" id="filter_form">
            <div class="row g-4">
@@ -195,7 +195,7 @@
 
              var image_url = property.attachment ? "{{ asset('storage/') }}/" + property.attachment.link :
                "{{ asset('assets/img/my_images/dummy_property_image.png') }}";
-               {{--var prop_details_url = "{{ route('property.details', property.uuid) }}";--}}
+             var prop_details_url = "{{ url('property/details') }}/" + property.uuid;
            $('#property_cards').append(`
            <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
            <div class="card h-100 border-0 shadow-sm property-card">
@@ -225,7 +225,7 @@
 
           <!-- Footer -->
           <div class="card-footer bg-white border-0 d-flex justify-content-between">
-            <a href="" class="btn btn-sm btn-outline-primary w-100">
+            <a href="${prop_details_url}" class="btn btn-sm btn-outline-primary w-100">
               View Details
             </a>
             </div>

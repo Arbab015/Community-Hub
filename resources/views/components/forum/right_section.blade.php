@@ -44,69 +44,6 @@
               <i class="ti tabler-chevron-right"></i>
             </div>
           </a>
-         @can('listing_block_post')
-          <a href="{{  route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'blocked_posts'])}}"
-             class="d-block text-decoration-none mt-3 text-dark">
-            <div class="d-flex justify-content-between align-items-center">
-              <span>Blocked Posts</span>
-              <i class="ti tabler-chevron-right"></i>
-            </div>
-          </a>
-          @endcan
-          @can('listing_requested_post')
-
-{{--            <a href="{{ route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'requested_posts']) }}"--}}
-{{--               class="d-block text-decoration-none mt-3 text-dark">--}}
-{{--              <div class="d-flex justify-content-between align-items-center">--}}
-{{--                <span>Requested Posts</span>--}}
-{{--                <i class="ti tabler-chevron-right"></i>--}}
-{{--              </div>--}}
-{{--            </a>--}}
-
-          <a href="{{ route('requests.index', ['user_type' => $user_type, 'uuid' => $society->uuid] )}}"
-             class="d-block text-decoration-none mt-3 text-dark">
-            <div class="d-flex justify-content-between align-items-center">
-              <span> Requested Posts </span>
-              <i class="ti tabler-chevron-right"></i>
-            </div>
-          </a>
-
-          @endcan
-        </div>
-      </div>
-    </div>
-
-
-
-    {{-- My Contributions --}}
-    <div class="col mb-xl-5">
-      <div class="card border-0 shadow-sm h-100 position-sticky" style="top: 20px;">
-        <div class="card-header bg-label-dark text-white py-2 mb-2">
-          <h6 class="mb-0">Me </h6>
-        </div>
-        <div class="card-body px-3">
-          <div class="d-flex mb-2">
-            <img
-              src="{{ Auth::user()->attachment?->link
-                  ? asset('storage/' . Auth::user()->attachment->link)
-                  : asset('assets/img/avatars/1.png') }}"
-              class="rounded-circle" width="40" height="40" alt="User">
-            <div class="ms-2">
-              <h6 class="mb-0 fw-semibold"> {{ ucfirst(Auth()->user()->first_name) }}
-                {{ ucfirst(Auth()->user()->last_name) }}</h6>
-              <small class="text-muted"> {{ Auth()->user()->roles->pluck('name')->implode(', ') }}</small>
-            </div>
-          </div>
-
-          <hr class="my-1">
-          <a href="{{ isset($user_type)
-              ? route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type, 'slug' => 'my_posts']) : route('my_posts.index', [$type, auth()->user()->uuid]) }}"
-             class="d-block text-decoration-none mt-3 text-dark">
-            <div class="d-flex justify-content-between align-items-center">
-              <span>My posts</span>
-              <i class="ti tabler-chevron-right"></i>
-            </div>
-          </a>
           @can('listing_block_post')
             <a href="{{  route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'blocked_posts'])}}"
                class="d-block text-decoration-none mt-3 text-dark">

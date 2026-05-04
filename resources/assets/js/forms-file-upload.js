@@ -40,12 +40,40 @@
     });
   }
 
+  if (myDropzone && window.existingMainPic) {
+    let file = window.existingMainPic;
+    if (file){
+      let mockFile = {
+        name: file.name,
+        size: convertToBytes(file.size),
+        id: file.id,
+        isMock: true
+      };
+      myDropzone.emit("addedfile", mockFile);
+      if (file.url) {
+        myDropzone.emit("thumbnail", mockFile, file.url);
+      }
+      myDropzone.emit("complete", mockFile);
+      // IMPORTANT: push into Dropzone internal array
+      myDropzone.files.push(mockFile);
+
+      myDropzone.on("removedfile", function(file) {
+        // only for existing files
+        if (file.isMock && file.id) {
+          deletedFiles.push(file.id);
+        }
+      });
+    }
+  }
+
+  let deletedFiles = [];
   // Multiple Dropzone (Multiple Documents)
   // --------------------------------------------------------------------
   const dropzoneMulti = document.querySelector('.dropzone_multi');
   const isRestricted = dropzoneMulti.getAttribute('isRestricted');
   let myDropzoneMulti = null;
   if (dropzoneMulti) {
+
     myDropzoneMulti = new Dropzone(dropzoneMulti, {
       previewTemplate: previewTemplate,
       parallelUploads: 20,
@@ -56,6 +84,32 @@
       uploadMultiple: true,
       acceptedFiles: isRestricted ? 'image/*,video/*' : null,
       url: '/upload'
+    });
+
+    myDropzoneMulti.on("removedfile", function(file) {
+      // only for existing files
+      if (file.isMock && file.id) {
+        deletedFiles.push(file.id);
+      }
+    });
+
+  }
+  if (myDropzoneMulti && window.existingDocuments) {
+    console.log(window.existingDocuments);
+    window.existingDocuments.forEach(function (file) {
+      let mockFile = {
+        name: file.name,
+        size: convertToBytes(file.size),
+        id: file.id,
+        isMock: true
+      };
+      myDropzoneMulti.emit("addedfile", mockFile);
+      if (file.url) {
+        myDropzoneMulti.emit("thumbnail", mockFile, file.url);
+      }
+      myDropzoneMulti.emit("complete", mockFile);
+      // IMPORTANT: push into Dropzone internal array
+      myDropzoneMulti.files.push(mockFile);
     });
   }
 
@@ -77,39 +131,66 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       // Remove existing hidden inputs if any
-      const existingInputs = form.querySelectorAll(' input[name="documents[]"'); //input[name="main_pic"],
+      const existingInputs = form.querySelectorAll(' input[name="documents[]"]');
       existingInputs.forEach(input => input.remove());
       // Create DataTransfer to hold files
       const dataTransfer = new DataTransfer();
       // Add main picture if exists
       if (myDropzone && myDropzone.files.length > 0) {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.name = 'main_pic';
-        fileInput.style.display = 'none';
-        // Transfer the file
-        dataTransfer.items.add(myDropzone.files[0]);
-        fileInput.files = dataTransfer.files;
-        form.appendChild(fileInput);
+        const realFile = myDropzone.files.find(f => !f.isMock);
+        if (realFile) {
+          const fileInput = document.createElement('input');
+          fileInput.type = 'file';
+          fileInput.name = 'main_pic';
+          fileInput.style.display = 'none';
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(realFile);
+          fileInput.files = dataTransfer.files;
+          form.appendChild(fileInput);
+        }
       }
 
       // Add multiple documents if they exist
       if (myDropzoneMulti && myDropzoneMulti.files.length > 0) {
         myDropzoneMulti.files.forEach(function (file, index) {
+          if(file.isMock){
+            return;
+          }
           const dataTransferMulti = new DataTransfer();
           const fileInput = document.createElement('input');
           fileInput.type = 'file';
           fileInput.name = 'documents[]';
           fileInput.style.display = 'none';
-
           // Transfer the file
           dataTransferMulti.items.add(file);
           fileInput.files = dataTransferMulti.files;
           form.appendChild(fileInput);
         });
       }
+      // remove files on remove from UI
+      const deletedInput = document.createElement('input');
+      deletedInput.type = 'hidden';
+      deletedInput.name = 'deleted_files';
+      deletedInput.value = JSON.stringify(deletedFiles);
+      form.appendChild(deletedInput);
       // Now submit the form normally
       form.submit();
     });
   }
+
+
+  function convertToBytes(size) {
+    if (!size) return 0;
+    if (typeof size === 'number') return size;
+    const value = parseFloat(size);
+    const unit = size.replace(value, '').trim().toUpperCase();
+    switch (unit) {
+      case 'GB': return value * 1024 * 1024 * 1024;
+      case 'MB': return value * 1024 * 1024;
+      case 'KB': return value * 1024;
+      default: return value;
+    }
+  }
 })();
+
+

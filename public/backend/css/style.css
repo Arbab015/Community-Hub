@@ -76,4 +76,29 @@
   line-height:1;
 }
 
+/* Property*/
+.detail_section { width:32px; height:32px; font-size:.72rem; }
+.category_pic   { width:56px; height:56px; }
+.radio_circle   { width:18px; height:18px; }
+.room_header    { background: linear-gradient(135deg,#f8f9ff 0%,#eef1fb 100%); }
+.room_header > span { font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+.room_header > span > span { width:22px; height:22px; }
+.remove_item { font-size:.7rem; color:#dc3545; background:rgba(220,53,69,.08); border:none; }
+.unit_header { background:linear-gradient(135deg,#f0fdf8 0%,#e6f7f0 100%); }
+.unit_header > span { font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+.unit_header > span > span { width:22px; height:22px; }
+.rooms_title { font-size:.7rem; letter-spacing:.05em; }
+.add_room_btn { font-size:.72rem; border:1px dashed #adb5bd; color:#6c757d; background:transparent; }
+.floor_header { background:linear-gradient(135deg,#eef1fb 0%,#e4eaff 100%); }
+.floor_title  { font-size:.8rem; letter-spacing:.05em; text-transform:uppercase; }
+.floor_icon   { width:26px; height:26px; }
+.remove_floor { font-size:.72rem; color:#dc3545; background:rgba(220,53,69,.08); border:none; }
+.add_unit_btn { font-size:.72rem; color:#dc3545; background:rgba(220,53,69,.08); border:none; }
+.dropzone.border-danger { border-color: #dc3545 !important; }
 
+.const_labels{
+  border: 1px solid #b9b6c8;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+}

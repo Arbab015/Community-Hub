@@ -5,7 +5,7 @@
   <div class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
       <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Property Management</p>
-  <h4 class="mb-1">Property Blocks/Sectors</h4>
+  <h4 class="mb-1">Society Blocks/Sectors</h4>
   <nav aria-label="breadcrumb" >
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item">
@@ -81,7 +81,7 @@
       let table = $('#blocks_table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: `/blocks/index`,
+        ajax: `/blocks/index/society_blocks`,
         dom: "<'row align-items-center'" +
           "<'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0'l f <'#bulk-delete-wrap'>>" +
           "<'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start'<'dt-actions'>>" +

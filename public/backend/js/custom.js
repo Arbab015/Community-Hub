@@ -91,30 +91,85 @@ function previewAvatar(event) {
   reader.readAsDataURL(input.files[0]);
 }
 
-document.querySelector('input[name="documents[]"]')?.addEventListener('change', e => {
+let selectedFiles = [];
+
+const trigger = document.getElementById('file_trigger');
+const input = document.getElementById('documents_input');
+
+trigger?.addEventListener('change', e => {
   const card = e.target.closest('.card');
-  const cardBody = card.querySelector('.card-body');
-  let counter = cardBody.querySelector('.file-counter');
+  const card_body = card.querySelector('.card-body');
+
+  // Add files
+  selectedFiles = [...selectedFiles, ...Array.from(e.target.files)];
+  updateInputFiles();
+  renderFileList(card_body);
+
+  trigger.value = ''; // reset
+});
+
+function renderFileList(card_body) {
+  if (selectedFiles.length === 0) {
+    card_body.querySelector('.file-counter')?.remove();
+    document.getElementById('save_files_btn')?.classList.add('d-none');
+    return;
+  }
+  console.log(card_body)
+  let counter = card_body.querySelector('.file-counter');
   if (!counter) {
     counter = document.createElement('div');
-    counter.className = 'file-counter d-flex align-items-center gap-2 mb-2 px-3 py-2 rounded bg-label-info fw-medium';
-    cardBody.prepend(counter);
+    counter.className = 'file-counter d-flex flex-column gap-2 mb-2 px-3 py-2 rounded bg-label-info fw-medium';
+    card_body.prepend(counter);
   }
-  const fileCount = e.target.files.length;
-  counter.innerHTML = `
-    <i class="fa-solid fa-paperclip"></i>
-    ${fileCount} file${fileCount > 1 ? 's' : ''} selected
-  `;
 
+  counter.innerHTML = '';
+
+  const list = document.createElement('ul');
+  list.className = 'mb-0 small w-100';
+
+  selectedFiles.forEach((file, index) => {
+    const div = document.createElement('div');
+    div.className = 'd-flex justify-content-between align-items-center';
+
+    const li = document.createElement('li');
+    li.textContent = file.name;
+
+    const remove = document.createElement('span');
+    remove.className = 'ti tabler-x text-danger';
+    remove.style.cursor = 'pointer';
+
+    remove.addEventListener('click', () => {
+      selectedFiles.splice(index, 1);
+      updateInputFiles();
+      renderFileList(card_body);
+    });
+
+    div.appendChild(li);
+    div.appendChild(remove);
+    list.appendChild(div);
+  });
+
+  counter.appendChild(list);
+  // Show save button
   const save_btn = document.getElementById('save_files_btn');
   const bulk_btn = document.getElementById('bulk_btn');
   const bulkVisible = bulk_btn && !bulk_btn.classList.contains('d-none');
-  if (fileCount > 0 && !bulkVisible) {
-    save_btn.classList.remove('d-none');
+
+  if (selectedFiles.length > 0 && !bulkVisible) {
+    save_btn?.classList.remove('d-none');
   } else {
-    save_btn.classList.add('d-none');
+    save_btn?.classList.add('d-none');
   }
-});
+}
+function updateInputFiles() {
+  const dataTransfer = new DataTransfer();
+  selectedFiles.forEach(file => {
+    dataTransfer.items.add(file);
+  });
+  input.files = dataTransfer.files;
+}
+
+
 
 // report model
 let currentReportId = null;
@@ -163,5 +218,19 @@ if (report_form) {
         console.error(err);
         Swal.fire('Error!', err.message || 'Something went wrong', 'error');
       });
+  });
+}
+
+function notify(message, type){
+  notyf.open({
+    duration: 3000,
+    ripple: false,
+    dismissible: true,
+    position: {
+      x: 'right',
+      y: 'bottom'
+    },
+    type: type,
+    message: message
   });
 }

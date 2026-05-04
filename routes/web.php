@@ -156,7 +156,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Properties Management
     Route::controller(BlocksController::class)->group(function () {
-        Route::get('blocks/index', 'index')->name('blocks.index')->middleware('permission:listing_block');
+        Route::get('blocks/index/{slug}', 'index')->where('slug', 'society_blocks')->name('blocks.index')->middleware('permission:listing_block');
         Route::post('blocks/store', 'store')->name('blocks.store')->middleware('permission:add_block');
         Route::delete('blocks/destroy/{uuid}', 'destroy')->name('blocks.destroy')->middleware('permission:delete_block');
         Route::post('/blocks/bulk_delete', 'bulkDelete')->name('blocks.bulk_delete')->middleware('permission:delete_block');
@@ -164,9 +164,10 @@ Route::middleware(['auth'])->group(function () {
 
     Route::controller(PropertiesController::class)->group(function () {
         Route::get('blocks/view/{uuid}', 'show')->name('blocks.view')->middleware('permission:view_block');
-        Route::get('property/create/{uuid?}', 'create')->name('property.create')->middleware('permission:create_property');
+        Route::get('property/create/{block_uuid}/{uuid?}', 'create')->name('property.create')->middleware('permission:create_property');
         Route::post('property/store', 'storeOrUpdate')->name('property.store')->middleware('permission:create_property');
         Route::get('property/details/{uuid}', 'propertyDetails')->name('property.details');
+        Route::get('{section}/destroy/{uuid}', 'destroy')->name('property.destroy')->middleware('permission:delete_property');
     });
 
 });

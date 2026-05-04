@@ -29,6 +29,7 @@ class SocietiesController extends Controller
 
     public function index(Request $request, $slug)
     {
+
         $user_type = $slug;
         $skip = $request->input('skip', 0);
         $total_skip = 6 + $skip;
@@ -75,7 +76,7 @@ class SocietiesController extends Controller
 
     public function storeOrUpdate(Request $request, $slug, $uuid = null)
     {
-//                dd($request->all());
+        //        dd($request->all());
         $type = strtolower($request->input('type', ''));
         $is_picture = $request->hasFile('main_pic');
         $is_documents = $request->hasFile('documents');
@@ -109,7 +110,7 @@ class SocietiesController extends Controller
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
-                'marla_size' => 'required|decimal:2',
+                'marla_size' => ['required', 'numeric', 'regex:/^\d+(\.\d{1,2})?$/'],
             ],
         };
         // Creation requires basic info even if files come first
@@ -119,7 +120,7 @@ class SocietiesController extends Controller
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
-                'marla_size' => 'required|decimal:2',
+              'marla_size' => ['required', 'numeric', 'regex:/^\d+(\.\d{1,2})?$/'],
             ];
         }
         $request->validate($rules);

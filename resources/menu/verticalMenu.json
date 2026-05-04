@@ -107,19 +107,18 @@
     {
       "name": "Property Management",
       "slug": [
-        "users.index"
+        "blocks.index"
       ],
       "icon": "menu-icon icon-base ti tabler-building-skyscraper",
       "submenu": [
         {
-          "name": "Property Blocks",
-          "slug": "",
+          "name": "Society Blocks",
+          "slug": "society_blocks",
           "route": "blocks.index",
           "permission": "listing_block"
         }
       ]
     },
-
 
     {
       "name": "Rules",

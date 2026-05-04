@@ -47,40 +47,51 @@
             <i class="fa-solid fa-file-lines fa-lg text-primary me-2 "></i>Documents
           </h5>
           @if (auth()->user()->can('edit_society') && $society->status == 'active')
-            <label class="btn btn-outline-info waves-effect btn-xs fw-bolder">
-              <i class="fa-solid fa-plus pe-1"></i>Add File
-              <input type="file" name="documents[]" form="add_files_form" multiple hidden>
-            </label>
+            <div class="d-flex align-items-center gap-2">
+              {{-- Add File --}}
+              <label class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 mb-0 px-3">
+                <i class="fa-solid fa-plus"></i>
+                Add File
+                <input type="file" id="file_trigger" multiple hidden>
+              </label>
+
+              <form id="add_files_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
+                    enctype="multipart/form-data" class="d-flex align-items-center gap-2 m-0">
+                @csrf
+                <input type="hidden" name="request_type" value="document">
+                <input type="file" name="documents[]" id="documents_input" multiple hidden>
+
+                {{-- Save --}}
+                <button type="submit"
+                        id="save_files_btn"
+                        class="btn btn-sm btn-outline-success d-none d-flex align-items-center gap-1 px-3">
+                  <i class="fa-solid fa-floppy-disk"></i>
+                  Save
+                </button>
+              </form>
+            </div>
+
           @endif
         </div>
         @if (auth()->user()->can('edit_society') && $society->status == 'active')
           <div class="form-check d-flex justify-content-between align-items-center p-0 ">
             <div class="d-flex align-items-center @if ($documents->count() == 0) d-none @endif">
-
               <input class="form-check-input-sm checkbox me-2 " type="checkbox" id="select_all">
               <label class="form-check-label fw-semibold mb-0 " for="select_all">
                 Select All
               </label>
             </div>
 
-            <div class="d-flex align-items-center gap-1">
+            <div class="d-flex align-items-center">
               <span data-url="{{ route('societies.bulk_delete') }}"
-                    class="btn btn-xs btn-icon btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
-                <i class="fa-solid fa-trash fa-sm"></i>
+                    class="btn btn-xs btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
+                <i class="fa-solid fa-trash  pe-1"></i> Delete
               </span>
-              <form id="add_files_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
-                    enctype="multipart/form-data">
-                @csrf
-                <input type="hidden" name="type" value="document"></input>
-                <button type="submit" id="save_files_btn"
-                        class="btn btn-xs btn-icon btn-outline-info waves-effect d-none">
-                  <i class="fa-solid fa-floppy-disk fa-sm"></i>
-                </button>
-              </form>
             </div>
           </div>
         @endif
       </div>
+
 
       <div class="card-body">
         @if ($documents && $documents->count() > 0)
@@ -159,7 +170,7 @@
           </span>
           @if (auth()->user()->can('edit_society') && $society->status == 'active')
             <button type="button" class="btn btn-text-info waves-effect" data-bs-toggle="modal"
-                    data-bs-target="#edit_society_info"><i class="fa-solid fa-pen-to-square"></i></button>
+                    data-bs-target="#edit_basic_property"><i class="fa-solid fa-pen-to-square"></i></button>
           @endif
         </h5>
       </div>

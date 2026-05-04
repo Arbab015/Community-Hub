@@ -2,13 +2,21 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PropertyUnit extends Model
 {
+  use HasUuids, SoftDeletes;
     protected $guarded = [];
 
-    public function floor()
+  public function uniqueIds(): array
+  {
+    return ['uuid'];
+  }
+
+  public function floor()
     {
         return $this->belongsTo(Floor::class);
     }

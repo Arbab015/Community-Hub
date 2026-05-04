@@ -127,7 +127,7 @@
             src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
             alt="{{ $society->name }}" height="170px" style="object-fit: cover;" />
           <div class="card-body py-2 px-4">
-            <h5 class="card-title fs-6 mb-0 ">{{ $society->name }}, {{ $society->city }} </h5>
+            <h5 class="card-title fs-6 mb-0 text-truncate " data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-custom-class="tooltip-secondary"  data-bs-original-title="{{ $society->name }}, {{ $society->city }}" >{{ $society->name }}, {{ $society->city }} </h5>
             @if ($user_type == 'owner_societies')
               <p class="card-text mb-0">
 

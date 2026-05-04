@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function (e) {
   }
 
   // Initialize CustomNotyf instance with default behaviors
-  const notyf = new CustomNotyf({
+  window.notyf = new CustomNotyf({
     duration: 3000,
     ripple: true,
     dismissible: false,

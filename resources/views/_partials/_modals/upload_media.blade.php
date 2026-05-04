@@ -9,10 +9,16 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" id="upload_media_society" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
+      <form method="POST" id="upload_media_society"
+            action="{{ isset($society) ? route('society.store', [$user_type, $society->uuid]) : route('property.store') }}"
         enctype="multipart/form-data">
         @csrf
-        <input type="hidden" name="type" value="media"></input>
+        <input type="hidden" name="request_type" value="media"></input>
+        @if(isset($property))
+          <input type="hidden" name="block_id" value="{{ $property->block->id }}">
+          <input type="hidden" name="section" value="documents">
+          <input type="hidden" name="property_id" value="{{ $property->id ?? '' }}">
+        @endif
         <div class="modal-body">
           <div class="col-md-12">
             <label class="form-label fw-bolder required">Media Files</label>

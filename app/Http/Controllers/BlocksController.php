@@ -12,7 +12,7 @@ use Yajra\DataTables\DataTables;
 
 class BlocksController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, $slug)
     {
         $login_user = auth()->user();
         $scope = SocietyAccessResolver::resolver($login_user);
@@ -52,6 +52,7 @@ class BlocksController extends Controller
                         <i class="fa-solid fa-eye text-primary" role="button" title="View details"></i>
                     </a>';
                     }
+
                     return $view.' '.$edit.'  '.$delete;
                 })
                 ->rawColumns(['checkbox', 'actions', 'society'])
