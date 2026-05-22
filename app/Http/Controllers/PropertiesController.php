@@ -2,26 +2,47 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\GetArea;
+use App\Helpers\SocietyAccessResolver;
+use App\Jobs\ImportProperties;
 use App\Models\Attachment;
 use App\Models\Block;
 use App\Models\Floor;
 use App\Models\Property;
+use App\Models\PropertyAttribute;
 use App\Models\PropertyUnit;
 use App\Models\Room;
+use App\Models\Society;
 use App\Services\FileServices;
+use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class PropertiesController extends Controller
 {
+    public function download($type)
+    {
+        if ($type === 'template') {
+            $path = public_path('templates_&_guidelines/Property-template.csv');
+
+            return response()->download($path, 'Property Template.csv');
+        }
+        if ($type === 'guidelines') {
+            $path = public_path('templates_&_guidelines/Import-Properties-Guidelines.txt');
+
+            return response()->download($path, 'Import Properties Guidelines.txt');
+        }
+
+    }
+
     public static function convertForSystem($value, $from)
     {
         return match ($from) {
             'meter' => $value * 3.28084,
             'yard' => $value * 3,
             'feet' => $value,
+            'inch' => $value / 12,
         };
     }
 
@@ -31,16 +52,27 @@ class PropertiesController extends Controller
             'meter' => $value_in_feet / 3.28084,
             'yard' => $value_in_feet / 3,
             'feet' => $value_in_feet,
+            'inch' => $value_in_feet * 12,
         };
     }
 
-    public function show(Request $request, $uuid)
+    public function propertiesFromBlocksShow(Request $request, $uuid, $isPending = null)
+    {
+        return $this->show($request, $uuid, $isPending);
+    }
+
+    public function propertiesFromSocietyShow(Request $request, $user_type, $society_uuid, $uuid)
+    {
+        return $this->show($request, $uuid, $user_type, $society_uuid);
+    }
+
+    public function show(Request $request, $uuid, $user_type = null, $society_uuid = null, $isPending = null)
     {
         $block = Block::where('uuid', $uuid)->first();
         $skip = $request->input('skip', 0);
         $total_skip = 4 + $skip;
         $take = 4;
-
+        $society = Society::where('uuid', $society_uuid)->first();
         $query = Property::where('block_id', $block->id)->with(
             'dimensions',
             'attachment',
@@ -52,6 +84,14 @@ class PropertiesController extends Controller
         )->latest();
         $query->when($request->category, fn ($q) => $q->where('category', $request->category));
         $query->when($request->type, fn ($q) => $q->where('type', $request->type));
+        $query->when($request->search_content, function ($q) use ($request) {
+            $search = $request->search_content;
+            $q->where(function ($subQ) use ($search) {
+                $subQ->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('property_no', 'LIKE', "%{$search}%");
+            });
+        });
+
         $total_properties = $query->count();
         $properties = $query->skip($skip)->take($take)->get();
         $query_dropdown = Property::query()->where('block_id', $block->id);
@@ -65,12 +105,28 @@ class PropertiesController extends Controller
             ]);
         }
 
-        return view('content.property management.blocks.show', compact('block', 'properties', 'total_skip', 'property_categories', 'property_types', 'total_properties'));
+        if ($isPending) {
+            session()->flash('success', 'Property created successfully.');
+        }
+
+        return view(
+            'content.property_management.blocks.show',
+            compact(
+                'society',
+                'user_type',
+                'block',
+                'properties',
+                'total_skip',
+                'property_categories',
+                'property_types',
+                'total_properties'
+            )
+        );
+
     }
 
     public function create(Request $request, $block_uuid, $uuid = null)
     {
-
         $block = Block::where('uuid', $block_uuid)->first();
         $tab = $request->query('tab');
         $property = $uuid ? $property = Property::where('uuid', $uuid)
@@ -85,7 +141,15 @@ class PropertiesController extends Controller
             ])
             ->first() : null;
 
-        return view('content.property management.blocks.properties.create', compact('block', 'property', 'tab'));
+        $login_user = auth()->user();
+        $scope = SocietyAccessResolver::resolver($login_user);
+        $property_attributes = PropertyAttribute::where('owner_id', $scope['ownerId'])->get();
+        $floor_types = $property_attributes->where('type', 'floor_type');
+        $unit_types = $property_attributes->where('type', 'unit_type');
+        $room_types = $property_attributes->where('type', 'room_type');
+        $amenities = $property_attributes->where('type', 'amenity');
+
+        return view('content.property_management.blocks.properties.create', compact('block', 'property', 'tab', 'property_attributes', 'floor_types', 'unit_types', 'room_types', 'amenities'));
     }
 
     public function storeOrUpdate(Request $request)
@@ -102,16 +166,17 @@ class PropertiesController extends Controller
                 $rules = [
                     'block_id' => 'required|exists:blocks,id',
                     'category' => 'required|string|in:residential,commercial,other',
-                    'name' => 'required|string|max:100',
+                    'name' => 'nullable|string|max:100',
                     'property_no' => [
                         'required', 'string', 'max:50',
                         Rule::unique('properties', 'property_no')
                             ->where(fn ($q) => $q->whereIn('block_id', $society->blocks()->pluck('id')))
                             ->ignore($property?->id),
                     ],
-                    'type' => 'required|string|max:255',
-                    'address' => 'required|string|max:255',
-                    'const_status' => 'nullable|string|in:constructed,in_progress,pending',
+                    'type' => 'required|string|max:20',
+                    'street' => 'required|string|max:50',
+                    'landmark' => 'nullable|string|max:50',
+                    'construction_status' => 'nullable|string|in:constructed,in_progress,pending',
                 ];
             }
             if ($request_type === 'property_dimension' || $request_type === 'on_create') {
@@ -166,7 +231,7 @@ class PropertiesController extends Controller
                   'required', 'string', 'max:50',
                   Rule::unique('floors', 'floor_type')
                       ->where(fn ($q) => $q->where('property_id', $property->id)),
-              ];
+        ];
 
             // Collect all submitted unit IDs so we can ignore them in the unique check
             $submitted_unit_ids = collect($request->input('floors', []))
@@ -175,41 +240,8 @@ class PropertiesController extends Controller
                 ->map(fn ($id) => (int) $id)
                 ->toArray();
 
-            // Unit name uniqueness rule
-
-            //            $unitNameRule = [
-            //                'required', 'string', 'max:50',
-            //                // Cross-request duplicate check (same form submission)
-            //                function ($attribute, $value, $fail) use ($request) {
-            //                    $allUnitNames = [];
-            //                    foreach ($request->input('floors', []) as $floor) {
-            //                        foreach ($floor['units'] ?? [] as $unit) {
-            //                            $allUnitNames[] = strtolower($unit['unit_name'] ?? '');
-            //                        }
-            //                    }
-            //                    if (count(array_keys($allUnitNames, strtolower($value))) > 1) {
-            //                        $fail('The unit name must be unique within the same property.');
-            //                    }
-            //                },
-            //                // DB unique check — always ignore the unit IDs being submitted so existing
-            //                // units don't conflict with themselves during update
-            //                Rule::unique('property_units', 'unit_name')
-            //                    ->where(fn ($q) => $q->whereIn('floor_id',
-            //                        Floor::where('property_id', $property?->id)->pluck('id')
-            //                    ))
-            //                    ->ignore(
-            //                        // ignoreWhere is not available for multi-ignore, so we use whereNotIn via a
-            //                        // custom closure on the rule itself — instead, pass a single ID trick:
-            //                        // We handle this by scoping the query to exclude submitted IDs below.
-            //                        null // placeholder — real exclusion handled by whereNotIn closure
-            //                    ),
-            //            ];
-
-            // Replace the Rule::unique with a fully custom closure that handles both
-            // scope + ignore-submitted-ids in one place (cleaner than the above placeholder)
             $unit_name_rule = [
                 'required', 'string', 'max:50',
-                // Cross-request duplicate check (same form submission)
                 function ($attribute, $value, $fail) use ($request) {
                     $all_unit_names = [];
                     foreach ($request->input('floors', []) as $floor) {
@@ -221,7 +253,7 @@ class PropertiesController extends Controller
                         $fail('The unit name must be unique within the same property.');
                     }
                 },
-                // DB uniqueness — exclude unit IDs that are being updated (they own their name)
+
                 function ($attribute, $value, $fail) use ($property, $submitted_unit_ids) {
                     $floorIds = Floor::where('property_id', $property?->id)->pluck('id');
                     $exists = PropertyUnit::whereIn('floor_id', $floorIds)
@@ -239,34 +271,74 @@ class PropertiesController extends Controller
                 'floors' => 'required|array|min:1',
                 'floors.*.floor_type' => $floor_type_rule,
                 'floors.*.units.*.unit_name' => $unit_name_rule,
-                'floors.*.units.*.unit_type' => 'required|string|in:apartment,office,shop,studio,other',
+                'floors.*.units.*.unit_type' => 'required|string|max:50',
+
+                'floors.*.units.*.amenities' => 'nullable|array',
+                'floors.*.units.*.dimensions' => 'required_if:floors.*.units.*.no_rooms,1|array|min:2|max:8',
+                'floors.*.units.*.dimensions.*.name' => 'required_if:floors.*.units.*.no_rooms,1|string|max:20',
+                'floors.*.units.*.dimensions.*.size' => 'required_if:floors.*.units.*.no_rooms,1|numeric|min:0|max:999999.99',
+                'floors.*.units.*.dimensions.*.unit' => 'required_if:floors.*.units.*.no_rooms,1|string|in:inch,feet,meter,yard',
                 'floors.*.units.*.rooms.*.room_type' => 'required|string|max:50',
                 'floors.*.units.*.rooms.*.dimensions' => 'required|array|min:2|max:8',
                 'floors.*.units.*.rooms.*.dimensions.*.name' => 'required|string|max:20',
                 'floors.*.units.*.rooms.*.dimensions.*.size' => 'required|numeric|min:0|max:999999.99',
-                'floors.*.units.*.rooms.*.dimensions.*.unit' => 'required|string|in:feet,meter,yard',
+                'floors.*.units.*.rooms.*.dimensions.*.unit' => 'required|string|in:inch,feet,meter,yard',
+                'floors.*.units.*.rooms.*.amenities' => 'nullable|array',
+
                 'floors.*.rooms.*.room_type' => 'required|string|max:50',
                 'floors.*.rooms.*.dimensions' => 'required|array|min:2|max:8',
                 'floors.*.rooms.*.dimensions.*.name' => 'required|string|max:20',
                 'floors.*.rooms.*.dimensions.*.size' => 'required|numeric|min:0|max:999999.99',
-                'floors.*.rooms.*.dimensions.*.unit' => 'required|string|in:feet,meter,yard',
+                'floors.*.rooms.*.dimensions.*.unit' => 'required|string|in:inch,feet,meter,yard',
+                'floors.*.rooms.*.amenities' => 'nullable|array',
+            ], [], [
+                // custom attribute names — replaces the dot-index path with readable labels
+                'floors.*.floor_type' => 'floor type',
+                'floors.*.units.*.unit_name' => 'unit name',
+                'floors.*.units.*.unit_type' => 'unit type',
+                'floors.*.units.*.dimensions' => 'unit dimensions',
+                'floors.*.units.*.dimensions.*.name' => 'dimension name',
+                'floors.*.units.*.dimensions.*.size' => 'dimension size',
+                'floors.*.units.*.dimensions.*.unit' => 'dimension unit',
+                'floors.*.units.*.rooms.*.room_type' => 'room type',
+                'floors.*.units.*.rooms.*.dimensions' => 'room dimensions',
+                'floors.*.units.*.rooms.*.dimensions.*.name' => 'dimension name',
+                'floors.*.units.*.rooms.*.dimensions.*.size' => 'dimension size',
+                'floors.*.units.*.rooms.*.dimensions.*.unit' => 'dimension unit',
+                'floors.*.rooms.*.room_type' => 'room type',
+                'floors.*.rooms.*.dimensions' => 'room dimensions',
+                'floors.*.rooms.*.dimensions.*.name' => 'dimension name',
+                'floors.*.rooms.*.dimensions.*.size' => 'dimension size',
+                'floors.*.rooms.*.dimensions.*.unit' => 'dimension unit',
             ]);
+
         }
 
         // STORE / UPDATE
         try {
+            //            dd($request->floors);
             // PROPERTY BASIC
             if ($section === 'property') {
+                $is_pending = $request->construction_status === 'pending';
                 if ($property && ($request_type === 'property_info' || $request_type === 'on_create')) {
-                    logger('validation update start');
+                    $isNotPending = $property->construction_status !== 'pending';
                     $property->update([
                         'name' => $request->get('name'),
                         'category' => $request->category,
                         'property_no' => $request->property_no,
                         'type' => $request->type,
-                        'address' => $request->address,
-                        'const_status' => $request->const_status,
+                        'street' => $request->street,
+                        'landmark' => $request->landmark,
+                        'construction_status' => $request->construction_status,
                     ]);
+
+                    if ($isNotPending && $request->construction_status === 'pending') {
+                        logger($property);
+                        $property->update(['isLocked' => true]);
+                    } else {
+                        $property->update(['isLocked' => false]);
+                    }
+
                 } elseif ($request_type === 'on_create' && ! isset($property)) {
                     $property = Property::create([
                         'block_id' => $block->id,
@@ -274,21 +346,14 @@ class PropertiesController extends Controller
                         'category' => $request->category,
                         'property_no' => $request->property_no,
                         'type' => $request->type,
-                        'address' => $request->address,
-                        'const_status' => $request->const_status,
+                        'street' => $request->street,
+                        'landmark' => $request->landmark,
+                        'construction_status' => $request->construction_status,
                     ]);
                 }
 
                 if ($request_type === 'property_dimension' || $request_type === 'on_create') {
-                    $property->dimensions()->delete();
-                    foreach ($request->dimensions as $dimension) {
-                        $converted_size = $this->convertForSystem($dimension['size'], $dimension['unit']);
-                        $property->dimensions()->create([
-                            'name' => $dimension['name'],
-                            'size' => $converted_size,
-                            'unit' => $dimension['unit'],
-                        ]);
-                    }
+                    $this->syncRoomDimensions($property, $request->dimensions, $property && $request->property_id);
                 }
 
                 if ($request_type !== 'on_create') {
@@ -304,67 +369,66 @@ class PropertiesController extends Controller
 
             // DOCUMENTS
             if ($section === 'documents') {
+
                 if ($request->deleted_files) {
                     $ids = json_decode($request->deleted_files, true);
                     Attachment::whereIn('id', $ids)->delete();
                 }
+
+                $newAttachmentIds = [];
+                $mainPicId = null;
+
                 if ($request->hasFile('main_pic')) {
-                    app(FileServices::class)->compressAndStore(
+                    $ids = app(FileServices::class)->compressAndStore(
                         $request->file('main_pic'), $property, true, true
                     );
+                    $mainPicId = $ids[0] ?? null;
+                    $newAttachmentIds = array_merge($newAttachmentIds, $ids);
                 }
+
                 if ($request->hasFile('documents')) {
-                    app(FileServices::class)->compressAndStore(
+                    $ids = app(FileServices::class)->compressAndStore(
                         $request->file('documents'), $property, false
                     );
+                    $newAttachmentIds = array_merge($newAttachmentIds, $ids);
                 }
-                if ($property->const_status !== 'pending' && $request_type === 'on_create') {
-                    return redirect()->route('property.create', [
-                        'block_uuid' => $block->uuid,
-                        'uuid' => $property->uuid,
-                        'tab' => 'construction',
-                    ])->with('success', 'Documents saved successfully.');
-                } elseif ($request_type === 'document') {
-                    $message = 'Documents updated successfully.';
 
-                    return back()->with('success', $message);
-                } else {
-                    return redirect()->route('blocks.view', $block->uuid)
-                        ->with('success', 'Documents saved and property created successfully.');
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Files uploaded successfully.',
+                        'attachment_ids' => $newAttachmentIds,
+                        'main_pic_id' => $mainPicId,
+                    ]);
+                }
+
+                if ($request_type === 'document' || $request_type === 'media') {
+                    return back()->with('success', 'Documents updated successfully.');
                 }
             }
 
             // CONSTRUCTION  —  CREATE (on_create)  or  UPDATE (property_const)
             if ($section === 'construction') {
-
                 $isUpdate = $request_type === 'property_const';
-
                 foreach ($request->floors as $floor_data) {
-
-                    logger($floor_data);
                     //  FLOOR
                     $floorId = ! empty($floor_data['id']) ? (int) $floor_data['id'] : null;
-                    //                    logger('floor id => ', $floorId);
                     if ($isUpdate && $floorId) {
                         $floor = Floor::find($floorId);
-                        logger($floor);
                         if ($floor) {
                             $floor->update(['floor_type' => $floor_data['floor_type']]);
                         }
                     } else {
-                        logger('floor not found');
                         $floor = Floor::create([
                             'property_id' => $property->id,
                             'floor_type' => $floor_data['floor_type'],
                         ]);
                     }
-
                     if (! $floor) {
                         continue;
                     }
                     //  UNITS
                     if (! empty($floor_data['has_units']) && ! empty($floor_data['units'])) {
-                        logger('floor units => ', $floor_data['units']);
                         foreach ($floor_data['units'] as $unit_data) {
 
                             $unitId = ! empty($unit_data['id']) ? (int) $unit_data['id'] : null;
@@ -381,23 +445,25 @@ class PropertiesController extends Controller
                                     'floor_id' => $floor->id,
                                     'unit_name' => $unit_data['unit_name'] ?? null,
                                     'unit_type' => $unit_data['unit_type'] ?? null,
+                                    'amenities' => isset($unit_data['amenities'])
+                                      ? json_encode($unit_data['amenities'])
+                                      : json_encode([]),
                                 ]);
                             }
 
-                            if (! $unit) {
-                                continue;
-                            }
-
-                            //  ROOMS inside unit
-                            if (! empty($unit_data['rooms'])) {
+                            if (! empty($unit_data['no_rooms']) && ! empty($unit_data['amenities']) && ! empty($unit_data['dimensions'])) {
+                                $unit->update([
+                                    'amenities' => json_encode($unit_data['amenities']),
+                                ]);
+                                $this->syncRoomDimensions($unit, $unit_data['dimensions'], false);
+                            } elseif (! empty($unit_data['rooms'])) {
                                 foreach ($unit_data['rooms'] as $room_data) {
                                     $roomId = ! empty($room_data['id']) ? (int) $room_data['id'] : null;
                                     $roomAttributes = [
                                         'room_type' => $room_data['room_type'],
-                                        'has_attached_bathroom' => ! empty($room_data['has_attached_bathroom']),
-                                        'has_attached_ac' => ! empty($room_data['has_attached_ac']),
-                                        'has_attached_balcony' => ! empty($room_data['has_attached_balcony']),
-                                        'has_attached_wardrobe' => ! empty($room_data['has_attached_wardrobe']),
+                                        'amenities' => isset($room_data['amenities'])
+                                          ? json_encode($room_data['amenities'])
+                                          : json_encode([]),
                                     ];
 
                                     if ($isUpdate && $roomId) {
@@ -406,17 +472,14 @@ class PropertiesController extends Controller
                                             $room->update($roomAttributes);
                                         }
                                     } else {
-                                        logger('unit room not found');
                                         $room = Room::create(array_merge($roomAttributes, [
                                             'floor_id' => $floor->id,
                                             'unit_id' => $unit->id,
                                         ]));
                                     }
-
                                     if (! $room) {
                                         continue;
                                     }
-
                                     $this->syncRoomDimensions($room, $room_data['dimensions'] ?? [], $isUpdate);
                                 }
                             }
@@ -431,15 +494,12 @@ class PropertiesController extends Controller
                             }
 
                             $roomId = ! empty($room_data['id']) ? (int) $room_data['id'] : null;
-
                             $roomAttributes = [
                                 'room_type' => $room_data['room_type'],
-                                'has_attached_bathroom' => ! empty($room_data['has_attached_bathroom']),
-                                'has_attached_ac' => ! empty($room_data['has_attached_ac']),
-                                'has_attached_balcony' => ! empty($room_data['has_attached_balcony']),
-                                'has_attached_wardrobe' => ! empty($room_data['has_attached_wardrobe']),
+                                'amenities' => isset($room_data['amenities'])
+                                  ? json_encode($room_data['amenities'])
+                                  : json_encode([]),
                             ];
-
                             if ($isUpdate && $roomId) {
                                 $room = Room::find($roomId);
 
@@ -465,7 +525,7 @@ class PropertiesController extends Controller
                     return redirect()->back()->with('success', 'Construction details updated successfully.');
                 }
 
-                return redirect()->route('blocks.view', $block->uuid)
+                return redirect()->route('block.view', $block->uuid)
                     ->with('success', 'Construction details saved and property created successfully.');
             }
 
@@ -479,8 +539,10 @@ class PropertiesController extends Controller
         }
     }
 
-    private function syncRoomDimensions(Room $room, array $dimensions, bool $isUpdate): void
+    private function syncRoomDimensions(\Illuminate\Database\Eloquent\Model $model, array $dimensions, bool $isUpdate): void
     {
+        $submitted_Ids = [];
+
         foreach ($dimensions as $dim) {
             if (empty($dim['name'])) {
                 continue;
@@ -490,33 +552,62 @@ class PropertiesController extends Controller
             $dimId = ! empty($dim['id']) ? (int) $dim['id'] : null;
 
             if ($isUpdate && $dimId) {
-                $existing = $room->dimensions()->find($dimId);
+                $existing = $model->dimensions()->find($dimId);
                 if ($existing) {
                     $existing->update([
                         'name' => $dim['name'],
                         'size' => $converted_size,
                         'unit' => $dim['unit'],
                     ]);
+                    $submitted_Ids[] = $dimId;
 
-                    continue;
+                    continue; // prevent from duplication
                 }
             }
 
-            // No id, or id not found → create
-            $room->dimensions()->create([
+            // No id or not found → create new
+            $newDim = $model->dimensions()->create([
                 'name' => $dim['name'],
                 'size' => $converted_size,
                 'unit' => $dim['unit'],
             ]);
+            $submitted_Ids[] = $newDim->id;
         }
+
+        $model->dimensions()
+            ->whereNotIn('id', $submitted_Ids)
+            ->delete();
     }
 
-    public function propertyDetails(Request $request, $uuid)
+    public function propertyDetails($uuid)
     {
-        $property = Property::where('uuid', $uuid)->with('block')->firstOrFail();
-        $total_area = GetArea::calculate($property->dimensions);
+        return $this->details(null, null, $uuid);
+    }
 
-        return view('content.property management.blocks.properties.property_details', compact('property', 'total_area'));
+    public function societyDetailsFromSociety($user_type, $society_uuid, $uuid)
+    {
+        return $this->details($user_type, $society_uuid, $uuid);
+    }
+
+    public function details($user_type, $society_uuid, $uuid)
+    {
+        $property = Property::where('uuid', $uuid)->with('block')->first();
+        //        dd($property);
+        $society = $property->block->society ?? null;
+
+        $login_user = auth()->user();
+        $scope = SocietyAccessResolver::resolver($login_user);
+        $property_attributes = PropertyAttribute::where('owner_id', $scope['ownerId'])->get();
+
+        $floor_types = $property_attributes->where('type', 'floor_type');
+        $unit_types = $property_attributes->where('type', 'unit_type');
+        $room_types = $property_attributes->where('type', 'room_type');
+        $amenities = $property_attributes->where('type', 'amenity');
+
+        return view(
+            'content.property_management.blocks.properties.property_details',
+            compact('property', 'floor_types', 'unit_types', 'room_types', 'amenities', 'society', 'user_type')
+        );
     }
 
     //    Delete property
@@ -568,11 +659,57 @@ class PropertiesController extends Controller
                 'success' => ucfirst($section).' deleted successfully.',
             ]);
 
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return back()->with([
                 'error' => $e->getMessage(),
             ], 500);
         }
 
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimetypes:text/csv,text/plain',
+            'block_id' => 'required|exists:blocks,id',
+        ]);
+
+        try {
+            $file = $request->file('file');
+            $path = $file->storeAs('imports', time().' '.$file->getClientOriginalName(), 'public');
+            $block = Block::find($request->block_id);
+            $fullPath = Storage::disk('public')->path($path);
+
+            $result = ImportProperties::validate($fullPath, $block->id);
+            if (! $result['success']) {
+                return response()->json(['errors' => $result['errors']]);
+            }
+            $block->update(['import_properties_progress' => 0]);
+            ImportProperties::dispatch($result['rows'], $block->id);
+
+            return response()->json(['success' => true]);
+
+        } catch (Exception $e) {
+            return response()->json(['errors' => [$e->getMessage()]], 500);
+        }
+    }
+
+    public function importProgress($block_uuid)
+    {
+        $block = Block::where('uuid', $block_uuid)->firstOrFail();
+
+        return response()->json(['progress' => $block->import_properties_progress ?? 0]);
+    }
+
+    public function fileUploadProgress(Request $request)
+    {
+        $ids = explode(',', $request->ids);
+
+        return Attachment::whereIn('id', $ids)
+            ->get()
+            ->keyBy('id')
+            ->map(fn ($item) => [
+                'progress' => $item->progress,
+            ]);
     }
 }

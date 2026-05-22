@@ -122,7 +122,7 @@ class RulesController extends Controller
         try {
             Rule::whereIn('id', $request->ids)->delete();
 
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'message' => 'Selected rules deleted successfully.']);
         } catch (Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }

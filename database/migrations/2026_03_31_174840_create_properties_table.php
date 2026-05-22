@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('properties', function (Blueprint $table) {
             $table->id();
             $table->foreignId('owner_id')
-            ->nullable()
-            ->constrained('users')
-            ->restrictOnDelete();
+                ->nullable()
+                ->constrained('users')
+                ->restrictOnDelete();
             $table->foreignId('block_id')
-            ->constrained('blocks')
-            ->restrictOnDelete();
+                ->constrained('blocks')
+                ->restrictOnDelete();
             $table->string('property_no');
             $table->string('type');
             $table->enum('category', ['residential', 'commercial', 'other']);

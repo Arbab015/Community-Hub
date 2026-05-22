@@ -2,35 +2,52 @@
 @section('title', 'Forum - ' . ucfirst($type ?? 'All Posts'))
 
 @section('content')
-  <div class="d-flex justify-content-between">
-    <h4 class="mb-1">{{ ucfirst($type) }}</h4>
-    <div class="d-md-none">
-      <button class="btn p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#forumRightOffcanvas"
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <h4 class="mb-1">
+        {{ ucfirst($type) }}
+      </h4>
+
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+
+          @if($is_my_post ?? false)
+            <li class="breadcrumb-item">
+              <a href="{{ route('posts.index', $type) }}">
+                {{ ucfirst($type) }}
+              </a>
+            </li>
+          @endif
+
+          <li class="breadcrumb-item active">
+            {{ ($is_my_post ?? false) ? 'My Posts' : ucfirst($type) }}
+          </li>
+
+        </ol>
+      </nav>
+
+    </div>
+
+    <i class="ti tabler-messages text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+
+    {{-- Mobile Offcanvas --}}
+    <div class="d-md-none" id="forum_canvas_btn">
+      <button
+        class="btn btn-sm btn-secondary opacity-75"
+        type="button"
+        data-bs-toggle="offcanvas"
+        data-bs-target="#forumRightOffcanvas"
         aria-controls="forumRightOffcanvas">
-        <i class="icon-base ti tabler-menu-2 icon-md"></i>
+        <i class="icon-base ti tabler-layout-sidebar-right icon-md"></i>
       </button>
     </div>
+
   </div>
-
-  <nav aria-label="breadcrumb" class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-
-      @if($is_my_post ?? false)
-        <li class="breadcrumb-item">
-          <a href="{{ route('posts.index', $type) }}"> {{ ucfirst($type) }}</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-      @endif
-
-      <li class="breadcrumb-item active">
-        {{ ($is_my_post ?? false) ? 'My Posts' : ucfirst($type) }}
-      </li>
-    </ol>
-  </nav>
 
   <div class="row g-5">
     <div class="col-md-9 col-12">
@@ -42,7 +59,7 @@
               <div class="col-12 col-sm-6">
                 <div class="input-group">
                   <input type="text" class="form-control" name="search" placeholder="Search by title or tags..."
-                    value="{{ request('search') }}">
+                         value="{{ request('search') }}">
                   <button class="btn btn-outline-primary" type="submit">
                     <i class="ti ti tabler-search"></i>
                   </button>

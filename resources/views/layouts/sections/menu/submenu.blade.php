@@ -50,11 +50,11 @@
 
     <li class="menu-item {{ $activeClass }}">
       <a href="{{ isset($submenu->route)
-          ? route($submenu->route, ['slug' => $submenu->slug])
-          : (isset($submenu->url)
-              ? url($submenu->url)
-              : 'javascript:void(0)') }}"
-        class="{{ isset($submenu->submenu) ? 'menu-link menu-toggle' : 'menu-link' }}">
+    ? route($submenu->route, isset($submenu->slug) && $submenu->slug ? ['slug' => $submenu->slug] : [])
+    : (isset($submenu->url)
+        ? url($submenu->url)
+        : 'javascript:void(0)') }}"
+         class="{{ isset($submenu->submenu) ? 'menu-link menu-toggle' : 'menu-link' }}">
 
         @isset($submenu->icon)
           <i class="{{ $submenu->icon }}"></i>

@@ -15,32 +15,68 @@
 @endsection
 
 @section('content')
-  <h4 class="mb-1">{{ isset($post) ? 'Edit Post' : 'Create Post' }}</h4>
-  <nav aria-label="breadcrumb" class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      @if(isset($user_type))
-      <li class="breadcrumb-item">
-        <a href="{{ route('societies.index', $user_type) }}">Societies</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item">
-        <a href="{{ route('societies.show', [$user_type, $uuid]) }}">Soceity</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      @else
-      <li class="breadcrumb-item">
-        <a href="{{ route('posts.index', $type) }}">{{$type}}</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      @endif
-      <li class="breadcrumb-item active">{{ isset($post) ? 'Post edit' : 'Post create' }}</li>
-    </ol>
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
 
-  </nav>
+    <div>
+      @unlessrole('Society Member')
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+        Society Management
+      </p>
+      @endunlessrole
+
+      <h4 class="text-dark fw-bold mb-2">
+        {{ isset($post) ? 'Edit Post' : 'Create Post' }}
+      </h4>
+
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}"
+               class="text-dark opacity-75 text-decoration-none">
+              Home
+            </a>
+          </li>
+
+          @if(isset($user_type))
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.index', $user_type) }}"
+                 class="text-dark opacity-75 text-decoration-none">
+                Societies
+              </a>
+            </li>
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
+                 class="text-dark opacity-75 text-decoration-none">
+                Society
+              </a>
+            </li>
+
+          @else
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('posts.index', $type) }}"
+                 class="text-dark opacity-75 text-decoration-none">
+                {{ $type }}
+              </a>
+            </li>
+
+          @endif
+
+          <li class="breadcrumb-item active text-dark opacity-50">
+            {{ isset($post) ? 'Post Edit' : 'Post Create' }}
+          </li>
+
+        </ol>
+      </nav>
+    </div>
+    <i class="ti tabler-messages text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+
+  </div>
+
   @if (session('success'))
     <div class="alert alert-success"> {{ session('success') }} </div>
   @endif
@@ -109,8 +145,8 @@
       });
 
       @if (isset($post) && $post->description)
-        // Set existing description in Quill editor
-        quill.root.innerHTML = {!! json_encode($post->description) !!};
+      // Set existing description in Quill editor
+      quill.root.innerHTML = {!! json_encode($post->description) !!};
       @endif
 
       const form = document.querySelector('#post_form');

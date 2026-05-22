@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Helpers;
+
 use App\Models\Society;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +42,7 @@ class SocietyAccessResolver
 
         return [
             'isSocietyScoped' => $isSocietyScoped,
+            'ownerId' => $ownerId,
             'ownedSocietyIds' => $isSocietyScoped
               ? Society::where('owner_id', $ownerId)->pluck('id')
               : null,

@@ -13,7 +13,7 @@ use Yajra\DataTables\DataTables;
 
 class BlocksController extends Controller
 {
-    public function index(Request $request, $slug)
+    public function index(Request $request)
     {
         $login_user = auth()->user();
         $scope = SocietyAccessResolver::resolver($login_user);
@@ -49,7 +49,7 @@ class BlocksController extends Controller
                        </form>';
                     }
                     if ($login_user->can('view_block')) {
-                        $view = '<a href="'.route('blocks.view', $block->uuid).'" class="pe-3">
+                        $view = '<a href="'.route('block.view', $block->uuid).'" class="pe-3">
                         <i class="fa-solid fa-eye text-primary" role="button" title="View details"></i>
                     </a>';
                     }
@@ -65,11 +65,12 @@ class BlocksController extends Controller
         $show_actions = $can_edit || $can_delete || $can_view;
         $societies = Society::whereIn('id', $societies_ids)->get();
 
-        return view('content.property management.blocks.index', compact('show_actions', 'societies'));
+        return view('content.property_management.blocks.index', compact('show_actions', 'societies'));
     }
 
     public function store(Request $request)
     {
+        //        dd($request->all());
         $login_user = auth()->user();
         $scope = SocietyAccessResolver::resolver($login_user);
         $societies_ids = $scope['ownedSocietyIds'];
@@ -117,7 +118,6 @@ class BlocksController extends Controller
     {
         try {
             $blocks = Block::whereIn('id', $request->ids)->get();
-
             $notDeleted = [];
             $deletedIds = [];
 
@@ -135,8 +135,7 @@ class BlocksController extends Controller
 
             return response()->json([
                 'success' => true,
-                //        'message' => count($deletedIds) . ' blocks deleted successfully.',
-                //        'not_deleted' => $notDeleted
+                'message' => count($deletedIds).' blocks deleted successfully.',
             ]);
 
         } catch (Exception $e) {

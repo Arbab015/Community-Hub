@@ -1,19 +1,20 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Blocks/Sectors')
+@section('title', 'Property Attributes')
 @section('content')
-  <div class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
       <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Property Management</p>
-  <h4 class="mb-1">Society Blocks/Sectors</h4>
-  <nav aria-label="breadcrumb" >
-    <ol class="breadcrumb mb-0">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-      </li>
-      <li class="breadcrumb-item active">Blocks/Sectors</li>
-    </ol>
-  </nav>
+      <h4 class="mb-1">Property Attributes</h4>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+          <li class="breadcrumb-item active">Attributes</li>
+        </ol>
+      </nav>
     </div>
     <i class="ti tabler-building-estate text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
   </div>
@@ -45,22 +46,24 @@
           <div class="dt-actions-bar">
             <div id="dt-right-actions" class="d-none">
               <div class="d-flex gap-2">
-                <button class="btn btn-primary" onclick="addBlockModel(event)" >
-                  Add Block
-                </button>
+                @can('create_attribute')
+                  <button class="btn btn-primary" onclick="addAttributeModel(event)">
+                    Add Property Attribute
+                  </button>
+                @endcan
               </div>
             </div>
           </div>
 
           <!-- TABLE -->
           <div class="card-datatable">
-            <table id="blocks_table" class="table table_to_reload datatables-users">
+            <table id="attributes_table" class="table table_to_reload datatables-users">
               <thead class="bg-label-primary">
               <tr>
                 <th><input type="checkbox" class="form-check-input" id="select_all"></th>
-                <th>Name</th>
-                <th>Society</th>
-                @if ($show_actions)
+                <th>Title</th>
+                <th>Type</th>
+                @if($show_actions)
                   <th>Actions</th>
                 @endif
               </tr>
@@ -71,36 +74,36 @@
       </div>
     </div>
   </div>
-  @include('_partials._modals.add_edit_blocks')
+  @include('_partials._modals.add_edit_property_attributes')
 @endsection
 
 @push('scripts')
   <script>
     $(function() {
       // DataTable initialization
-      let table = $('#blocks_table').DataTable({
+      let table = $('#attributes_table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: `/blocks/index/society_blocks`,
-        dom: "<'row align-items-center'" +
-          "<'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0'l f <'#bulk-delete-wrap'>>" +
-          "<'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start'<'dt-actions'>>" +
-          ">" +
-          "<'row'<'col-12'tr>>" +
-          "<'row mt-3 align-items-center'" +
-          "<'col-md-6'i>" +
-          "<'col-md-6 d-flex justify-content-end'p>" +
-          ">",
+        ajax: `/property_attributes/index`,
+        dom: '<\'row align-items-center\'' +
+          '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
+          '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
+          '>' +
+          '<\'row\'<\'col-12\'tr>>' +
+          '<\'row mt-3 align-items-center\'' +
+          '<\'col-md-6\'i>' +
+          '<\'col-md-6 d-flex justify-content-end\'p>' +
+          '>',
         columns: [{
           data: 'checkbox',
           orderable: false,
           searchable: false
         },
           {
-            data: 'name'
+            data: 'title'
           },
           {
-            data: 'society'
+            data: 'type'
           },
             @if ($show_actions)
           {
@@ -113,7 +116,7 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('blocks.bulk_delete') }}">
+            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('attributes.bulk_delete') }}">
               Bulk Delete
             </button>
           `);
@@ -121,23 +124,23 @@
       });
     });
 
-    function addBlockModel(e) {
+    function addAttributeModel(e) {
       e.preventDefault();
-      $('#block_id').val('');
-      $('#name').val('');
-      $('#society_id').val('');
-      let modal = new bootstrap.Modal(document.getElementById('blockModal'));
+      $('#attribute_id').val('');
+      $('#title').val('');
+      $('#type').val('');
+      let modal = new bootstrap.Modal(document.getElementById('attributeModal'));
       modal.show();
     }
 
-    $(document).on('click', '.edit_block_btn', function () {
+    $(document).on('click', '.edit_attribute_btn', function() {
       let btn = $(this);
-      $('#block_id').val(btn.data('id'));
-      $('#name').val(btn.data('name'));
-      $('#society_id').val(btn.data('society_id'));
-      $('#modalTitle').text('Edit Block');
+      $('#attribute_id').val(btn.data('id'));
+      $('#title').val(btn.data('title'));
+      $('#type').val(btn.data('type'));
+      $('#modalTitle').text('Edit Attribute');
       // Show modal
-      let modal = new bootstrap.Modal(document.getElementById('blockModal'));
+      let modal = new bootstrap.Modal(document.getElementById('attributeModal'));
       modal.show();
     });
 
@@ -185,7 +188,7 @@
         -webkit-overflow-scrolling: touch;
       }
 
-      .dt-scroll-wrapper>* {
+      .dt-scroll-wrapper > * {
         min-width: 1100px;
       }
 

@@ -3,17 +3,17 @@
 //  Property type options
 const PROPERTY_TYPES = {
   residential: ['Plot', 'House', 'Other'],
-  commercial:  ['Plot', 'Building', 'Plaza', 'Other'],
-  other:       ['Plot', 'Mosque', 'Temple', 'Hospital', 'Park', 'School', 'Govt-Office', 'Other']
+  commercial: ['Plot', 'Building', 'Plaza', 'Other'],
+  other: ['Plot', 'Mosque', 'Temple', 'Hospital', 'Park', 'School', 'Govt-Office', 'Other']
 };
 
 // Fill type <select> based on category
-window.fillTypes = function (selectEl, category, oldVal = '') {
+window.fillTypes = function(selectEl, category, oldVal = '') {
   selectEl.innerHTML = '<option value="" disabled selected>Select Type</option>';
   (PROPERTY_TYPES[category] ?? []).forEach(t => {
     const o = document.createElement('option');
     o.value = t.toLowerCase();
-    o.text  = t;
+    o.text = t;
     if (o.value === oldVal.toLowerCase()) o.selected = true;
     selectEl.appendChild(o);
   });
@@ -28,17 +28,18 @@ function styleConstructionRadios() {
   const ln = document.getElementById('label_pending');
   if (!lc || !lp || !ln) return;
   lc.className = lp.className = ln.className = 'const_labels';
-  if (constructed)      lc.classList.add('border-success', 'bg-success', 'bg-opacity-10');
+  if (constructed) lc.classList.add('border-success', 'bg-success', 'bg-opacity-10');
   else if (in_progress) lp.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
-  else                  ln.classList.add('border-warning',  'bg-warning',  'bg-opacity-10');
+  else ln.classList.add('border-warning', 'bg-warning', 'bg-opacity-10');
 }
+
 styleConstructionRadios();
 
-document.querySelectorAll('input[name="const_status"]').forEach(r => {
+document.querySelectorAll('input[name="construction_status"]').forEach(r => {
   r.addEventListener('change', () => {
     styleConstructionRadios();
     // show/hide Construction tab on create page only
-    const constTab    = document.getElementById('const_tab');
+    const constTab = document.getElementById('const_tab');
     const constructed = document.getElementById('cons_constructed')?.checked;
     const in_progress = document.getElementById('cons_in_progress')?.checked;
     if (constTab) constTab.classList.toggle('d-none', !constructed && !in_progress);
@@ -46,55 +47,106 @@ document.querySelectorAll('input[name="const_status"]').forEach(r => {
 });
 
 // Hide construction wrapper when type = plot
-document.getElementById('type')?.addEventListener('change', function () {
+document.getElementById('type')?.addEventListener('change', function() {
   document.getElementById('constructed_wrapper')?.classList.toggle('d-none', this.value === 'plot');
 });
 
 //  Template cloning
-window.cloneTpl = function (id, replacements) {
-  const tpl  = document.getElementById(id);
+window.cloneTpl = function(id, replacements) {
+  const tpl = document.getElementById(id);
   const node = tpl.content.cloneNode(true);
-  const div  = document.createElement('div');
+  const div = document.createElement('div');
   div.appendChild(node);
   let html = div.innerHTML;
-  Object.entries(replacements).forEach(([k, v]) => { html = html.replaceAll(k, v); });
+  Object.entries(replacements).forEach(([k, v]) => {
+    html = html.replaceAll(k, v);
+  });
   div.innerHTML = html;
   return div.firstElementChild;
 };
 
 //  Add a dimension row
 // prefix = field prefix up to room/floor, e.g. "floors[0][rooms][1]"
-window.addDimRow = function ($dimBlock, prefix) {
-  const idx  = $dimBlock.find('.dim-rows .dimension-row').length;
+window.addDimRow = function($dimBlock, prefix) {
+  const idx = $dimBlock.find('.dim-rows .dimension-row').length;
   const node = cloneTpl('tpl-dim-row', { '__PREFIX__': prefix, '__DIM__': idx });
   $dimBlock.find('.dim-rows').append(node);
 };
 
 //  Add a room
-window.addRoom = function ($container, prefix, roomIdx) {
-  const node  = cloneTpl('tpl-room', { '__PREFIX__': prefix, '__ROOM__': roomIdx });
+window.addRoom = function($container, prefix, roomIdx) {
+  const node = cloneTpl('tpl-room', { '__PREFIX__': prefix, '__ROOM__': roomIdx });
   const $room = $(node);
   addDimRow($room.find('.dim-block'), prefix + '[rooms][' + roomIdx + ']');
   $container.append($room);
 };
 
 //  Add a unit
-window.addUnit = function ($container, floorPrefix, unitIdx) {
+window.addUnit = function($container, floorPrefix, unitIdx) {
   const node = cloneTpl('tpl-unit', { '__PREFIX__': floorPrefix, '__UNIT__': unitIdx });
   $container.append(node);
 };
 
+
+// has_units_check
+document.addEventListener('click', function(e) {
+  const checkbox = e.target.closest('.has_units_check');
+  if (!checkbox) return;
+  const floor = checkbox.closest('.floor-item');
+  const checked = checkbox.checked;
+
+  const unitsSection = floor.querySelector('.units-section');
+  const floorRoomsSection = floor.querySelector('.floor-rooms-section');
+
+  unitsSection.classList.toggle('d-none', !checked);
+  floorRoomsSection.classList.toggle('d-none', checked);
+
+  if (!checked) {
+    unitsSection.querySelectorAll('.unit-item').forEach(u => u.remove());
+    floor.querySelector('.floor-units-container').innerHTML = '';
+    floor.querySelector('.btn-add-unit')?.setAttribute('data-unit-count', '0');
+  }
+});
+
+// no_rooms_check — unit acts as single room, show dimensions instead of rooms
+document.addEventListener('click', function(e) {
+  const checkbox = e.target.closest('.no_rooms_check');
+  if (!checkbox) return;
+  const unit = checkbox.closest('.unit-item');
+  const checked = checkbox.checked;
+
+  unit.querySelector('.unit-rooms-section').classList.toggle('d-none', checked);
+  unit.querySelector('.unit-dimension-section').classList.toggle('d-none', !checked);
+  unit.querySelector('.unit-amenities-section')?.classList.toggle('d-none', !checked);
+
+  if (checked) {
+    // Auto-add first dim row if empty
+    const dimBlock = unit.querySelector('.unit-dimension-section .dim-block');
+    if (dimBlock && dimBlock.querySelectorAll('.dimension-row').length === 0) {
+      dimBlock.querySelector('.btn-add-dim')?.click();
+    }
+  } else {
+    // On uncheck: clear all dimension rows so nothing stale is submitted
+    const dimRows = unit.querySelector('.unit-dimension-section .dim-block .dim-rows');
+    if (dimRows) dimRows.innerHTML = '';
+  }
+});
+
 // Dimension add/remove — call from any delegated listener
-window.handleDimClicks = function (e) {
+window.handleDimClicks = function(e) {
   if (e.target.closest('.btn-add-dim')) {
     e.stopPropagation();
-    const btn      = e.target.closest('.btn-add-dim');
-    const block    = btn.closest('.dim-block');
-    const existing = block.querySelector('[name*="[dimensions]"]');
-    if (!existing) return;
-    // name is like: floors[0][rooms][0][dimensions][0][name]
-    // everything before "[dimensions]" is the prefix we need
-    const prefix = existing.name.split('[dimensions]')[0];
+    const btn = e.target.closest('.btn-add-dim');
+    const block = btn.closest('.dim-block');
+
+    // prefer data-prefix; fall back to parsing from existing input name
+    let prefix = block.dataset.prefix;
+    if (!prefix) {
+      const existing = block.querySelector('[name*="[dimensions]"]');
+      if (!existing) return;
+      prefix = existing.name.split('[dimensions]')[0];
+    }
+
     addDimRow($(block), prefix);
     return;
   }
@@ -134,7 +186,7 @@ function validateDimensions(form) {
 }
 
 // Property basic form submit (create page)
-document.getElementById('property_form')?.addEventListener('submit', function (e) {
+document.getElementById('property_form')?.addEventListener('submit', function(e) {
   const dimensions = document.querySelectorAll('.dimensions');
   if (dimensions.length === 1) {
     notify('Dimensions must be more than 1 side.', 'error');
@@ -148,19 +200,29 @@ document.getElementById('property_form')?.addEventListener('submit', function (e
 });
 
 //  Edit dimensions form submit (edit modal)
-document.getElementById('edit_dimensions_form')?.addEventListener('submit', function (e) {
+document.getElementById('edit_dimensions_form')?.addEventListener('submit', function(e) {
   if (!validateDimensions(this)) {
     notify('Please fix the errors before submitting.', 'error');
     e.preventDefault();
   }
 });
 
-// ─── Construction form validation (used on both create & edit pages) ──────────
-window.validateConstructionForm = function (form, e) {
+
+//  Construction form validation (used on both create & edit pages)
+window.validateConstructionForm = function(form, e) {
   form.querySelectorAll('.dim-name-error, .floor-type-error').forEach(el => el.remove());
   form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
 
   let valid = true;
+  const floorItems = form.querySelectorAll('.floor-item');
+  if (floorItems.length === 0) {
+    const container = form.querySelector('#floors-container, #edit-floors-container');
+    const err = document.createElement('div');
+    err.className = 'text-danger small mt-2 dim-name-error';
+    err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Property must have at least one floor.';
+    container.insertAdjacentElement('afterend', err);
+    valid = false;
+  }
 
   const markError = (el, msg, cls = 'dim-name-error') => {
     el.classList.add('is-invalid');
@@ -230,15 +292,43 @@ window.validateConstructionForm = function (form, e) {
   });
 
   // unit must have at least one room
+  // form.querySelectorAll('.unit-item').forEach(unit => {
+  //   let has_room = unit.querySelector('.no_rooms_check');
+  //   if (unit.querySelectorAll('.unit-rooms-container .room-item').length === 0 && !has_room.checked) {
+  //     const err = document.createElement('div');
+  //     err.className = 'text-danger small mt-2 dim-name-error';
+  //     err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Each unit must have at least one room.';
+  //     unit.querySelector('.btn-add-unit-room').insertAdjacentElement('beforebegin', err);
+  //     valid = false;
+  //   }
+  // });
+
+
   form.querySelectorAll('.unit-item').forEach(unit => {
-    if (unit.querySelectorAll('.unit-rooms-container .room-item').length === 0) {
+    const no_rooms_check = unit.querySelector('.no_rooms_check');
+    const isSingleRoom = no_rooms_check?.checked;
+    const hasRooms = unit.querySelectorAll('.unit-rooms-container .room-item').length > 0;
+
+    if (!isSingleRoom && !hasRooms) {
       const err = document.createElement('div');
       err.className = 'text-danger small mt-2 dim-name-error';
       err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Each unit must have at least one room.';
       unit.querySelector('.btn-add-unit-room').insertAdjacentElement('beforebegin', err);
       valid = false;
     }
+
+    if (isSingleRoom) {
+      const dimRows = unit.querySelectorAll('.unit-dimension-section .dim-block .dim-rows .dimension-row');
+      if (dimRows.length < 2) {
+        const err = document.createElement('div');
+        err.className = 'text-danger small mt-2 dim-name-error';
+        err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Unit dimensions must have more than 1 side.';
+        unit.querySelector('.unit-dimension-section .btn-add-dim').insertAdjacentElement('beforebegin', err);
+        valid = false;
+      }
+    }
   });
+
 
   if (!valid) {
     notify('Please fix the errors before submitting.', 'error');

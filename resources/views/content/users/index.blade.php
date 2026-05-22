@@ -3,10 +3,29 @@
 @section('title', $slug)
 
 @section('content')
+
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Users Management</p>
+      <h4 class="mb-1">
+        {{ $slug == 'society_owners' ? 'Society Owners' : 'System Users' }}
+      </h4>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+          <li class="breadcrumb-item active">Users</li>
+        </ol>
+      </nav>
+    </div>
+    <i class="ti tabler-users text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+  </div>
+
   <div class="card">
     <div class="">
       <div class="card-header pb-1">
-        <h5 class="mb-0">{{ $slug == 'society_owners' ? 'Society Owners' : 'System Users' }}</h5>
         <div class="dt-scroll-wrapper">
           <div class="dt-actions-bar">
             <div id="dt-right-actions" class="d-none">
@@ -25,7 +44,7 @@
                   </div>
                 @endcan
                 @can('import_user')
-                  <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#backDropModal">
+                  <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#userImportModal">
                     <i class="fa-solid fa-download me-1 text-primary"></i> Import
                   </button>
                 @endcan
@@ -50,16 +69,19 @@
           <div class="card-datatable">
             <table id="users_table" class="table table_to_reload datatables-users">
               <thead class="bg-label-primary">
-                <tr>
-                  <th><input class="form-check-input" type="checkbox" id="select_all"></th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Contact</th>
-                  @if ($show_actions)
-                    <th>Actions</th>
-                  @endif
-                </tr>
+              <tr>
+                <th><input class="form-check-input" type="checkbox" id="select_all"></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                @if($slug === "society_members")
+                  <th>Society Name</th>
+                @endif
+                <th>Contact</th>
+                @if ($show_actions)
+                  <th>Actions</th>
+                @endif
+              </tr>
               </thead>
             </table>
           </div>
@@ -78,22 +100,22 @@
         processing: true,
         serverSide: true,
         ajax: `/users/index/${slug}`,
-        dom: "<'row align-items-center'" +
-          "<'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0'l f <'#bulk-delete-wrap'>>" +
-          "<'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start'<'dt-actions'>>" +
-          ">" +
-          "<'row'<'col-12'tr>>" +
-          "<'row mt-3 align-items-center'" +
-          "<'col-md-6'i>" +
-          "<'col-md-6 d-flex justify-content-end'p>" +
-          ">",
+        dom: '<\'row align-items-center\'' +
+          '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
+          '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
+          '>' +
+          '<\'row\'<\'col-12\'tr>>' +
+          '<\'row mt-3 align-items-center\'' +
+          '<\'col-md-6\'i>' +
+          '<\'col-md-6 d-flex justify-content-end\'p>' +
+          '>',
         buttons: [{
-            extend: 'excel',
-            className: 'buttons-excel d-none',
-            exportOptions: {
-              columns: [1, 2, 3, 4]
-            }
-          },
+          extend: 'excel',
+          className: 'buttons-excel d-none',
+          exportOptions: {
+            columns: [1, 2, 3, 4]
+          }
+        },
           {
             extend: 'csv',
             className: 'buttons-csv d-none',
@@ -118,10 +140,10 @@
         ],
 
         columns: [{
-            data: 'checkbox',
-            orderable: false,
-            searchable: false
-          },
+          data: 'checkbox',
+          orderable: false,
+          searchable: false
+        },
           {
             data: 'name'
           },
@@ -131,16 +153,21 @@
           {
             data: 'role'
           },
+            @if($slug === "society_members")
+          {
+            data: 'society'
+          },
+            @endif
           {
             data: 'contact'
           },
 
-          @if ($show_actions)
-            {
-              data: 'actions',
-              orderable: false,
-              searchable: false
-            },
+            @if ($show_actions)
+          {
+            data: 'actions',
+            orderable: false,
+            searchable: false
+          },
           @endif
         ],
 
@@ -178,6 +205,7 @@
   </script>
 @endpush
 
+
 @push('styles')
   <style>
     .dt-search label {
@@ -193,17 +221,14 @@
     }
 
     @media (max-width: 575px) {
-      .dataTables_wrapper .row.align-items-center {
-        flex-direction: column !important;
-        align-items: flex-start !important;
+      .dataTables_wrapper > .row:first-child {
+        flex-wrap: nowrap !important;
       }
 
-      .dataTables_wrapper .dt-actions {
-        width: 100% !important;
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 10px !important;
-        margin-top: 10px !important;
+      .dataTables_wrapper > .row:first-child > div {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
       }
     }
 
@@ -214,7 +239,7 @@
         -webkit-overflow-scrolling: touch;
       }
 
-      .dt-scroll-wrapper>* {
+      .dt-scroll-wrapper > * {
         min-width: 1100px;
       }
 
@@ -222,5 +247,6 @@
         white-space: nowrap;
       }
     }
+
   </style>
 @endpush

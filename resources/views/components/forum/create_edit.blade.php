@@ -19,16 +19,17 @@
 
           @if($user_type)
             <input type="hidden" name="user_type" value="{{ $user_type }}">
-             {{--          society uuid--}}
+            {{--          society uuid--}}
             <input type="hidden" name="uuid" value="{{ $uuid }}">
-            @endif
+          @endif
           <!-- Title -->
           <div class="form-control-validation mb-4">
-            <label class="form-label-input fw-bolder required" for="title">Title</label>
+            <label for="title" class="form-label fw-semibold small required text-muted">Title</label>
             <input type="text" id="title" class="form-control @error('title') is-invalid @enderror" required
-              placeholder="Title upto 300 characters" name="title" value="{{ old('title', $post->title ?? '') }}" />
+                   placeholder="Title upto 300 characters" name="title"
+                   value="{{ old('title', $post->title ?? '') }}" />
             @error('title')
-              <div class="invalid-feedback d-block">{{ $message }}</div>
+            <div class="invalid-feedback d-block">{{ $message }}</div>
             @enderror
           </div>
 
@@ -37,17 +38,18 @@
 
           <!-- Description -->
           <div class="form-control-validation mb-4">
-            <label class="form-label-input fw-bolder required">Description</label>
+            <label for="title" class="form-label fw-semibold small  text-muted required">Description</label>
             <div id="post-editor" class="border rounded"></div>
             <input type="hidden" name="description" id="description"
-              class="form-control @error('description') is-invalid @enderror" required>
+                   class="form-control @error('description') is-invalid @enderror" required>
             @error('description')
-              <div class="invalid-feedback d-block">{{ $message }}</div>
+            <div class="invalid-feedback d-block">{{ $message }}</div>
             @enderror
           </div>
           <div class="row align-items-end g-3">
             <div class="col-md-8 col-12">
-              <label for="tags" class="form-label fw-bolder">Tags</label>
+              <label for="tags" class="form-label fw-semibold small  text-muted required">Tags</label>
+
               <div class="select2-primary">
                 <select id="select2Primary" name="tags[]"
                         class="select2 form-select @error('tags') is-invalid @enderror" multiple required>

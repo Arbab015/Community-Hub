@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\SocietyBlockedMail;
 use App\Mail\SocietyUnBlockMail;
+use App\Models\Attachment;
 use App\Models\Post;
 use App\Models\Report;
 use App\Models\Rule;
@@ -20,16 +21,16 @@ use Illuminate\Support\Facades\Storage;
 
 class SocietiesController extends Controller
 {
-    public function create($slug)
+    public function create($slug, $uuid = null)
     {
-        $user = Auth::user();
+        $society = $uuid ? Society::where('uuid', $uuid)->first() : null;
+        $tab = request('tab', 'basic');
 
-        return view('content.societies.create', compact('slug'));
+        return view('content.societies.create', compact('slug', 'society', 'tab'));
     }
 
     public function index(Request $request, $slug)
     {
-
         $user_type = $slug;
         $skip = $request->input('skip', 0);
         $total_skip = 6 + $skip;
@@ -39,7 +40,12 @@ class SocietiesController extends Controller
         if ($user_type == 'owner_societies' && $user_role->name == 'Society Owner') {
             $query->where('owner_id', auth()->id());
         }
-        $query->when($request->name, fn ($q) => $q->where('name', $request->name));
+        $query->when($request->name, function ($q) use ($request) {
+            $search = $request->name;
+            $q->where(function ($subQ) use ($search) {
+                $subQ->where('name', 'LIKE', "%{$search}%");
+            });
+        });
         $query->when($request->city, fn ($q) => $q->where('city', $request->city));
         $query->when($request->status, fn ($q) => $q->where('status', $request->status));
         $query->when($request->owner, fn ($q) => $q->where('owner_id', $request->owner));
@@ -49,11 +55,10 @@ class SocietiesController extends Controller
         if ($user_type == 'owner_societies') {
             $dropdownQuery->where('owner_id', auth()->id());
         }
-        $societyNames = $dropdownQuery->distinct('id')->pluck('name');
         $cities = $dropdownQuery->distinct('id')->pluck('city');
         $owners = $user_type == 'owner_societies'
-            ? collect()
-            : User::whereHas('roles', fn ($q) => $q->where('name', 'Society Owner'))->get();
+          ? collect()
+          : User::whereHas('roles', fn ($q) => $q->where('name', 'Society Owner'))->get();
 
         if ($request->ajax()) {
             return response()->json([
@@ -68,7 +73,6 @@ class SocietiesController extends Controller
             'total_societies',
             'total_skip',
             'user_type',
-            'societyNames',
             'cities',
             'owners'
         ));
@@ -77,6 +81,10 @@ class SocietiesController extends Controller
     public function storeOrUpdate(Request $request, $slug, $uuid = null)
     {
         //        dd($request->all());
+        if (! $uuid && $request->society_id) {
+            $uuid = Society::find($request->society_id)->uuid;
+        }
+        //        dd($uuid);
         $type = strtolower($request->input('type', ''));
         $is_picture = $request->hasFile('main_pic');
         $is_documents = $request->hasFile('documents');
@@ -110,6 +118,7 @@ class SocietiesController extends Controller
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
+                'postal_code' => 'required|numeric',
                 'marla_size' => ['required', 'numeric', 'regex:/^\d+(\.\d{1,2})?$/'],
             ],
         };
@@ -120,44 +129,76 @@ class SocietiesController extends Controller
                 'country' => 'required|string|max:50',
                 'city' => 'required|string|max:100',
                 'address' => 'required|string|max:255',
-              'marla_size' => ['required', 'numeric', 'regex:/^\d+(\.\d{1,2})?$/'],
+                'postal_code' => 'required|numeric',
+                'marla_size' => ['required', 'numeric', 'regex:/^\d+(\.\d{1,2})?$/'],
             ];
         }
         $request->validate($rules);
         try {
             DB::beginTransaction();
             $society = $uuid ? Society::where('uuid', $uuid)->firstOrFail() : new Society(['owner_id' => Auth::id()]);
+
             if ($is_basic || ! $uuid) {
-                $society->fill($request->only(['name', 'country', 'city', 'address', 'marla_size']))->save();
+                $society->fill($request->only(['name', 'country', 'city', 'address', 'postal_code', 'marla_size']))->save();
             }
+            if ($request->deleted_files) {
+                $ids = json_decode($request->deleted_files, true);
+                Attachment::whereIn('id', $ids)->delete();
+            }
+            $newAttachmentIds = [];
+            $mainPicId = null;
+
             if ($is_picture) {
                 if ($society->attachment && Storage::disk('public')->exists($society->attachment->link)) {
-                    // delete form disk
                     Storage::disk('public')->delete($society->attachment->link);
                 }
-                app(FileServices::class)->compressAndStore(
+                $ids = app(FileServices::class)->compressAndStore(
                     $request->file('main_pic'),
                     $society,
                     true,
                     true
                 );
+                $mainPicId = $ids[0] ?? null;
+                $newAttachmentIds = is_array($ids) ? $ids : [];
             }
+
             if ($is_documents) {
-                app(FileServices::class)->compressAndStore(
+                $ids = app(FileServices::class)->compressAndStore(
                     $request->file('documents'),
                     $society,
                     false
                 );
+                $newAttachmentIds = is_array($ids) ? $ids : [];
             }
+
             DB::commit();
-            if ($uuid) {
-                return back()->with('Society updated successfully!');
-            } else {
-                return redirect()->route('societies.index', $slug)->with('success', 'Society created successfully!');
+
+            // AJAX response — same shape as PropertiesController
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Files uploaded successfully.',
+                    'attachment_ids' => $newAttachmentIds,
+                    'main_pic_id' => $mainPicId,
+                ]);
             }
+
+            // In storeOrUpdate, replace the non-ajax success redirect for new society:
+            if ($uuid && ! $request->society_id) {
+                return back()->with('success', 'Society updated successfully!');
+            } else {
+                // ← CHANGE THIS: redirect to documents tab instead of index
+                return redirect()->route('society.create', [$slug, $society->uuid, 'tab' => 'documents'])
+                    ->with('success', 'Society created. Now add documents.');
+            }
+
         } catch (Exception $e) {
             DB::rollBack();
             report($e);
+
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
 
             return back()->with('error', $e->getMessage());
         }
@@ -203,6 +244,8 @@ class SocietiesController extends Controller
         $user = Auth::user();
         $rules = Rule::where('society_owner_id', $society->owner_id)->get();
 
+        //
+
         return view('content.societies.show', compact(
             'user_type',
             'uuid',
@@ -233,22 +276,6 @@ class SocietiesController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', $e->getMessage());
-        }
-    }
-
-    public function bulkDelete(Request $request)
-    {
-        try {
-            app(FileServices::class)->deleteByIds($request->ids);
-
-            return response()->json(['success' => true]);
-        } catch (\Throwable $e) {
-            report($e);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
         }
     }
 

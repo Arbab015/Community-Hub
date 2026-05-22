@@ -24,17 +24,22 @@
             <input type="text" id="name" name="name" class="form-control "
                    placeholder="Enter block name" required>
           </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold" for="society_id">Select Society:</label>
-            <select id="society_id" name="society_id" class="form-control" required>
-              <option value="">-- Select Society --</option>
-              @foreach($societies as $society)
-                <option value="{{ $society->id }}">
-                  {{ $society->name }}
-                </option>
-              @endforeach
-            </select>
-          </div>
+          <input type="hidden" name="society_id" id="hidden_society_id" value="{{ $society->id ?? "" }}">
+
+          @if(isset($societies))
+            <div class="mb-3" id="society">
+              <label class="form-label fw-semibold" for="society_id">Select Society:</label>
+              <select id="society_id" name="society_id" class="form-control" required>
+                <option value="">-- Select Society --</option>
+                @foreach($societies as $society)
+                  <option value="{{ $society->id }}">
+                    {{ $society->name }}
+                  </option>
+                @endforeach
+              </select>
+            </div>
+          @endif
+
           <div class="d-grid gap-2 mt-4">
             <button type="submit" class="btn btn-primary btn-lg">
               Save Block

@@ -1,20 +1,13 @@
+'use strict';
 
-(function () {
-  // Init custom option check
-  window.Helpers.initCustomOptionCheck();
+(function() {
+  const flatpickrDate = document.querySelector('#dob');
 
-  // Bootstrap validation example
-  //------------------------------------------------------------------------------------------
-  // const flatPickrEL = $('.flatpickr-validation');
-  const flatPickrList = [].slice.call(document.querySelectorAll('.flatpickr-validation'));
-  // Flat pickr
-  if (flatPickrList) {
-    flatPickrList.forEach(flatPickr => {
-      flatPickr.flatpickr({
-        allowInput: true,
-        monthSelectorType: 'static'
-      });
+  if (flatpickrDate) {
+    flatpickrDate.flatpickr({
+      monthSelectorType: 'static',
+      dateFormat: 'Y-m-d',
+      maxDate: 'today' // optional: prevent future dates for DOB
     });
   }
-  
 })();

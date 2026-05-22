@@ -5,7 +5,7 @@
         <h5 class="modal-title fw-semibold" id="modalCenterTitle">Report An Issue</h5>
         <p class="text-muted small mb-0">Help us understand the problem and we will do our best to resolve it.</p>
         <button type="button" class="btn-close position-absolute end-0 me-3" data-bs-dismiss="modal"
-          aria-label="Close"></button>
+                aria-label="Close"></button>
       </div>
       <div class="modal-body pt-3">
         <form id="reportForm">
@@ -30,7 +30,7 @@
           </div>
 
           <input type="hidden" name="reason" id="reason">
-          <div class="mb-3 mt-2" >
+          <div class="mb-3 mt-2">
             <label class="form-label fw-bolder required d-none on_other" for="other_reason">Describe the Reason:</label>
             <textarea
               class="form-control d-none on_other"
@@ -54,7 +54,7 @@
     let select = document.getElementById('reason_select');
     let hiddenReason = document.getElementById('reason');
     let textarea = document.getElementById('other_reason');
-    select.addEventListener('change', function () {
+    select.addEventListener('change', function() {
       if (this.value === 'other') {
         textarea.classList.remove('d-none');
         hiddenReason.value = textarea.value;
@@ -63,9 +63,8 @@
         hiddenReason.value = this.value;
       }
     });
-    textarea.addEventListener('input', function () {
+    textarea.addEventListener('input', function() {
       hiddenReason.value = this.value;
     });
   </script>
-
 @endpush

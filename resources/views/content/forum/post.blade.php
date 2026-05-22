@@ -5,60 +5,92 @@
   @php
     $reaction = $post->userReaction?->type;
   @endphp
-  <div class="d-flex justify-content-between">
+
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+
+    <div>
+      @unlessrole('Society Member')
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+        Society Management
+      </p>
+      @endunlessrole
+
       <h4 class="mb-1">
-        {{ isset($user_type) ? 'Society Post Details' : (isset($request_on) ? 'Post Details' : ucfirst($type)) }}
+        {{ isset($user_type)
+            ? 'Society Post Details'
+            : (isset($request_on) ? 'Post Details' : ucfirst($type)) }}
       </h4>
-    @if (!$request_on)
-    <div class="d-md-none">
-      <button class="btn p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#forumRightOffcanvas"
-              aria-controls="forumRightOffcanvas">
-        <i class="icon-base ti tabler-menu-2 icon-md"></i>
-      </button>
+
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+
+          @if ($request_on)
+
+            @if($request_on == 'report')
+              <li class="breadcrumb-item">
+                <a href="{{ route('reports.index') }}">Reports</a>
+              </li>
+
+              <li class="breadcrumb-item">
+                <a href="{{ route('reports.show', $post->id) }}">Details</a>
+              </li>
+
+            @else
+              <li class="breadcrumb-item">
+                <a href="{{ route('requests.index', $in_society ? $society->uuid : null) }}">
+                  Requested Posts
+                </a>
+              </li>
+            @endif
+
+          @elseif(isset($user_type))
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.index', $user_type) }}">Societies</a>
+            </li>
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}">
+                Society
+              </a>
+            </li>
+
+          @else
+
+            <li class="breadcrumb-item">
+              <a href="{{ route('posts.index', $type) }}">
+                {{ ucfirst($type) }}
+              </a>
+            </li>
+
+          @endif
+
+          <li class="breadcrumb-item active">Post</li>
+        </ol>
+      </nav>
     </div>
+
+    <i class="ti tabler-messages text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+
+    {{-- Mobile offcanvas toggle --}}
+    @if (!$request_on)
+      <div class="d-md-none" id="forum_canvas_btn">
+        <button
+          class="btn btn-sm btn-secondary opacity-75"
+          type="button"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#forumRightOffcanvas"
+          aria-controls="forumRightOffcanvas">
+          <i class="icon-base ti tabler-layout-sidebar-right icon-md"></i>
+        </button>
+      </div>
     @endif
   </div>
-
-  <nav aria-label="breadcrumb" class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      @if ($request_on)
-        @if($request_on == 'report')
-        <li class="breadcrumb-item">
-          <a href="{{ route('reports.index') }}">Reports</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-        <li class="breadcrumb-item">
-          <a href="{{ route('reports.show', $post->id) }}">Details</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-        @else
-          <li class="breadcrumb-item">
-            <a href="{{ route('requests.index', $in_society ? $society->uuid : null) }}">Requested Posts</a>
-            <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-          </li>
-        @endif
-      @elseif(isset($user_type))
-        <li class="breadcrumb-item">
-          <a href="{{ route('societies.index', $user_type) }}">Societies</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-        <li class="breadcrumb-item">
-          <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}">Soceity</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-      @else
-        <li class="breadcrumb-item">
-          <a href="{{ route('posts.index', $type) }}">{{ ucfirst($type) }}</a>
-          <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-        </li>
-      @endif
-      <li class="breadcrumb-item active">Post</li>
-    </ol>
-  </nav>
 
   <!-- Toast Container -->
   <div aria-live="polite" aria-atomic="true" class="position-relative">
@@ -68,7 +100,7 @@
           <div class="toast-header">
             <i class="icon-base ti tabler-bell icon-xs me-2 text-success"></i>
             <div class="me-auto fw-medium">Message</div>
-            <small>{{ now()->diffForHumans() }}</small>
+            <small>Few seconds ago </small>
             <button type="button" class="btn-close " data-bs-dismiss="toast" aria-label="Close"></button>
           </div>
           <div class="toast-body">
@@ -82,7 +114,7 @@
           <div class="toast-header">
             <i class="icon-base ti tabler-bell icon-xs me-2 text-danger"></i>
             <div class="me-auto fw-medium">Message</div>
-            <small>{{ now()->diffForHumans() }}</small>
+            <small>Few seconds ago</small>
             <button type="button" class="btn-close " data-bs-dismiss="toast" aria-label="Close"></button>
           </div>
 
@@ -103,10 +135,10 @@
         <div class="card-body py-2 py-4 px-6 ps-5">
           <div class="flex-grow-1">
             @php
-               $isAuthor = auth()->id() === $post->user_id;
-              $noComments = $post->comments->count() === 0;
-              $canReport = in_array($post->id, $reportedIds);
-              $roleMember = Auth()->user()->hasRole('Society Member');
+              $isAuthor = auth()->id() === $post->user_id;
+             $noComments = $post->comments->count() === 0;
+             $canReport = in_array($post->id, $reportedIds);
+             $roleMember = Auth()->user()->hasRole('Society Member');
             @endphp
             <div class="d-flex justify-content-between">
               <div class=" w-100">
@@ -152,15 +184,17 @@
                     </span>
                     @endif
                     @if ($post->is_pinned)
-                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Pinned">
+                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                            data-bs-original-title="Pinned">
                       <i class="fas fa-thumbtack"></i>
                     </span>
                     @endif
                     @if ($post->blocked)
-                        <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Blocked">
+                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                            data-bs-original-title="Blocked">
                       <i class="icon-base ti ti tabler-ban icon-sm text-danger"></i>
                       </span>
-                      @endif
+                    @endif
                   </div>
                 </div>
               </div>
@@ -178,36 +212,26 @@
                       <li>
                         <a class="dropdown-item py-1 small"
                            href="{{ route('posts.pin', $post->uuid) }}">
-                          <i class="ti tabler-pin me-1"></i>  {{ $post->is_pinned == true ? "Un-pin" : "Pin" }} Post
+                          <i class="ti tabler-pin me-1"></i> {{ $post->is_pinned == true ? "Un-pin" : "Pin" }} Post
                         </a>
                       </li>
                     @endcan
 
-                      @can('un-block_request_post')
-                        @if($post->blocked && $isAuthor && $is_updated)
-                          <li>
-                            <a class="dropdown-item py-1 small"
-                               href="{{ route('posts.unblock_request', $post->uuid) }}">
-                              <i class="ti tabler-send me-1"></i> Request for Un-block
-                            </a>
-                          </li>
-                        @endif
-                      @endcan
-
-{{--                      @can('un-block_post')--}}
-{{--                        @if($post->is_unblock_requested)--}}
-{{--                          <li>--}}
-{{--                            <a class="dropdown-item py-1 small"--}}
-{{--                               href="{{ route('posts.unblock',[$user_type, $uuid, $post->uuid]) }}">--}}
-{{--                              <i class="ti tabler-lock-open me-1"></i> Un-block Post--}}
-{{--                            </a>--}}
-{{--                          </li>--}}
-{{--                        @endif--}}
-{{--                      @endcan--}}
+                    @can('un-block_request_post')
+                      @if($post->blocked && $isAuthor && $is_updated)
+                        <li>
+                          <a class="dropdown-item py-1 small"
+                             href="{{ route('posts.unblock_request', $post->uuid) }}">
+                            <i class="ti tabler-send me-1"></i> Request for Un-block
+                          </a>
+                        </li>
+                      @endif
+                    @endcan
 
                     @if ($isAuthor)
                       <li>
-                        <a class="dropdown-item py-1 small" href="{{ isset($user_type) ? route('posts.edit_in_admin', [$user_type, $society->uuid, $type,  $post->slug]) :  route('posts.edit', [$type, $post->slug]) }}">
+                        <a class="dropdown-item py-1 small"
+                           href="{{ isset($user_type) ? route('posts.edit_in_admin', [$user_type, $society->uuid, $type,  $post->slug]) :  route('posts.edit', [$type, $post->slug]) }}">
                           <i class="ti tabler-edit me-1"></i> Edit
                         </a>
                       </li>
@@ -297,7 +321,8 @@
       {{-- all comments section --}}
       <div class="d-flex justify-content-between my-5 ">
         <div class="text-dark">
-          {{ $comments->count() }} comments
+          {{ $post->comments->count()  }}
+          comments
         </div>
 
         <div>
@@ -349,14 +374,14 @@
       @else
         <div class="card border-0 shadow-sm">
           <div class="card-body">
-        <div class="text-center">
-          <i class="fas fa-inbox fa-3x text-muted mb-3 opacity-75"></i>
-          <h6 class="text-muted mb-1">No Comments found</h6>
-          <p class="text-muted small">Be the first to create one!</p>
-        </div>
+            <div class="text-center">
+              <i class="fas fa-inbox fa-3x text-muted mb-3 opacity-75"></i>
+              <h6 class="text-muted mb-1">No Comments found</h6>
+              <p class="text-muted small">Be the first to create one!</p>
+            </div>
           </div>
         </div>
-        @endif
+      @endif
 
     </div>
     @if (!$request_on)
@@ -772,7 +797,7 @@
       closeMobileCommentBox();
     });
 
-    // ── Inline "See replies" button (next to username) ──────────────────────
+    //Inline "See replies" button (next to username)
     document.addEventListener('click', e => {
       const btn = e.target.closest('.see-replies-inline');
       if (!btn) return;
@@ -785,13 +810,16 @@
       btn.style.opacity = '0.5';
 
       const commentId = btn.dataset.commentId;
-      const skip      = parseInt(btn.dataset.skip);
-      const total     = parseInt(btn.dataset.total || 0);
+      const skip = parseInt(btn.dataset.skip);
+      const total = parseInt(btn.dataset.total || 0);
 
       // Use the comment-item whose data-comment-id matches this button exactly
       // Do NOT use .closest() — it may grab a parent comment-item instead
       const replyItem = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
-      if (!replyItem) { btn.dataset.loading = ''; return; }
+      if (!replyItem) {
+        btn.dataset.loading = '';
+        return;
+      }
 
       // Each reply gets its OWN scoped highlight block, keyed by commentId
       const highlightKey = `reply-highlight-${commentId}`;
@@ -860,20 +888,20 @@
         .catch(err => console.error('Error loading replies:', err));
     });
 
-    // ── "See more replies" inside an inline highlight block ──────────────────
+    // "See more replies" inside an inline highlight block
     document.addEventListener('click', e => {
       const btn = e.target.closest('.inline-replies-see-more');
       if (!btn) return;
       e.preventDefault();
 
-      const commentId    = btn.dataset.commentId;
-      const skip         = parseInt(btn.dataset.skip);
-      const total        = parseInt(btn.dataset.total || 0);
+      const commentId = btn.dataset.commentId;
+      const skip = parseInt(btn.dataset.skip);
+      const total = parseInt(btn.dataset.total || 0);
       const highlightKey = btn.dataset.highlightKey;
 
       const parentHighlight = document.querySelector(`.parent-reply-highlight[data-highlight-key="${highlightKey}"]`);
-      const highlightWrap   = parentHighlight ? parentHighlight.querySelector(':scope > .replies-highlight-wrap') : null;
-      const bottomCtrl      = parentHighlight ? parentHighlight.querySelector(':scope > .inline-replies-bottom-ctrl') : null;
+      const highlightWrap = parentHighlight ? parentHighlight.querySelector(':scope > .replies-highlight-wrap') : null;
+      const bottomCtrl = parentHighlight ? parentHighlight.querySelector(':scope > .inline-replies-bottom-ctrl') : null;
 
       if (!parentHighlight || !highlightWrap || !bottomCtrl) return;
 
@@ -911,7 +939,7 @@
       e.preventDefault();
 
       const commentId = btn.dataset.commentId;
-      const total     = parseInt(btn.dataset.total || 0);
+      const total = parseInt(btn.dataset.total || 0);
 
       // Find only the highlight block that directly owns this "See less" button
       const parentHighlight = btn.closest('.parent-reply-highlight');
@@ -935,8 +963,8 @@
           link.className = 'see-replies-inline text-primary fw-semibold';
           link.style.fontSize = '0.78em';
           link.dataset.commentId = commentId;
-          link.dataset.skip      = '0';
-          link.dataset.total     = repliesCount;
+          link.dataset.skip = '0';
+          link.dataset.total = repliesCount;
           link.innerHTML = `<i class="ti tabler-caret-right-filled"></i> ${repliesCount === 1 ? 'See reply' : 'See replies'}`;
           authorEl.appendChild(link);
         }
@@ -954,7 +982,7 @@
       // "See less" mode — collapse extra loaded replies
       if (btn.dataset.mode === 'see-less-bottom') {
         const seeMoreContainer = btn.parentElement;
-        const parentComment    = btn.closest('.comment-item');
+        const parentComment = btn.closest('.comment-item');
         const repliesContainerDiv = parentComment.querySelector('[class*="replies-container-"]');
         if (repliesContainerDiv) {
           let next = repliesContainerDiv.nextElementSibling;
@@ -971,7 +999,7 @@
       }
 
       const commentId = btn.dataset.commentId;
-      const skip      = parseInt(btn.dataset.skip);
+      const skip = parseInt(btn.dataset.skip);
 
       fetch(`/posts/view/{{ $type }}/{{ $post->uuid }}?comment_id=${commentId}&skip=${skip}`, {
         headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
@@ -986,19 +1014,18 @@
             seeMoreContainer.insertAdjacentHTML('beforebegin', renderReply(reply));
           });
 
-          const newSkip    = skip + data.count;
+          const newSkip = skip + data.count;
           btn.dataset.skip = newSkip;
           const parentComment = btn.closest('.comment-item');
-          const totalReplies  = parentComment ? parseInt(parentComment.dataset.repliesCount || 0) : 0;
+          const totalReplies = parentComment ? parseInt(parentComment.dataset.repliesCount || 0) : 0;
 
           if (newSkip >= totalReplies) {
-            btn.innerHTML    = `See less`;
+            btn.innerHTML = `See less`;
             btn.dataset.mode = 'see-less-bottom';
           }
         })
         .catch(err => console.error('Error loading more replies:', err));
     });
-
 
 
     // Helper function to render reply HTML

@@ -11,7 +11,7 @@ use Yajra\DataTables\DataTables;
 
 class UnblockRequestsController extends Controller
 {
-    public function index(Request $request, $uuid = null)
+    public function index(Request $request, $user_type = null, $uuid = null)
     {
         $login_user = auth()->user();
         $query = Post::latest()
@@ -45,6 +45,9 @@ class UnblockRequestsController extends Controller
                       .$short_title.
                       '</a>';
                 })
+                ->addColumn('society', function ($post) {
+                    return $post->society->name;
+                })
                 ->addColumn('actions', function ($post) use ($login_user) {
                     $cancel = '';
                     $accept = '';
@@ -67,12 +70,12 @@ class UnblockRequestsController extends Controller
 
                     return $cancel.'  '.$accept;
                 })
-                ->rawColumns(['checkbox', 'post', 'actions'])
+                ->rawColumns(['checkbox', 'post', 'society', 'actions'])
                 ->make(true);
         }
         $show_actions = $login_user->can('cancel_unblock_request_post');
 
-        return view('content.societies.requested_posts', compact('show_actions', 'uuid'));
+        return view('content.societies.requested_posts', compact('show_actions', 'uuid', 'user_type'));
     }
 
     public function requestCancel($uuid)

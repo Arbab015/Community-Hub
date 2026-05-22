@@ -1,5 +1,5 @@
 let isCommercial = window.isCommercial ?? false;
-let floorCount   = window.initialFloorCount ?? 0;
+let floorCount = window.initialFloorCount ?? 0;
 
 // Category cards
 const cons_wrapper = document.getElementById('constructed_wrapper');
@@ -44,11 +44,11 @@ if (preSelected) {
 
 //  Add floor
 function addFloor() {
-  const fIdx    = floorCount++;
+  const fIdx = floorCount++;
   const fPrefix = 'floors[' + fIdx + ']';
-  const $floor  = $(cloneTpl('tpl-floor', { '__PREFIX__': fPrefix }));
+  const $floor = $(cloneTpl('tpl-floor', { '__PREFIX__': fPrefix }));
   $floor.attr('data-floor-idx', fIdx).attr('data-floor-prefix', fPrefix);
-  if (isCommercial) $floor.find('.units-section-wrapper').removeClass('d-none');
+  if (!isResidential) $floor.find('.units-section-wrapper').removeClass('d-none');
   $floor.find('.btn-add-floor-room').attr('data-floor-prefix', fPrefix).attr('data-room-count', 0);
   $floor.find('.btn-add-unit').attr('data-floor-prefix', fPrefix).attr('data-unit-count', 0);
   $('#floors-container').append($floor);
@@ -60,7 +60,7 @@ document.getElementById('btn-add-floor')?.addEventListener('click', addFloor);
 if (!window.initialFloorCount) addFloor();
 
 //  Delegated clicks (create page)
-document.addEventListener('click', function (e) {
+document.addEventListener('click', function(e) {
 
   // dim add/remove — handled by common
   handleDimClicks(e);
@@ -73,9 +73,9 @@ document.addEventListener('click', function (e) {
 
   if (e.target.closest('.btn-add-floor-room')) {
     e.stopPropagation();
-    const btn       = e.target.closest('.btn-add-floor-room');
-    const prefix    = btn.dataset.floorPrefix;
-    const roomIdx   = parseInt(btn.getAttribute('data-room-count'));
+    const btn = e.target.closest('.btn-add-floor-room');
+    const prefix = btn.dataset.floorPrefix;
+    const roomIdx = parseInt(btn.getAttribute('data-room-count'));
     const container = btn.closest('.floor-rooms-section').querySelector('.floor-rooms-container');
     addRoom($(container), prefix, roomIdx);
     btn.setAttribute('data-room-count', roomIdx + 1);
@@ -84,9 +84,9 @@ document.addEventListener('click', function (e) {
 
   if (e.target.closest('.btn-add-unit-room')) {
     e.stopPropagation();
-    const btn       = e.target.closest('.btn-add-unit-room');
-    const uPrefix   = btn.closest('.unit-item').querySelector('[name$="[unit_name]"]').name.replace('[unit_name]', '');
-    const roomIdx   = parseInt(btn.getAttribute('data-room-count'));
+    const btn = e.target.closest('.btn-add-unit-room');
+    const uPrefix = btn.closest('.unit-item').querySelector('[name$="[unit_name]"]').name.replace('[unit_name]', '');
+    const roomIdx = parseInt(btn.getAttribute('data-room-count'));
     const container = btn.closest('.unit-item').querySelector('.unit-rooms-container');
     addRoom($(container), uPrefix, roomIdx);
     btn.setAttribute('data-room-count', roomIdx + 1);
@@ -101,7 +101,7 @@ document.addEventListener('click', function (e) {
 
   if (e.target.closest('.btn-add-unit')) {
     e.stopPropagation();
-    const btn     = e.target.closest('.btn-add-unit');
+    const btn = e.target.closest('.btn-add-unit');
     const fPrefix = btn.dataset.floorPrefix;
     const unitIdx = parseInt(btn.getAttribute('data-unit-count'));
     addUnit($(btn.previousElementSibling), fPrefix, unitIdx);
@@ -115,15 +115,10 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  if (e.target.closest('.has_units_check')) {
-    const floor   = e.target.closest('.floor-item');
-    const checked = e.target.closest('.has_units_check').checked;
-    floor.querySelector('.units-section').classList.toggle('d-none', !checked);
-    floor.querySelector('.floor-rooms-section').classList.toggle('d-none', checked);
-  }
+
 });
 
 //  Construction form submit
-document.getElementById('construction_form')?.addEventListener('submit', function (e) {
+document.getElementById('construction_form')?.addEventListener('submit', function(e) {
   validateConstructionForm(this, e);
 });

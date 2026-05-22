@@ -12,6 +12,11 @@ class Room extends Model
 
     protected $guarded = [];
 
+    // Room model
+    protected $casts = [
+        'amenities' => 'array',
+    ];
+
     public function uniqueIds(): array
     {
         return ['uuid'];

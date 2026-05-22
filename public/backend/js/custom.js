@@ -1,11 +1,11 @@
-function confirmDelete(event , action = null) {
+function confirmDelete(event, action = null) {
   event.preventDefault();
   const el = event.currentTarget;
   const form = el.closest('form');
   const href = el.getAttribute('href');
   Swal.fire({
     title: 'Are you sure?',
-    text: "You won't be able to revert this!",
+    text: 'You won\'t be able to revert this!',
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#3085d6',
@@ -24,15 +24,15 @@ function confirmDelete(event , action = null) {
   });
 }
 
-$(document).on('change', '#select_all', function () {
+$(document).on('change', '#select_all', function() {
   $('.checkbox').prop('checked', this.checked);
   toggleBulkDelete();
 });
 
-$(document).on('click', '.bulk_delete_btn', function () {
+$(document).on('click', '.bulk_delete_btn', function() {
   let ids = [];
   let url = $(this).data('url');
-  $('.checkbox:checked').each(function () {
+  $('.checkbox:checked').each(function() {
     ids.push($(this).val());
   });
   Swal.fire({
@@ -57,13 +57,25 @@ $(document).on('click', '.bulk_delete_btn', function () {
         _token: $('meta[name="csrf-token"]').attr('content'),
         ids: ids
       },
-      success: function () {
-        Swal.fire('Deleted!', 'Users deleted successfully.', 'success');
-        $('.table_to_reload').DataTable().ajax.reload(null, false);
-        $('#select_all').prop('checked', false);
-        toggleBulkDelete();
+      success: function(res) {
+        let msg = res.message;
+
+        Swal.fire('Deleted!', `${msg}`, 'success');
+
+        if ($('.table_to_reload').length > 0) {
+
+          if ($.fn.DataTable.isDataTable('.table_to_reload')) {
+            $('.table_to_reload').DataTable().ajax.reload(null, false);
+          }
+
+          $('#select_all').prop('checked', false);
+          toggleBulkDelete();
+
+        } else {
+          window.location.reload();
+        }
       },
-      error: function () {
+      error: function() {
         Swal.fire('Error!', 'Something went wrong.', 'error');
       }
     });
@@ -74,8 +86,9 @@ function toggleBulkDelete() {
   let checked = $('.checkbox:checked').length > 1;
   $('.bulk_delete_btn').toggleClass('d-none', !checked);
 }
+
 $(document).on('change', '.checkbox', toggleBulkDelete);
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
   [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
 });
 
@@ -85,7 +98,7 @@ function previewAvatar(event) {
   const container = input.closest('div');
   const img = container.querySelector('img');
   const reader = new FileReader();
-  reader.onload = function () {
+  reader.onload = function() {
     img.src = reader.result;
   };
   reader.readAsDataURL(input.files[0]);
@@ -114,7 +127,7 @@ function renderFileList(card_body) {
     document.getElementById('save_files_btn')?.classList.add('d-none');
     return;
   }
-  console.log(card_body)
+  console.log(card_body);
   let counter = card_body.querySelector('.file-counter');
   if (!counter) {
     counter = document.createElement('div');
@@ -161,6 +174,7 @@ function renderFileList(card_body) {
     save_btn?.classList.add('d-none');
   }
 }
+
 function updateInputFiles() {
   const dataTransfer = new DataTransfer();
   selectedFiles.forEach(file => {
@@ -170,20 +184,20 @@ function updateInputFiles() {
 }
 
 
-
 // report model
 let currentReportId = null;
+
 function openReport(id, type) {
   currentReportId = id;
   document.getElementById('report_id').value = id;
   document.getElementById('report_type').value = type;
-  // document.getElementById('reason_id').value = '';
+  document.getElementById('reason').value = '';
   new bootstrap.Modal(document.getElementById('report_modal')).show();
 }
 
 let report_form = document.getElementById('reportForm');
 if (report_form) {
-  report_form.addEventListener('submit', function (e) {
+  report_form.addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = new FormData(this);
     fetch('/report/store', {
@@ -196,7 +210,7 @@ if (report_form) {
       .then(res => res.json())
       .then(data => {
         const allIds = [currentReportId, ...(data.ids || [])];
-        allIds.forEach(function (id) {
+        allIds.forEach(function(id) {
           // Remove post item
           $(`.post-item[data-id="${id}"]`).remove();
           // Remove comment item
@@ -221,16 +235,49 @@ if (report_form) {
   });
 }
 
-function notify(message, type){
+// At the top of custom.js — before the notify() function
+class CustomNotyf extends Notyf {
+  _renderNotification(options) {
+    const notification = super._renderNotification(options);
+    if (options.message) {
+      notification.message.innerHTML = options.message;
+    }
+    return notification;
+  }
+}
+
+window.notyf = new CustomNotyf({
+  duration: 3000,
+  ripple: true,
+  dismissible: false,
+  position: { x: 'right', y: 'bottom' },
+  types: [
+    {
+      type: 'success',
+      background: '#71dd37',
+      icon: { className: 'icon-base ti tabler-circle-check-filled icon-md text-white', tagName: 'i' }
+    },
+    {
+      type: 'error',
+      background: '#ff3e1d',
+      icon: { className: 'icon-base ti tabler-xbox-x-filled icon-md text-white', tagName: 'i' }
+    }
+  ]
+});
+
+
+// submit filter form on keys up in societies and properties filter
+
+
+function notify(message, type) {
   notyf.open({
     duration: 3000,
     ripple: false,
     dismissible: true,
-    position: {
-      x: 'right',
-      y: 'bottom'
-    },
+    position: { x: 'right', y: 'bottom' },
     type: type,
     message: message
   });
 }
+
+

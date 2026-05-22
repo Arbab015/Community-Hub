@@ -14,7 +14,7 @@
         $showPost = !$reported_post && $post->blocked;
         } elseif($slug === 'requested_posts') {
         $showPost = !$reported_post && $post->blocked && $post->is_unblock_requested;
-    }
+          }
       @endphp
       @if($showPost)
         <div class="post-item" data-id="{{ $post->id }}">
@@ -27,8 +27,9 @@
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <h6 class="mb-1 fw-semibold ">
-                    <a href="{{ isset($user_type) ? route('society_posts.view', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type, 'slug' => $post->slug]) : route('posts.view', ['type' => $type, 'slug' => $post->slug]) }}"
-                       class="text-dark text-decoration-none text-break">{{ $post->title }}</a>
+                    <a
+                      href="{{ isset($user_type) ? route('society_posts.view', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type, 'slug' => $post->slug]) : route('posts.view', ['type' => $type, 'slug' => $post->slug]) }}"
+                      class="text-dark text-decoration-none text-break">{{ $post->title }}</a>
                   </h6>
                   <div class="text-muted small mb-2">
                     <span class="fw-medium">{{ $post->user->first_name }} {{ $post->user->last_name }}</span>
@@ -52,7 +53,7 @@
                     </div>
                   @endif
                   <div class="d-flex gap-3 text-muted small">
-                          <span><i class="icon-base ti ti tabler-thumb-up-filled me-1"></i>{{ $post->likes->count() }}</span>
+                    <span><i class="icon-base ti ti tabler-thumb-up-filled me-1"></i>{{ $post->likes->count() }}</span>
                     <span><i
                         class="icon-base ti ti tabler-thumb-down-filled me-1"></i>{{ $post->dislikes->count() }}</span>
                     <span><i
@@ -66,7 +67,8 @@
                       <span class="text-warning"><i class="fas fa-thumbtack"></i></span>
                     @endif
                     @if ($post->blocked)
-                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Blocked">
+                      <span class="text-warning cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                            data-bs-original-title="Blocked">
                       <i class="icon-base ti ti tabler-ban icon-sm text-danger"></i>
                       </span>
                     @endif
@@ -85,21 +87,21 @@
                         <li>
                           <a class="dropdown-item py-1 small"
                              href="{{ route('posts.pin', $post->uuid) }}">
-                            <i class="ti tabler-pin me-1"></i>  {{$post->is_pinned == true ? "Un-pin" : "Pin" }} Post
+                            <i class="ti tabler-pin me-1"></i> {{$post->is_pinned == true ? "Un-pin" : "Pin" }} Post
                           </a>
                         </li>
                       @endcan
 
-                        @can('un-block_post')
-                          @if($post->is_unblock_requested)
-                            <li>
-                              <a class="dropdown-item py-1 small"
-                                 href="{{ route('posts.unblock',[$user_type, $uuid, $post->uuid]) }}">
-                                <i class="ti tabler-lock-open me-1"></i> Un-block Post
-                              </a>
-                            </li>
-                          @endif
-                        @endcan
+                      @can('un-block_post')
+                        @if($post->is_unblock_requested)
+                          <li>
+                            <a class="dropdown-item py-1 small"
+                               href="{{ route('posts.unblock',[$user_type, $uuid, $post->uuid]) }}">
+                              <i class="ti tabler-lock-open me-1"></i> Un-block Post
+                            </a>
+                          </li>
+                        @endif
+                      @endcan
 
                       @if($isAuthor)
 

@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\authentications\ForgotPasswordBasic;
 use App\Http\Controllers\authentications\LoginController;
-use App\Http\Controllers\authentications\RegisterBasic;
 use App\Http\Controllers\authentications\ResetPasswordBasic;
 use App\Http\Controllers\BlocksController;
 use App\Http\Controllers\CommentsController;
@@ -11,7 +11,6 @@ use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\PropertiesController;
 use App\Http\Controllers\ReactionsController;
-// use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\RulesController;
@@ -20,6 +19,8 @@ use App\Http\Controllers\TagsController;
 use App\Http\Controllers\UnblockRequestsController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
+
+// use App\Http\Controllers\RoleController;
 
 // Main Page Route
 Route::middleware(['guest'])->group(function () {
@@ -49,7 +50,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('users/store/{slug?}/{uuid?}', 'storeOrUpdate')->name('user.storeOrUpdate');
         Route::delete('users/delete/{uuid}', 'destroy')->name('users.destroy')->middleware('permission:delete_user');
         Route::post('/users/bulk-delete', 'bulkDelete')->name('users.bulk_delete')->middleware('permission:delete_user');
-        Route::get('/users/template-download', 'downloadTemplate')->name('template.download');
+        Route::get('/users/template-download', 'downloadTemplate')->name('users_import_template.download');
         Route::post('users/import', 'importUsers')->name('users.import')->middleware('permission:import_user');
     });
 
@@ -61,14 +62,13 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::controller(SocietiesController::class)->group(function () {
-        Route::get('society/create/{slug}', 'create')->name('society.create')->middleware('permission:add_society'); // for creation
+        Route::get('society/create/{slug}/{uuid?}', 'create')->name('society.create')->middleware('permission:add_society'); // for creation
         Route::get('/societies/{slug}', 'index')->name('societies.index')->middleware('permission:listing_society');
         Route::post('society/store/{slug}/{uuid?}', 'storeOrUpdate')->name('society.store')->middleware('permission:add_society');
 
         Route::get('/societies/{user_type}/{uuid}', 'show')->name('societies.show');
         Route::get('/societies/{user_type}/{uuid}/{type}/{slug}', 'renderPosts')->name('society.render_posts');
         Route::get('attachment/delete/{id}', 'destroy')->name('attachment.delete');
-        Route::post('/societites/bulk_delete', 'bulkDelete')->name('societies.bulk_delete');
         Route::get('society/delete/{slug}/{uuid}', 'deleteSociety')->name('society.delete');
         Route::get('society/block/{slug}/{uuid}', 'blockSociety')->name('society.block');
     });
@@ -149,25 +149,49 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::controller(UnblockRequestsController::class)->group(function () {
-        Route::get('unblock-requests/index/{uuid?}', 'index')->name('requests.index');
+        Route::get('unblock-requests/index/{user_type?}/{uuid?}/{type?}', 'index')->name('requests.index');
         Route::post('unblock-requests/cancel-post/{uuid}', 'requestCancel')->name('requests.cancel');
         Route::post('unblock-requests/accept-post/{uuid}', 'requestApprove')->name('requests.approve');
     });
 
     // Properties Management
     Route::controller(BlocksController::class)->group(function () {
-        Route::get('blocks/index/{slug}', 'index')->where('slug', 'society_blocks')->name('blocks.index')->middleware('permission:listing_block');
+        Route::get('blocks/index', 'index')->name('blocks.index')->middleware('permission:listing_block');
         Route::post('blocks/store', 'store')->name('blocks.store')->middleware('permission:add_block');
         Route::delete('blocks/destroy/{uuid}', 'destroy')->name('blocks.destroy')->middleware('permission:delete_block');
         Route::post('/blocks/bulk_delete', 'bulkDelete')->name('blocks.bulk_delete')->middleware('permission:delete_block');
     });
 
     Route::controller(PropertiesController::class)->group(function () {
-        Route::get('blocks/view/{uuid}', 'show')->name('blocks.view')->middleware('permission:view_block');
+        Route::get('blocks/view/{uuid}/{isPending?}', 'propertiesFromBlocksShow')->name('block.view')->middleware('permission:view_block');
+
+        Route::get('societies/{user_type}/{society_uuid}/properties/block/{uuid}/view', 'propertiesFromSocietyShow')->name('society.block.view')->middleware('permission:view_block');
+
+        Route::get('properties_import_template/{type}/download', 'download')->name('properties_import_template.download')->middleware('permission:create_property');
+        Route::post('properties/import', 'import')->name('properties.import')->middleware('permission:create_property');
+        Route::get('/blocks/{block_uuid}/import-progress', 'importProgress')
+            ->name('properties.import_properties');
+
         Route::get('property/create/{block_uuid}/{uuid?}', 'create')->name('property.create')->middleware('permission:create_property');
         Route::post('property/store', 'storeOrUpdate')->name('property.store')->middleware('permission:create_property');
         Route::get('property/details/{uuid}', 'propertyDetails')->name('property.details');
+        Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'societyDetailsFromSociety')->name('society.property.details');
         Route::get('{section}/destroy/{uuid}', 'destroy')->name('property.destroy')->middleware('permission:delete_property');
+        Route::get('/attachments/progress', 'fileUploadProgress');
+    });
+
+    Route::controller(\App\Http\Controllers\PropertyAttributeController::class)->group(function () {
+        Route::get('property_attributes/index', 'index')->name('attributes.index')->middleware('permission:listing_attribute');
+        Route::post('property_attributes/store', 'store')->name('attributes.store')->middleware('permission:create_attribute');
+        Route::delete('property_attributes/delete', 'destroy')->name('attributes.destroy')->middleware('permission:delete_attribute');
+        Route::post('property_attributes/bulk_delete', 'bulkDelete')->name('attributes.bulk_delete')->middleware('permission:delete_attribute');
+
+    });
+
+    // Attachment controller
+    Route::controller(AttachmentController::class)->group(function () {
+        Route::post('/attachments/bulk_delete', 'bulkDelete')->name('attachments.bulk_delete');
+
     });
 
 });

@@ -9,11 +9,12 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
+
       <form method="POST" id="upload_media_society"
-            action="{{ isset($society) ? route('society.store', [$user_type, $society->uuid]) : route('property.store') }}"
-        enctype="multipart/form-data">
+            action="{{ isset($society) && $user_type ? route('society.store', [$user_type, $society->uuid])  : route('property.store') }}"
+            enctype="multipart/form-data">
         @csrf
-        <input type="hidden" name="request_type" value="media"></input>
+        <input type="hidden" name="request_type" value="media">
         @if(isset($property))
           <input type="hidden" name="block_id" value="{{ $property->block->id }}">
           <input type="hidden" name="section" value="documents">
@@ -39,6 +40,7 @@
           </button>
         </div>
       </form>
+
     </div>
   </div>
 </div>

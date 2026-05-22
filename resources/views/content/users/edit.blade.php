@@ -21,6 +21,7 @@
 @endsection
 
 @section('content')
+
   <div class="row">
     <div class="col-xl-4 col-lg-5">
       <div class="card mb-6">
@@ -28,8 +29,8 @@
           <div class="user-avatar-section">
             <div class=" d-flex align-items-center flex-column">
               <img class="img-fluid rounded mb-4"
-                src="{{ $user->attachment?->link ? asset('storage/' . $user->attachment->link) : asset('assets/img/avatars/1.png') }}"
-                height="120" width="120">
+                   src="{{ $user->attachment?->link ? asset('storage/' . $user->attachment->link) : asset('assets/img/avatars/1.png') }}"
+                   height="120" width="120">
               <div class="user-info text-center">
                 <h5 class="mb-1 fw-bolder">{{ $user->first_name }} {{ $user->last_name }}</h5>
                 <span class="badge bg-label-secondary mb-5">{{ $user->email }}</span>
@@ -41,51 +42,51 @@
             <ul class="list-unstyled mb-6">
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">First Name : </span>
-                <span>{{ $user->first_name }} </span>
+                <span>{{ ucwords($user->first_name) }} </span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Last Name:</span>
-                <span>{{ $user->last_name }}</span>
+                <span>{{ ucwords($user->last_name) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Role:</span>
-                <span>{{ $user->roles->pluck('name')->implode(', ') }}</span>
+                <span>{{ ucwords($user->roles->pluck('name')->implode(', ')) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Country:</span>
-                <span>{{ $user->country }}</span>
+                <span>{{ ucwords($user->country) }}</span>
               </li>
               <li class="mb-2 ">
                 <span class="h6 fw-bolder pe-2">Gender:</span>
-                <span>{{ $user->gender }}</span>
+                <span>{{ ucwords($user->gender) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Marital Status:</span>
-                <span>{{ $user->marital_status }}</span>
+                <span>{{ ucwords($user->marital_status) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Date Of Birth:</span>
-                <span>{{ $user->dob }}</span>
+                <span>{{ ucwords($user->dob) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Profession:</span>
-                <span>{{ $user->profession }}</span>
+                <span>{{ ucwords($user->profession) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Contact:</span>
-                <span>{{ $user->contact }}</span>
+                <span>{{ ucwords($user->contact) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Emergency Contact:</span>
-                <span>{{ $user->emergency_contact }}</span>
+                <span>{{ ucwords($user->emergency_contact) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Present Address:</span>
-                <span>{{ $user->present_address }}</span>
+                <span>{{ ucwords($user->present_address) }}</span>
               </li>
               <li class="mb-2">
                 <span class="h6 fw-bolder pe-2">Permanent Address:</span>
-                <span>{{ $user->permanent_address }}</span>
+                <span>{{ ucwords($user->permanent_address) }}</span>
               </li>
             </ul>
           </div>
@@ -139,21 +140,20 @@
             <h5 class="card-header fw-bold">Basic Information</h5>
             <div class="card-body">
               <form method="POST" action="{{ route('user.storeOrUpdate', [$slug, $user->uuid]) }}"
-                enctype="multipart/form-data">
+                    enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="section" value="basic">
                 <div class="d-flex align-items-center flex-column position-relative mb-4">
                   <img id="userAvatarPreview" class="img-fluid rounded-circle mb-2 cursor-pointer"
-                    src="{{ $user->attachment?->link ? asset('storage/' . $user->attachment->link) : asset('assets/img/avatars/1.png') }}"
-                    height="70" width="70" title="Click to change avatar"
-                    onclick="document.getElementById('avatarInput').click();">
-                  <!-- Pencil icon -->
+                       src="{{ $user->attachment?->link ? asset('storage/' . $user->attachment->link) : asset('assets/img/avatars/1.png') }}"
+                       style="width:80px; height:80px; object-fit:cover;">
                   <span class="position-absolute bottom-0 ms-6 bg-white rounded-circle p-1 cursor-pointer"
-                    style="transform: translate(25%, 25%);" onclick="document.getElementById('avatarInput').click();">
+                        style="transform: translate(25%, 25%);"
+                        onclick="document.getElementById('avatarInput').click();">
                     <i class="fa-solid fa-pencil text-primary"></i>
                   </span>
                   <input type="file" id="avatarInput" name="picture" class="d-none" accept="image/*"
-                    onchange="previewAvatar(event)">
+                         onchange="previewAvatar(event)">
                 </div>
 
                 <div class="row mt-5">
@@ -161,10 +161,10 @@
                     <label class="form-label fw-bolder required mb-2" for="last_name">First Name</label>
 
                     <input type="text" id="first_name" name="first_name"
-                      class="form-control @error('first_name') is-invalid @enderror" required
-                      value="{{ old('first_name', $user->first_name ?? '') }}">
+                           class="form-control @error('first_name') is-invalid @enderror" required
+                           value="{{ old('first_name', $user->first_name ?? '') }}">
                     @error('first_name')
-                      <div class="invalid-feedback">{{ $message }}</div>
+                    <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                   </div>
 
@@ -172,8 +172,8 @@
                     <span>
                       <label class="form-label fw-bolder  mb-2" for="last_name">Last Name</label>
                       <input type="text" id="last_name"
-                        class="form-control @error('last_name') is-invalid @enderror" name="last_name"
-                        value="{{ old('last_name', $user->last_name ?? '') }} " />
+                             class="form-control @error('last_name') is-invalid @enderror" name="last_name"
+                             value="{{ old('last_name', $user->last_name ?? '') }} " />
                       @error('last_name')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                       @enderror
@@ -182,10 +182,11 @@
                   <div class="col-md-12 form-control-validation mb-5">
                     <label class="form-label fw-bolder required mb-2" for="contact">Contact</label>
                     <input type="tel" id="contact"
-                      class="form-control phone-input @error('contact') is-invalid @enderror" name="contact" Required
-                      placeholder="0300 1234567" value="{{ old('contact', $user->contact ?? '') }}" />
+                           class="form-control phone-input @error('contact') is-invalid @enderror" name="contact"
+                           Required
+                           placeholder="0300 1234567" value="{{ old('contact', $user->contact ?? '') }}" />
                     @error('contact')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
                   <div class="col-md-6">
@@ -216,14 +217,14 @@
                       <label class="form-label fw-bolder required" for="password">Password</label>
                       <div class="input-group input-group-merge">
                         <input class="form-control @error('password') is-invalid @enderror" type="password"
-                          id="password" name="password" placeholder="••••••••••••"
-                          aria-describedby="multicol-password2" />
+                               id="password" name="password" placeholder="••••••••••••"
+                               aria-describedby="multicol-password2" />
                         <span class="input-group-text cursor-pointer" id="multicol-password2">
                           <i class="icon-base ti tabler-eye-off"></i>
                         </span>
                       </div>
                       @error('password')
-                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                      <div class="invalid-feedback d-block">{{ $message }}</div>
                       @enderror
                     </div>
                   </div>
@@ -232,15 +233,15 @@
                       <label class="form-label fw-bolder required" for="password_confirmation">Confirm Password</label>
                       <div class="input-group input-group-merge">
                         <input class="form-control @error('password_confirmation') is-invalid @enderror" type="password"
-                          id="password_confirmation" name="password_confirmation"
-                          placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                          aria-describedby="multicol-confirm-password2" />
+                               id="password_confirmation" name="password_confirmation"
+                               placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
+                               aria-describedby="multicol-confirm-password2" />
                         <span class="input-group-text cursor-pointer" id="multicol-confirm-password2">
                           <i class="icon-base ti tabler-eye-off"></i>
                         </span>
                       </div>
                       @error('password_confirmation')
-                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                      <div class="invalid-feedback d-block">{{ $message }}</div>
                       @enderror
                     </div>
                   </div>
@@ -255,7 +256,6 @@
         </div>
 
         <div class="tab-pane fade" id="other">
-          <!-- Change Password -->
           <div class="card ">
             <h5 class="card-header fw-bolder">Other Information</h5>
             <div class="card-body">
@@ -275,16 +275,19 @@
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required" for="country">Country</label>
                     <select id="country" name="country"
-                      class="form-select select2 @error('country') is-invalid @enderror" Required
-                      data-allow-clear="true">
+                            class="form-select select2 @error('country') is-invalid @enderror" Required
+                            data-allow-clear="true">
                       <option value="">Select Your Country
                       </option>
                       <option value="Pakistan" {{ old('country', $user->country) == 'Pakistan' ? 'selected' : '' }}>
-                        Pakistan</option>
+                        Pakistan
+                      </option>
                       <option value="Australia" {{ old('country', $user->country) == 'Australia' ? 'selected' : '' }}>
-                        Australia</option>
+                        Australia
+                      </option>
                       <option value="Bangladesh" {{ old('country', $user->country) == 'Bangladesh' ? 'selected' : '' }}>
-                        Bangladesh</option>
+                        Bangladesh
+                      </option>
                       <option value="Belarus" {{ old('country', $user->country) == 'Belarus' ? 'selected' : '' }}>
                         Belarus
                       </option>
@@ -302,7 +305,8 @@
                       <option value="India" {{ old('country', $user->country) == 'India' ? 'selected' : '' }}>India
                       </option>
                       <option value="Indonesia" {{ old('country', $user->country) == 'Indonesia' ? 'selected' : '' }}>
-                        Indonesia</option>
+                        Indonesia
+                      </option>
                       <option value="Israel" {{ old('country', $user->country) == 'Israel' ? 'selected' : '' }}>Israel
                       </option>
                       <option value="Italy" {{ old('country', $user->country) == 'Italy' ? 'selected' : '' }}>Italy
@@ -310,26 +314,32 @@
                       <option value="Japan" {{ old('country', $user->country) == 'Japan' ? 'selected' : '' }}>Japan
                       </option>
                       <option value="Korea" {{ old('country', $user->country) == 'Korea' ? 'selected' : '' }}>Korea,
-                        Republic of</option>
+                        Republic of
+                      </option>
                       <option value="Mexico" {{ old('country', $user->country) == 'Mexico' ? 'selected' : '' }}>Mexico
                       </option>
                       <option value="Philippines"
                         {{ old('country', $user->country) == 'Philippines' ? 'selected' : '' }}>
-                        Philippines</option>
+                        Philippines
+                      </option>
                       <option value="Russia" {{ old('country') }}>Russian
-                        Federation</option>
+                        Federation
+                      </option>
                       <option value="South Africa"
                         {{ old('country', $user->country) == 'South Africa' ? 'selected' : '' }}>South Africa
                       </option>
                       <option value="Thailand" {{ old('country', $user->country) == 'Thailand' ? 'selected' : '' }}>
-                        Thailand</option>
+                        Thailand
+                      </option>
                       <option value="Turkey"{{ old('country', $user->country) == 'Turkey' ? 'selected' : '' }}>Turkey
                       </option>
                       <option value="Ukraine" {{ old('country', $user->country) == 'Ukraine' ? 'selected' : '' }}>
-                        Ukraine</option>
+                        Ukraine
+                      </option>
                       <option value="United Arab Emirates"
                         {{ old('country', $user->country) == 'United Arab Emirates' ? 'selected' : '' }}>
-                        United Arab Emirates</option>
+                        United Arab Emirates
+                      </option>
                       <option value="United Kingdom"
                         {{ old('country', $user->country) == 'United Kingdom' ? 'selected' : '' }}>United Kingdom
                       </option>
@@ -338,42 +348,42 @@
                       </option>
                     </select>
                     @error('country')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required" for="dob">DOB</label>
                     <input type="text" class="form-control flatpickr-validation @error('dob') is-invalid @enderror"
-                      name="dob" id="dob" placeholder="Select your date of birth"
-                      data-default-date="{{ old('dob', $user->dob) }}" required />
+                           name="dob" id="dob" placeholder="Select your date of birth"
+                           data-default-date="{{ old('dob', $user->dob) }}" required />
 
                     @error('dob')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required" for="cnic_passport">CNIC/Passport</label>
                     <input class="form-control @error('cnic_passport') is-invalid @enderror" type="text" Required
-                      id="cnic_passport" name="cnic_passport" placeholder="13503-1235405-3"
-                      value="{{ old('cnic_passport', $user->cnic_passport) }}" />
+                           id="cnic_passport" name="cnic_passport" placeholder="13503-1235405-3"
+                           value="{{ old('cnic_passport', $user->cnic_passport) }}" />
                     @error('cnic_passport')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required " for="profession">Profession</label>
                     <input class="form-control typeahead @error('profession') is-invalid @enderror" type="text"
-                      Required id="profession" name="profession" autocomplete="off" placeholder="Software Engineer"
-                      value="{{ old('profession', $user->profession ?? '') }}" />
+                           Required id="profession" name="profession" autocomplete="off" placeholder="Software Engineer"
+                           value="{{ old('profession', $user->profession ?? '') }}" />
                     @error('profession')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
                   <div class="col-md-6 form-control-validation mb-2">
-                    <label class="form-label fw-bolder required" @error('gender') is-invalid @enderror
-                      Required>Gender</label>
+                    <label class="form-label fw-bolder required @error('gender') is-invalid @enderror"
+                           Required>Gender</label>
                     <div class="d-flex">
                       <div class="form-check custom">
                         <input type="radio" name="gender" value="male" id="male" class="form-check-input"
@@ -392,60 +402,64 @@
                       </div>
                     </div>
                     @error('gender')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-6 form-control-validation mb-2">
-                    <label class="form-label fw-bolder required" Required>Marital Status</label>
+                    <label class="form-label fw-bolder required">Marital Status</label>
                     <div class="d-flex">
                       <div class="form-check custom mb-2">
                         <input type="radio" id="married" name="marital_status" value="married"
-                          class="form-check-input"
+                               class="form-check-input"
                           {{ old('marital_status', $user->marital_status) == 'married' ? 'checked' : '' }} />
                         <label class="form-check-label pe-5" for="married">Married</label>
                       </div>
                       <div class="form-check custom">
                         <input type="radio" id="un-married" name="marital_status" value="un-married"
-                          class="form-check-input"
+                               class="form-check-input"
                           {{ old('marital_status', $user->marital_status) == 'un-married' ? 'checked' : '' }} />
                         <label class="form-check-label" for="un-married">Un-Married</label>
                       </div>
                     </div>
                     @error('marital_status')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required" for="emergency_contact">Emergency Contact</label>
                     <input type="tel" id="emergency_contact"
-                      class="form-control phone-input @error('emergency_contact') is-invalid @enderror" Required
-                      name="emergency_contact" placeholder="0300 1234567"
-                      value="{{ old('emergency_contact', $user->emergency_contact ?? '') }}" />
+                           class="form-control phone-input @error('emergency_contact') is-invalid @enderror" Required
+                           name="emergency_contact" placeholder="0300 1234567"
+                           value="{{ old('emergency_contact', $user->emergency_contact ?? '') }}" />
                     <input type="hidden" name="contact_country">
                     @error('emergency_contact')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-6 form-control-validation mb-2">
                     <label class="form-label fw-bolder required" for="present_address">Present Address</label>
-                    <textarea class="form-control @error('present_address') is-invalid @enderror" id="present_address" Required
-                      placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan" name="present_address"
-                      rows="1">{{ old('present_address', $user->present_address) }}</textarea>
+                    <textarea class="form-control @error('present_address') is-invalid @enderror" id="present_address"
+                              Required
+                              placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan"
+                              name="present_address"
+                              rows="1">{{ old('present_address', $user->present_address) }}</textarea>
                     @error('present_address')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
 
                   <div class="col-md-12 form-control-validation mb-5">
                     <label class="form-label fw-bolder required" for="permanent_address">Permanent Address</label>
-                    <textarea class="form-control @error('permanent_address') is-invalid @enderror" id="permanent_address" Required
-                      placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan" name="permanent_address"
-                      rows="1">{{ old('permanent_address', $user->permanent_address) }}</textarea>
+                    <textarea class="form-control @error('permanent_address') is-invalid @enderror"
+                              id="permanent_address" Required
+                              placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan"
+                              name="permanent_address"
+                              rows="1">{{ old('permanent_address', $user->permanent_address) }}</textarea>
                     @error('permanent_address')
-                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                   </div>
                   <div>
@@ -457,68 +471,70 @@
           </div>
         </div>
 
-        {{-- @if ($slug != 'society_owners') --}}
-        <div class="tab-pane fade" id="roles_permissions">
-          <form method="POST" action="{{ route('user.storeOrUpdate', [$slug, $user->uuid]) }}">
-            @csrf
-            <input type="hidden" name="section" value="roles">
+        @if ($slug != 'society_owners')
+          <div class="tab-pane fade" id="roles_permissions">
+            <form method="POST" action="{{ route('user.storeOrUpdate', [$slug, $user->uuid]) }}">
+              @csrf
+              <input type="hidden" name="section" value="roles">
 
-            <div class="card">
-              <h5 class="card-header fw-bold">User Roles</h5>
-              <div class="card-body">
-                <div class="row mb-4">
-                  @foreach ($roles as $role)
-                    <div class="col-md-4 mb-2">
-                      <div class="form-check">
-                        <input class="form-check-input" type="radio" id="role_{{ $role->id }}" name="role"
-                          value="{{ $role->name }}" {{ $user->roles->contains('id', $role->id) ? 'checked' : '' }}>
-                        <label class="form-check-label" for="role_{{ $role->id }}">
-                          {{ ucfirst($role->name) }}
-                        </label>
-                      </div>
-                    </div>
-                  @endforeach
-                </div>
-                <h6 class="mb-3 fw-bolder">Permissions (Assigned Role)</h6>
-
-                @if ($assignedRole)
-                  <div class="border rounded p-3 mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <div class="border-start border-4 border-primary ps-3">
-                        <h6 class="fw-bolder mb-0">{{ ucfirst($assignedRole->name) }}</h6>
-                        <small class="text-muted">Permissions for assigned role</small>
-                      </div>
-                      <button type="button" class="btn btn-sm btn-outline-primary edit-role"
-                        data-id="{{ $assignedRole->id }}" data-name="{{ $assignedRole->name }}"
-                        data-permissions='@json($assignedRole->permissions->pluck('name'))'>
-                        <i class="fa-solid fa-pen-to-square pe-1"></i>Change Permissions
-                      </button>
-                    </div>
-                    <div class="row">
-                      @forelse ($assignedRole->permissions as $permission)
-                        <div class="col-md-4 mb-1">
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" checked disabled>
-                            <label class="form-check-label">
-                              {{ $permission->name }}
-                            </label>
-                          </div>
+              <div class="card">
+                <h5 class="card-header fw-bold">User Roles</h5>
+                <div class="card-body">
+                  <div class="row mb-4">
+                    @foreach ($roles as $role)
+                      <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" id="role_{{ $role->id }}" name="role"
+                                 value="{{ $role->id }}" {{ $user->roles->contains('id', $role->id) ? 'checked' : '' }}>
+                          <label class="form-check-label" for="role_{{ $role->id }}">
+                            {{ ucfirst($role->name) }}
+                          </label>
                         </div>
-                      @empty
-                        <div class="col-12">
-                          <span class="text-muted fst-italic">No permissions assigned</span>
-                        </div>
-                      @endforelse
-                    </div>
+                      </div>
+                    @endforeach
                   </div>
-                @else
-                  <span class="text-muted fst-italic">No role assigned to this user</span>
-                @endif
-                <button type="submit" class="btn btn-primary mt-3">Update Roles</button>
+                  <h6 class="mb-3 fw-bolder">Permissions (Assigned Role)</h6>
+
+                  @if ($assignedRole)
+                    <div class="border rounded p-3 mb-3">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="border-start border-4 border-primary ps-3">
+                          <h6 class="fw-bolder mb-0">{{ ucfirst($assignedRole->name) }}</h6>
+                          <small class="text-muted">Permissions for assigned role</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-role"
+                                data-id="{{ $assignedRole->id }}" data-name="{{ $assignedRole->name }}"
+                                data-permissions='@json($assignedRole->permissions->pluck('name'))'>
+                          <i class="fa-solid fa-pen-to-square pe-1"></i>Change Permissions
+                        </button>
+                      </div>
+                      <div class="row">
+                        @forelse ($assignedRole->permissions as $permission)
+                          <div class="col-md-4 mb-1">
+                            <div class="form-check">
+                              <input class="form-check-input" type="checkbox" checked disabled>
+                              <label class="form-check-label">
+                                {{ $permission->name }}
+                              </label>
+                            </div>
+                          </div>
+                        @empty
+                          <div class="col-12">
+                            <span class="text-muted fst-italic">No permissions assigned</span>
+                          </div>
+                        @endforelse
+                      </div>
+                    </div>
+                  @else
+                    <span class="text-muted fst-italic">No role assigned to this user</span>
+                  @endif
+                  <button type="submit" class="btn btn-primary mt-3">Update Roles</button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+
+        @endif
       </div>
     </div>
 

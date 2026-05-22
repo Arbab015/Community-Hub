@@ -26,7 +26,6 @@ class UsersController extends Controller
 
     public function index(Request $request, $slug)
     {
-        // dd($slug);
         $login_user = Auth::user();
         if ($request->ajax()) {
             $usersQuery = User::query()->with(['roles.creator']);
@@ -52,9 +51,6 @@ class UsersController extends Controller
                         $q->where('name', 'society owner');
                     });
             } elseif ($slug === 'society_managers') {
-                // logger($usersQuery->whereHas('roles', function ($q) {
-                //     $q->where('user_id', auth()->id());
-                // }));
                 $usersQuery->whereHas('roles', function ($q) {
                     $q->where('user_id', auth()->id());
                 })
@@ -70,7 +66,7 @@ class UsersController extends Controller
 
             $usersQuery->orderBy('id', 'desc');
 
-            return DataTables::of($usersQuery)
+            $datatables = DataTables::of($usersQuery)
                 ->addColumn('checkbox', function ($user) {
                     return '<input type="checkbox" class="form-check-input checkbox" value="'.$user->id.'" data_type="user">';
                 })
@@ -81,41 +77,54 @@ class UsersController extends Controller
                     $url = route('user.edit', [$user->uuid, $slug]);
 
                     return '
-                    <a href="'.$url.'" class="badge bg-label-secondary">
-                     '.$user->first_name.' '.$user->last_name.'
-                     </a>';
+        <a href="'.$url.'" class="badge bg-label-secondary">
+         '.$user->first_name.' '.$user->last_name.'
+         </a>';
                 })
                 ->addColumn('actions', function ($user) use ($slug, $login_user) {
                     $edit = '';
                     $delete = '';
                     if ($login_user->can('edit_user')) {
                         $edit = '<a href="'.route('user.edit', [$user->uuid, $slug]).'" class="me-2">
-                              <i class="fa-solid fa-pen-to-square text-primary"></i>
-                             </a>';
+                  <i class="fa-solid fa-pen-to-square text-primary"></i>
+                 </a>';
                     }
 
                     if ($login_user->can('delete_user')) {
                         $delete = '<form action="'.route('users.destroy', $user->uuid).'"
-                          method="POST" style="display:inline;">
-                          '.csrf_field().method_field('DELETE').'
-                          <i class="fa-solid fa-trash text-danger"
-                             style="cursor:pointer"
-                             onclick="confirmDelete(event)">
-                          </i>
-                       </form>';
+              method="POST" style="display:inline;">
+              '.csrf_field().method_field('DELETE').'
+              <i class="fa-solid fa-trash text-danger"
+                 style="cursor:pointer"
+                 onclick="confirmDelete(event)">
+              </i>
+           </form>';
                     }
 
                     return $edit.' '.$delete;
-                })
-                ->rawColumns(['checkbox', 'name', 'actions'])
-                ->make(true);
+                });
+
+            if ($slug === 'society_members') {
+                $datatables->addColumn('society', function ($user) {
+                    return $user->memberSocieties->map(function ($society) {
+                        return '<span class="badge bg-label-primary me-1">'.e($society->name).'</span>';
+                    })->implode('');
+                });
+            }
+
+            $rawColumns = ['checkbox', 'name', 'actions'];
+            if ($slug === 'society_members') {
+                $rawColumns[] = 'society';
+            }
+
+            return $datatables->rawColumns($rawColumns)->make(true);
         }
 
         $can_edit = $login_user->can('edit_user');
         $can_delete = $login_user->can('delete_user');
         $show_actions = $can_edit || $can_delete;
 
-        $roles = Role::where('name', '!=', 'Super Admin')->orderBy('name', 'desc')->get();
+        $roles = Role::whereNot('name', 'Super Admin')->get();
 
         return view('content.users.index', compact(['roles', 'slug', 'show_actions']));
     }
@@ -166,10 +175,10 @@ class UsersController extends Controller
 
     public function storeOrUpdate(Request $request, $slug, $uuid = null)
     {
-        // dd($request->all());
+        //        dd($request->all());
         $user = $uuid
-            ? User::where('uuid', $uuid)->firstOrFail()
-            : new User;
+          ? User::where('uuid', $uuid)->firstOrFail()
+          : new User;
         $section = $request->input('section');
         $allRules = [
             'basic' => [
@@ -180,8 +189,8 @@ class UsersController extends Controller
             ],
             'security' => [
                 'password' => $uuid
-                    ? 'nullable|string|min:8|confirmed'
-                    : 'required|string|min:8|confirmed',
+                  ? 'nullable|string|min:8|confirmed'
+                  : 'required|string|min:8|confirmed',
             ],
             'other' => [
                 'dob' => 'required|date',
@@ -208,8 +217,8 @@ class UsersController extends Controller
             ],
         ];
         $rules = $section
-            ? ($allRules[$section] ?? [])
-            : collect($allRules)->except('roles')->collapse()->toArray();
+          ? ($allRules[$section] ?? [])
+          : collect($allRules)->except('roles')->collapse()->toArray();
 
         // Validate
         $data = $request->validate($rules);
@@ -236,7 +245,6 @@ class UsersController extends Controller
                 $request->filled('role') &&
                 ($section === 'roles' || ! $uuid)
             ) {
-                // dd($request->filled('role'));
                 $user->assignRole(Role::find($request->role));
             }
 
@@ -295,17 +303,17 @@ class UsersController extends Controller
         try {
             User::whereIn('id', $request->ids)->delete();
 
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'message' => 'Selected users deleted successfully.']);
         } catch (Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
     }
 
-    public function downloadTemplate(Request $request)
+    public function downloadTemplate()
     {
-        $path = public_path('templates/Users-Community_Hub.csv');
+        $path = public_path('templates_&_guidelines/Users-Community_Hub.csv');
 
-        return response()->download($path, 'users_template.csv');
+        return response()->download($path, 'users Template.csv');
     }
 
     public function importUsers(Request $request)

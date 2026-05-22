@@ -103,23 +103,22 @@
       "url": "unblock-requests/index",
       "permission": "cancel_unblock_request_post"
     },
-
     {
       "name": "Property Management",
-      "slug": [
-        "blocks.index"
-      ],
       "icon": "menu-icon icon-base ti tabler-building-skyscraper",
       "submenu": [
         {
           "name": "Society Blocks",
-          "slug": "society_blocks",
           "route": "blocks.index",
           "permission": "listing_block"
+        },
+        {
+          "name": "Property Attributes",
+          "route": "attributes.index",
+          "permission": "listing_attribute"
         }
       ]
     },
-
     {
       "name": "Rules",
       "slug": "rules",
@@ -127,6 +126,5 @@
       "url": "rules/index",
       "permission": "listing_rule"
     }
-
   ]
 }

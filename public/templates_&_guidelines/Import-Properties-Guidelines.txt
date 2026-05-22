@@ -1,0 +1,285 @@
+================================================================================
+           PROPERTY IMPORT - CSV FILE REQUIREMENTS & GUIDE
+================================================================================
+  Read this file carefully before preparing your CSV. Uploads with errors
+  will be rejected and you will see a list of what needs to be fixed.
+================================================================================
+
+
+------------------------------------------------------------------------
+SECTION 1 — WHAT IS THIS FEATURE?
+------------------------------------------------------------------------
+
+This tool allows you to import multiple properties at once by uploading
+a CSV (Comma-Separated Values) file. Instead of adding properties one
+by one, you prepare a spreadsheet, save it as CSV, and upload it.
+
+A CSV file can be created using:
+  - Microsoft Excel       → Save As → CSV (Comma delimited)
+  - Google Sheets         → File → Download → Comma Separated Values (.csv)
+  - LibreOffice Calc      → Save As → Text CSV
+  - Any plain text editor (advanced users)
+
+
+------------------------------------------------------------------------
+SECTION 2 — FILE FORMAT RULES
+------------------------------------------------------------------------
+
+  1. The file MUST be saved in CSV format (.csv extension).
+  2. The FIRST ROW must be the header row (column names exactly as shown).
+  3. Each row after the header = one property.
+  4. Do NOT merge cells, add colours, or include charts (use plain CSV).
+  5. Do NOT leave completely blank rows between data rows.
+  6. Column names are case-sensitive — write them exactly as shown below.
+  7. Extra spaces before/after values are automatically trimmed.
+
+
+------------------------------------------------------------------------
+SECTION 3 — REQUIRED COLUMNS (Every column below MUST exist)
+------------------------------------------------------------------------
+
+  The header row must contain ALL of the following column names,
+  in any order:
+
+    category
+    name
+    property_no
+    type
+    construction_status
+    landmark
+    street
+    dimension_1_name
+    dimension_1_size
+    dimension_1_unit
+    dimension_2_name
+    dimension_2_size
+    dimension_2_unit
+
+  NOTE: Dimensions 3 through 8 are OPTIONAL (see Section 6).
+
+
+------------------------------------------------------------------------
+SECTION 4 — COLUMN-BY-COLUMN RULES
+------------------------------------------------------------------------
+
+  ┌─────────────────────┬────────────────────────────────────────────────┐
+  │ Column              │ Rules                                          │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ category            │ REQUIRED. Must be exactly one of:             │
+  │                     │   residential                                 │
+  │                     │   commercial                                  │
+  │                     │   other                                       │
+  │                     │ (lowercase, no extra spaces)                  │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ type                │ REQUIRED. Allowed values depend on category:  │
+  │                     │                                               │
+  │                     │ If category = residential:                    │
+  │                     │   plot | house | other                        │
+  │                     │                                               │
+  │                     │ If category = commercial:                     │
+  │                     │   plot | building | plaza | other             │
+  │                     │                                               │
+  │                     │ If category = other:                          │
+  │                     │   plot | mosque | temple | hospital |         │
+  │                     │   park | school | govt-office | other         │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ property_no         │ REQUIRED. A unique identifier for the         │
+  │                     │ property (e.g. A-101, Plot-55).               │
+  │                     │ - Must not already exist in this society.     │
+  │                     │ - Must not be repeated within this CSV file.  │
+  │                     │ - Cannot be left blank.                       │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ name                │ OPTIONAL. A human-readable label/title for    │
+  │                     │ the property (e.g. "Corner House").           │
+  │                     │ - Maximum 100 characters.                     │
+  │                     │ - Leave blank if not applicable.              │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ street              │ REQUIRED. Name or number of the street.       │
+  │                     │ - Cannot be blank.                            │
+  │                     │ - Maximum 50 characters.                      │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ landmark            │ OPTIONAL. A nearby landmark for location      │
+  │                     │ reference (e.g. "Near Main Gate").            │
+  │                     │ - Maximum 50 characters.                      │
+  │                     │ - Leave blank if not applicable.              │
+  ├─────────────────────┼────────────────────────────────────────────────┤
+  │ construction_status │ OPTIONAL. Current build status. Must be one  │
+  │                     │ of:                                           │
+  │                     │   constructed                                 │
+  │                     │   in_progress                                 │
+  │                     │   pending                                     │
+  │                     │ - Defaults to "pending" if left blank.        │
+  │                     │ - If type = "plot", status is ALWAYS forced   │
+  │                     │   to "pending" regardless of what you enter.  │
+  └─────────────────────┴────────────────────────────────────────────────┘
+
+
+------------------------------------------------------------------------
+SECTION 5 — DIMENSIONS (Minimum 2, Maximum 8 per property)
+------------------------------------------------------------------------
+
+  Each property must have AT LEAST 2 dimensions and no more than 8.
+
+  Every dimension is made up of exactly THREE columns:
+    dimension_X_name   → Label for this measurement (e.g. Length, Width)
+    dimension_X_size   → The numeric value (e.g. 30.5)
+    dimension_X_unit   → The unit of measurement
+
+  Where X is the dimension number (1 through 8).
+
+  RULES FOR EACH DIMENSION:
+  ─────────────────────────
+  dimension_X_name:
+    - Cannot be blank if the dimension is being used.
+    - Maximum 20 characters.
+    - Must be UNIQUE within the same property.
+      (e.g. you cannot have two dimensions both named "Length")
+
+  dimension_X_size:
+    - Must be a positive number.
+    - Decimals are allowed (up to 4 decimal places).
+    - Maximum value: 999999.9999
+    - Cannot be blank if the dimension is being used.
+
+  dimension_X_unit:
+    - Must be exactly one of:
+        feet
+        meter
+        yard
+    - Cannot be blank if the dimension is being used.
+
+  IMPORTANT — ALL THREE FIELDS MUST BE FILLED TOGETHER:
+    If you provide a name, you MUST also provide size and unit.
+    Partial entries (e.g. name filled but size blank) will cause an error.
+    If you don't need dimension 3, leave ALL THREE of its columns blank.
+
+
+------------------------------------------------------------------------
+SECTION 6 — OPTIONAL DIMENSIONS (3 through 8)
+------------------------------------------------------------------------
+
+  Columns for dimensions 3–8 may or may not exist in your CSV:
+
+  CASE A — You want to support up to 8 dimensions:
+    Include all columns up to dimension_8_unit in your header.
+    Leave the cells blank for properties that don't use that dimension.
+
+  CASE B — You only need 2 dimensions for all properties:
+    You can omit dimension_3 through dimension_8 columns entirely.
+    Just make sure dimension_1 and dimension_2 columns are present.
+
+  CASE C — Partial column groups (ERROR):
+    If your header has "dimension_3_name" but NOT "dimension_3_size"
+    or "dimension_3_unit", the upload will be rejected.
+    A dimension column group must be complete (all 3 or none).
+
+
+------------------------------------------------------------------------
+SECTION 7 — EXAMPLE CSV STRUCTURE
+------------------------------------------------------------------------
+
+  Below is a minimal example with 2 dimensions only:
+
+  category,name,property_no,type,construction_status,landmark,street,dimension_1_name,dimension_1_size,dimension_1_unit,dimension_2_name,dimension_2_size,dimension_2_unit
+  residential,Green Villa,A-101,house,constructed,Near Park,Street 5,Length,40,feet,Width,30,feet
+  commercial,,B-202,plot,pending,,Main Boulevard,Length,60.5,meter,Width,45,meter
+  other,,C-303,mosque,pending,City Centre,Block 7 Road,Length,100,yard,Width,80,yard
+
+  Notes from the example above:
+  - "name" and "landmark" can be left blank (they are optional).
+  - "construction_status" for type=plot will be forced to "pending".
+  - All values are comma separated with no extra quotes needed unless
+    your value itself contains a comma.
+
+
+------------------------------------------------------------------------
+SECTION 8 — COMMON MISTAKES TO AVOID
+------------------------------------------------------------------------
+
+  ✗ WRONG  — Using a space in unit:    "feet " or " meter"
+  ✓ CORRECT — No extra spaces:          "feet" or "meter"
+
+  ✗ WRONG  — Wrong category spelling:  "Residential" or "COMMERCIAL"
+  ✓ CORRECT — Lowercase only:           "residential" or "commercial"
+
+  ✗ WRONG  — Type not valid for category:
+               category=residential, type=plaza   ← plaza not allowed
+  ✓ CORRECT — Match type to category:
+               category=commercial, type=plaza    ← correct
+
+  ✗ WRONG  — Duplicate property_no in same file:
+               Row 2: property_no = A-101
+               Row 5: property_no = A-101   ← duplicate!
+  ✓ CORRECT — Every property_no must be unique in the file AND in the system.
+
+  ✗ WRONG  — Only 1 dimension provided per property.
+  ✓ CORRECT — Minimum 2 dimensions required per property.
+
+  ✗ WRONG  — Dimension size is text:   "thirty"
+  ✓ CORRECT — Dimension size is a number: 30 or 30.5
+
+  ✗ WRONG  — Dimension name repeated:
+               dimension_1_name = Length
+               dimension_2_name = Length   ← duplicate name!
+  ✓ CORRECT — Each dimension name must be different within a property.
+
+  ✗ WRONG  — Saving file as .xlsx instead of .csv
+  ✓ CORRECT — Always export/save as CSV (.csv) before uploading.
+
+
+------------------------------------------------------------------------
+SECTION 9 — WHAT HAPPENS AFTER UPLOAD
+------------------------------------------------------------------------
+
+  STEP 1 — VALIDATION:
+    The system checks every row for errors before saving anything.
+    If ANY row has an error, NO properties are imported.
+    You will see a list of errors with the property_no (or row number)
+    that caused each problem.
+
+  STEP 2 — FIX & RE-UPLOAD:
+    Fix the reported errors in your CSV file, save it again, and
+    re-upload. Repeat until the file passes validation.
+
+  STEP 3 — IMPORT IN PROGRESS:
+    Once validation passes, properties are saved in the background.
+    A progress percentage will update on screen (0% → 100%).
+    Do not close the page until it reaches 100%.
+
+  STEP 4 — DONE:
+    All properties from the CSV will now appear in the system.
+
+
+------------------------------------------------------------------------
+SECTION 10 — QUICK REFERENCE SUMMARY
+------------------------------------------------------------------------
+
+  File format         : CSV (.csv)
+  Header row          : Required (row 1)
+  Minimum data rows   : 1
+  Blank rows          : Ignored automatically
+
+  Required columns    : category, name, property_no, type,
+                         construction_status, landmark, street,
+                         dimension_1_name, dimension_1_size,
+                         dimension_1_unit, dimension_2_name,
+                         dimension_2_size, dimension_2_unit
+
+  Optional columns    : dimension_3 through dimension_8
+                         (each group needs all 3 columns or none)
+
+  Valid categories    : residential | commercial | other
+  Valid units         : feet | meter | yard
+  Valid statuses      : constructed | in_progress | pending
+
+  Min dimensions/row  : 2
+  Max dimensions/row  : 8
+  Max dim name length : 20 characters
+  Max dim size value  : 999999.9999 (positive numbers only)
+
+  property_no         : Must be unique within the society (no duplicates
+                         in the file OR already in the system)
+
+================================================================================
+                      END OF DOCUMENT — GOOD LUCK!
+================================================================================

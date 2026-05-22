@@ -2,17 +2,14 @@
 
 @section('title', 'Add New User')
 
-<!-- Vendor Styles -->
 @section('vendor-style')
   @vite(['resources/assets/vendor/libs/bootstrap-select/bootstrap-select.scss', 'resources/assets/vendor/libs/select2/select2.scss', 'resources/assets/vendor/libs/flatpickr/flatpickr.scss', 'resources/assets/vendor/libs/typeahead-js/typeahead.scss', 'resources/assets/vendor/libs/@form-validation/form-validation.scss'])
 @endsection
 
-<!-- Vendor Scripts -->
 @section('vendor-script')
   @vite(['resources/assets/vendor/libs/select2/select2.js', 'resources/assets/vendor/libs/bootstrap-select/bootstrap-select.js', 'resources/assets/vendor/libs/moment/moment.js', 'resources/assets/vendor/libs/flatpickr/flatpickr.js', 'resources/assets/vendor/libs/typeahead-js/typeahead.js', 'resources/assets/vendor/libs/@form-validation/popular.js', 'resources/assets/vendor/libs/@form-validation/bootstrap5.js', 'resources/assets/vendor/libs/@form-validation/auto-focus.js'])
 @endsection
 
-<!-- Page Scripts -->
 @section('page-script')
   @vite(['resources/assets/js/form-validation.js'])
 @endsection
@@ -21,341 +18,432 @@
   @php
     $page_name = str_replace('_', ' ', $slug);
     $page_name = ucwords($page_name);
-    $societyMemberRole = optional($roles)->firstWhere('name', 'Society Member');
   @endphp
-  <h4 class="mb-1">Create Users</h4>
-  <nav aria-label="breadcrumb " class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item">
-        <a href="{{ route('users.index', $slug) }}">{{ $page_name }}</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item active">Create</li>
-    </ol>
-  </nav>
 
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <h4 class="card-header fw-bolder "> Add New User</h4>
-        @if (session('success'))
-          <div class="alert alert-success"> {{ session('success') }} </div>
-        @endif
-        @if (session('error'))
-          <div class="alert alert-danger"> {{ session('error') }} </div>
-        @endif
+  {{-- PAGE HEADER --}}
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Users Management</p>
+      <h3 class="text-dark fw-bold mb-2">Add New User</h3>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="{{ route('dashboard.analytics') }}"
+                                         class="text-dark opacity-75 text-decoration-none">Home</a></li>
+          <li class="breadcrumb-item"><a href="{{ route('users.index', $slug) }}"
+                                         class="text-dark opacity-75 text-decoration-none">{{ $page_name }}</a></li>
+          <li class="breadcrumb-item active text-dark opacity-50">Create</li>
+        </ol>
+      </nav>
+    </div>
+    <i class="ti tabler-users text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+  </div>
 
-        <div class="card-body">
-          <form method="post" id="form_validation" action='{{ route('user.storeOrUpdate', $slug) }}'
-            enctype="multipart/form-data" class="row g-6 validation_form">
-            @csrf
-            <!-- Account Details -->
-            <div class="col-12">
-              <h6 class="fw-bolder">1. Account Details</h6>
-              <hr class="mt-0" />
-            </div>
+  {{-- ALERTS --}}
+  @if (session('success'))
+    <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+      <i class="ti tabler-circle-check-filled"></i> {{ session('success') }}
+    </div>
+  @endif
+  @if (session('error'))
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+      <i class="ti tabler-alert-circle-filled"></i> {{ session('error') }}
+    </div>
+  @endif
 
-            <div class="col-md-6 form-control-validation ">
-              <label class="form-label fw-bolder required" for="first_name">First Name</label>
-              <input type="text" id="first_name" class="form-control @error('first_name') is-invalid @enderror"
-                required placeholder="John" name="first_name" value="{{ old('first_name') }}" />
-              @error('first_name')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-            <div class="col-md-6 form-control-validation ">
-              <label class="form-label fw-bolder " for="last_name">Last Name</label>
+  @if ($errors->any())
+    <div class="alert alert-danger alert-dismissible d-flex gap-3 mb-3" role="alert">
+      <i class="ti tabler-alert-circle-filled fs-4 flex-shrink-0 mt-1"></i>
+      <div>
+        <strong>Please fix the following errors:</strong>
+        <ul class="mb-0 mt-1 small">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+      </div>
+      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+  @endif
 
-              <input type="text" id="last_name" class="form-control @error('last_name') is-invalid @enderror"
-                placeholder="Doe" name="last_name" value="{{ old('last_name') }}" />
-              @error('last_name')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
+  <div class="card border-0 shadow-sm rounded-3">
+    <form method="post" id="form_validation" action='{{ route('user.storeOrUpdate', $slug) }}'
+          enctype="multipart/form-data" class="validation_form">
+      @csrf
 
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="email">Email</label>
-              <input class="form-control @error('email') is-invalid @enderror" type="email" id="email" Required
-                name="email" placeholder="john.doe@example.com" value="{{ old('email') }}" />
-              @error('email')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
+      {{-- SECTION 01 — ACCOUNT DETAILS --}}
+      <div class="card-body border-bottom p-4">
+        <div class="d-flex align-items-center gap-2 mb-4">
+          <span
+            class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">01</span>
+          <h5 class="mb-0 fw-bold">Account Details</h5>
+        </div>
 
-            <div class="col-md-6 form-control-validation">
-              <div class="form-password-toggle">
-                <label class="form-label fw-bolder required" for="password">Password</label>
-                <div class="input-group input-group-merge">
-                  <input class="form-control @error('password') is-invalid @enderror" type="password" id="password"
-                    name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                    aria-describedby="multicol-password2" />
-                  <span class="input-group-text cursor-pointer" id="multicol-password2">
-                    <i class="icon-base ti tabler-eye-off"></i>
-                  </span>
-                </div>
-                @error('password')
-                  <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
-              </div>
+        <div class="row g-4">
+          <div class="col-md-6">
+            <label for="first_name" class="form-label fw-semibold small text-uppercase text-muted required">First
+              Name</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-user text-muted"></i></span>
+              <input type="text" id="first_name" name="first_name" required
+                     value="{{ old('first_name') }}"
+                     class="form-control border-start-0 @error('first_name') is-invalid @enderror"
+                     placeholder="John">
             </div>
+            @error('first_name')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
 
-            <div class="col-md-6 form-control-validation">
-              <div class="form-password-toggle">
-                <label class="form-label fw-bolder required" for="password_confirmation">Confirm Password</label>
-                <div class="input-group input-group-merge">
-                  <input class="form-control @error('password_confirmation') is-invalid @enderror" type="password"
-                    id="password_confirmation" name="password_confirmation"
-                    placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                    aria-describedby="multicol-confirm-password2" />
-                  <span class="input-group-text cursor-pointer" id="multicol-confirm-password2">
-                    <i class="icon-base ti tabler-eye-off"></i>
-                  </span>
-                </div>
-                @error('password_confirmation')
-                  <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
-              </div>
+          <div class="col-md-6">
+            <label for="last_name" class="form-label fw-semibold small text-uppercase text-muted">Last Name</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-user text-muted"></i></span>
+              <input type="text" id="last_name" name="last_name"
+                     value="{{ old('last_name') }}"
+                     class="form-control border-start-0 @error('last_name') is-invalid @enderror"
+                     placeholder="Doe">
             </div>
+            @error('last_name')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
 
-            <!-- Personal Info -->
-            <div class="col-12">
-              <h6 class="mt-2 fw-bolder">2. Personal Info</h6>
-              <hr class="mt-0" />
+          <div class="col-md-6">
+            <label for="email" class="form-label fw-semibold small text-uppercase text-muted required">Email</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-mail text-muted"></i></span>
+              <input type="email" id="email" name="email" required
+                     value="{{ old('email') }}"
+                     class="form-control border-start-0 @error('email') is-invalid @enderror"
+                     placeholder="john.doe@example.com">
             </div>
-            @if ($slug != 'society_members')
-              <div class="col-md-6 form-control-validation">
-                <label for="role" class="col fw-bolder required">Roles:</label>
-                <div>
-                  <select class="form-select" @error('role') is-invalid @enderror Required
-                    aria-label="Default select example" name="role">
-                    <option value="" selected>Choose any role</option>
-                    @foreach ($roles as $role)
-                      <option value="{{ $role->id }}" {{ old('role') == $role->name ? 'selected' : '' }}>
-                        {{ $role->name }}
-                      </option>
-                    @endforeach
-                  </select>
-                  @error('role')
-                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                  @enderror
-                </div>
-              </div>
-            @elseif($slug == 'society_members')
-              <input type="hidden" name="role" value="35">
-              <div class="col-md-6 form-control-validation">
-                <label for="society" class="col fw-bolder required">Society</label>
-                <div>
-                  <select class="form-select" @error('society') is-invalid @enderror Required
-                    aria-label="Default select example" name="society">
-                    <option value="" selected>Choose any society</option>
-                    @foreach ($societies as $society)
-                      <option value="{{ $society->id }}" {{ old('society') == $society->id ? 'selected' : '' }}>
-                        {{ $society->name }}
-                      </option>
-                    @endforeach
-                  </select>
-                  @error('society')
-                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                  @enderror
-                </div>
-              </div>
-            @endif
+            @error('email')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
 
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="dob">DOB</label>
-              <input type="text" class="form-control flatpickr-validation @error('dob') is-invalid @enderror"
-                name="dob" id="dob" placeholder="Select your date of birth"
-                data-default-date="{{ old('dob') }}" required />
+          {{-- Password --}}
+          <div class="col-md-6">
+            <label for="password"
+                   class="form-label fw-semibold small text-uppercase text-muted required">Password</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-lock text-muted"></i></span>
+              <input type="password" id="password" name="password"
+                     class="form-control border-start-0 @error('password') is-invalid @enderror"
+                     placeholder="············">
+            </div>
+            @error('password')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
 
-              @error('dob')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
+          {{-- Confirm Password --}}
+          <div class="col-md-6">
+            <label for="password_confirmation" class="form-label fw-semibold small text-uppercase text-muted required">Confirm
+              Password</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i
+                  class="ti tabler-lock-check text-muted"></i></span>
+              <input type="password" id="password_confirmation" name="password_confirmation"
+                     class="form-control border-start-0 @error('password_confirmation') is-invalid @enderror"
+                     placeholder="············">
             </div>
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="country">Country</label>
-              <select id="country" name="country" class="form-select select2 @error('country') is-invalid @enderror"
-                Required data-allow-clear="true">
-                <option value="">Select Your Country
-                </option>
-                <option value="Pakistan" {{ old('country') == 'Pakistan' ? 'selected' : '' }}>
-                  Pakistan</option>
-                <option value="Australia" {{ old('country') == 'Australia' ? 'selected' : '' }}>
-                  Australia</option>
-                <option value="Bangladesh" {{ old('country') == 'Bangladesh' ? 'selected' : '' }}>
-                  Bangladesh</option>
-                <option value="Belarus" {{ old('country') == 'Belarus' ? 'selected' : '' }}>Belarus
-                </option>
-                <option value="Brazil" {{ old('country') == 'Brazil' ? 'selected' : '' }}>Brazil
-                </option>
-                <option value="Canada" {{ old('country') == 'Canada' ? 'selected' : '' }}>Canadas
-                </option>
-                <option value="China" {{ old('country') == 'China' ? 'selected' : '' }}>China
-                </option>
-                <option value="France" {{ old('country') == 'France' ? 'selected' : '' }}>France
-                </option>
-                <option value="Germany" {{ old('country') == 'Germany' ? 'selected' : '' }}>
-                  Germany
-                </option>
-                <option value="India" {{ old('country') == 'India' ? 'selected' : '' }}>India
-                </option>
-                <option value="Indonesia" {{ old('country') == 'Indonesia' ? 'selected' : '' }}>
-                  Indonesia</option>
-                <option value="Israel" {{ old('country') == 'Israel' ? 'selected' : '' }}>Israel
-                </option>
-                <option value="Italy" {{ old('country') == 'Italy' ? 'selected' : '' }}>Italy
-                </option>
-                <option value="Japan" {{ old('country') == 'Japan' ? 'selected' : '' }}>Japan
-                </option>
-                <option value="Korea" {{ old('country') == 'Korea' ? 'selected' : '' }}>Korea</option>
-                <option value="Mexico" {{ old('country') == 'Mexico' ? 'selected' : '' }}>Mexico
-                </option>
-                <option value="Philippines" {{ old('country') == 'Philippines' ? 'selected' : '' }}>Philippines
-                </option>
-                <option value="Russia" {{ old('country') == 'Russia' ? 'selected' : '' }}>Russian
-                  Federation</option>
-                <option value="South Africa" {{ old('country') == 'South Africa' ? 'selected' : '' }}>South Africa
-                </option>
-                <option value="Thailand" {{ old('country') == 'Thailand' ? 'selected' : '' }}>
-                  Thailand</option>
-                <option value="Turkey"{{ old('country') == 'Turkey' ? 'selected' : '' }}>Turkey
-                </option>
-                <option value="Ukraine" {{ old('country') == 'Ukraine' ? 'selected' : '' }}>
-                  Ukraine</option>
-                <option value="United Arab Emirates" {{ old('country') == 'United Arab Emirates' ? 'selected' : '' }}>
-                  United Arab Emirates</option>
-                <option value="United Kingdom" {{ old('country') == 'United Kingdom' ? 'selected' : '' }}>United
-                  Kingdom
-                </option>
-                <option value="United States" {{ old('country') == 'United States' ? 'selected' : '' }}>United States
-                </option>
-              </select>
-              @error('country')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="cnic_passport">CNIC/Passport</label>
-              <input class="form-control @error('cnic_passport') is-invalid @enderror" type="text" Required
-                id="cnic_passport" name="cnic_passport" placeholder="13503-1235405-3"
-                value="{{ old('cnic_passport') }}" />
-              @error('cnic_passport')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" Required>Gender</label>
-              <div class="d-flex">
-                <div class="form-check custom mb-2">
-                  <input type="radio" id="male" name="gender" class="form-check-input" value="male"
-                    {{ old('gender', $user->gender ?? '') == 'male' ? 'checked' : '' }} />
-                  <label class="form-check-label pe-5" for="male">Male</label>
-                </div>
-                <div class="form-check custom">
-                  <input type="radio" id="female" name="gender" class="form-check-input" value="female"
-                    {{ old('gender', $user->gender ?? '') == 'female' ? 'checked' : '' }} />
-                  <label class="form-check-label pe-5" for="female">Female</label>
-                </div>
-                <div class="form-check custom">
-                  <input type="radio" id="other" name="gender" class="form-check-input" value="other"
-                    {{ old('gender', $user->gender ?? '') == 'other' ? 'checked' : '' }} />
-                  <label class="form-check-label" for="other">Other</label>
-                </div>
-              </div>
-              @error('gender')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" Required>Marital Status</label>
-              <div class="d-flex">
-                <div class="form-check custom mb-2">
-                  <input type="radio" id="married" name="marital_status" value="married" class="form-check-input"
-                    {{ old('marital_status', $user->marital_status ?? '') == 'married' ? 'checked' : '' }} />
-                  <label class="form-check-label pe-5" for="married">Married</label>
-                </div>
-                <div class="form-check custom">
-                  <input type="radio" id="un-married" name="marital_status" value="un-married"
-                    class="form-check-input"
-                    {{ old('marital_status', $user->marital_status ?? '') == 'un-married' ? 'checked' : '' }} />
-                  <label class="form-check-label" for="un-married">Un-Married</label>
-                </div>
-              </div>
-              @error('marital_status')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required " for="profession">Profession</label>
-              <input class="form-control typeahead @error('profession') is-invalid @enderror" type="text" Required
-                id="profession" name="profession" autocomplete="off" placeholder="Software Engineer"
-                value="{{ old('profession') }}" />
-              @error('profession')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label for="picture" class="form-label fw-bolder required">Profile Picture</label>
-              <input class="form-control @error('picture') is-invalid @enderror" type="file" id="picture"
-                {{ !isset($user) ? 'Required' : '' }} name="picture" />
-              @error('picture')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="contact">Contact</label>
-              <input type="tel" id="contact"
-                class="form-control phone-input @error('contact') is-invalid @enderror" name="contact" Required
-                placeholder="0300 1234567" value="{{ old('contact') }}" />
-              @error('contact')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="emergency_contact">Emergency Contact</label>
-              <input type="tel" id="emergency_contact"
-                class="form-control phone-input @error('emergency_contact') is-invalid @enderror" Required
-                name="emergency_contact" placeholder="0300 1234567" value="{{ old('emergency_contact') }}" />
-              @error('emergency_contact')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="present_address">Present Address</label>
-              <textarea class="form-control @error('present_address') is-invalid @enderror" id="present_address" Required
-                placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan" name="present_address"
-                rows="1">{{ old('present_address') }}</textarea>
-              @error('present_address')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-
-            <div class="col-md-6 form-control-validation">
-              <label class="form-label fw-bolder required" for="permanent_address">Permanent Address</label>
-              <textarea class="form-control @error('permanent_address') is-invalid @enderror" id="permanent_address" Required
-                placeholder="25-B, Street 12, Block C, Gulshan-e-Iqbal, Karachi, Sindh 75300, Pakistan" name="permanent_address"
-                rows="1">{{ old('permanent_address') }}</textarea>
-              @error('permanent_address')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-              @enderror
-            </div>
-            <div class="col-12 form-control-validation">
-              <button type="submit" name="submitButton" class="btn btn-primary"> Save User</button>
-            </div>
-          </form>
+            @error('password_confirmation')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
         </div>
       </div>
-    </div>
+
+      {{-- SECTION 02 — PERSONAL INFO --}}
+      <div class="card-body border-bottom p-4">
+        <div class="d-flex align-items-center gap-2 mb-4">
+          <span
+            class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">02</span>
+          <h5 class="mb-0 fw-bold">Personal Info</h5>
+        </div>
+
+        <div class="row g-4">
+
+          {{-- Role or Society --}}
+          @if ($slug != 'society_members')
+            <div class="col-md-6">
+              <label for="role" class="form-label fw-semibold small text-uppercase text-muted required">Role</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0"><i class="ti tabler-shield text-muted"></i></span>
+                <select id="role" name="role" required
+                        class="form-select border-start-0 @error('role') is-invalid @enderror">
+                  <option value="">Choose any role</option>
+                  @foreach ($roles as $role)
+                    <option value="{{ $role->id }}" {{ old('role') == $role->name ? 'selected' : '' }}>
+                      {{ $role->name }}
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+              @error('role')
+              <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+              @enderror
+            </div>
+          @else
+            <input type="hidden" name="role" value="35">
+            <div class="col-md-6">
+              <label for="society"
+                     class="form-label fw-semibold small text-uppercase text-muted required">Society</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0"><i
+                    class="ti tabler-building text-muted"></i></span>
+                <select id="society" name="society" required
+                        class="form-select border-start-0 @error('society') is-invalid @enderror">
+                  <option value="">Choose any society</option>
+                  @foreach ($societies as $society)
+                    <option value="{{ $society->id }}" {{ old('society') == $society->id ? 'selected' : '' }}>
+                      {{ $society->name }}
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+              @error('society')
+              <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+              @enderror
+            </div>
+          @endif
+
+          <div class="col-md-6">
+            <label for="dob" class="form-label fw-semibold small text-uppercase text-muted required">Date of
+              Birth</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-calendar text-muted"></i></span>
+              <input type="text" id="dob" name="dob" required
+                     class="form-control border-start-0 @error('dob') is-invalid @enderror"
+                     placeholder="Select your date of birth"
+                     data-default-date="{{ old('dob') }}">
+            </div>
+            @error('dob')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="country" class="form-label fw-semibold small text-uppercase text-muted required">Country</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-world text-muted"></i></span>
+              <select id="country" name="country" required
+                      class="form-select border-start-0 select2 @error('country') is-invalid @enderror"
+                      data-allow-clear="true">
+                <option value="">Select Your Country</option>
+                @foreach(['Pakistan','Australia','Bangladesh','Belarus','Brazil','Canada','China','France','Germany','India','Indonesia','Israel','Italy','Japan','Korea','Mexico','Philippines','Russia','South Africa','Thailand','Turkey','Ukraine','United Arab Emirates','United Kingdom','United States'] as $c)
+                  <option value="{{ $c }}" {{ old('country') == $c ? 'selected' : '' }}>{{ $c }}</option>
+                @endforeach
+              </select>
+            </div>
+            @error('country')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="cnic_passport" class="form-label fw-semibold small text-uppercase text-muted required">CNIC /
+              Passport</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-id text-muted"></i></span>
+              <input type="text" id="cnic_passport" name="cnic_passport" required
+                     value="{{ old('cnic_passport') }}"
+                     class="form-control border-start-0 @error('cnic_passport') is-invalid @enderror"
+                     placeholder="13503-1235405-3">
+            </div>
+            @error('cnic_passport')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="profession"
+                   class="form-label fw-semibold small text-uppercase text-muted required">Profession</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-briefcase text-muted"></i></span>
+              <input type="text" id="profession" name="profession" required autocomplete="off"
+                     value="{{ old('profession') }}"
+                     class="form-control border-start-0 typeahead @error('profession') is-invalid @enderror"
+                     placeholder="Software Engineer">
+            </div>
+            @error('profession')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="picture" class="form-label fw-semibold small text-uppercase text-muted required">Profile
+              Picture</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-photo text-muted"></i></span>
+              <input type="file" id="picture" name="picture" accept="image/*"
+                     {{ !isset($user) ? 'required' : '' }}
+                     class="form-control border-start-0 @error('picture') is-invalid @enderror">
+            </div>
+            @error('picture')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="contact" class="form-label fw-semibold small text-uppercase text-muted required">Contact</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-phone text-muted"></i></span>
+              <input type="tel" id="contact" name="contact" required
+                     value="{{ old('contact') }}"
+                     class="form-control border-start-0 phone-input @error('contact') is-invalid @enderror"
+                     placeholder="0300 1234567">
+            </div>
+            @error('contact')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="emergency_contact" class="form-label fw-semibold small text-uppercase text-muted required">Emergency
+              Contact</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i
+                  class="ti tabler-phone-call text-muted"></i></span>
+              <input type="tel" id="emergency_contact" name="emergency_contact" required
+                     value="{{ old('emergency_contact') }}"
+                     class="form-control border-start-0 phone-input @error('emergency_contact') is-invalid @enderror"
+                     placeholder="0300 1234567">
+            </div>
+            @error('emergency_contact')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          {{-- Gender --}}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small text-uppercase text-muted required">Gender</label>
+            <div class="d-flex gap-3">
+              <label for="male" class="const_labels">
+                <input type="radio" id="male" name="gender" value="male" hidden
+                  {{ old('gender', $user->gender ?? '') == 'male' ? 'checked' : '' }}>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="ti tabler-mars fs-4"></i>
+                  <span class="small fw-semibold">Male</span>
+                </div>
+              </label>
+              <label for="female" class="const_labels">
+                <input type="radio" id="female" name="gender" value="female" hidden
+                  {{ old('gender', $user->gender ?? '') == 'female' ? 'checked' : '' }}>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="ti tabler-venus fs-4"></i>
+                  <span class="small fw-semibold">Female</span>
+                </div>
+              </label>
+              <label for="other" class="const_labels">
+                <input type="radio" id="other" name="gender" value="other" hidden
+                  {{ old('gender', $user->gender ?? '') == 'other' ? 'checked' : '' }}>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="ti tabler-gender-bigender fs-4"></i>
+                  <span class="small fw-semibold">Other</span>
+                </div>
+              </label>
+            </div>
+            @error('gender')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          {{-- Marital Status --}}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small text-uppercase text-muted required">Marital Status</label>
+            <div class="d-flex gap-3">
+              <label for="married" class="const_labels">
+                <input type="radio" id="married" name="marital_status" value="married" hidden
+                  {{ old('marital_status', $user->marital_status ?? '') == 'married' ? 'checked' : '' }}>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="ti tabler-heart fs-4"></i>
+                  <span class="small fw-semibold">Married</span>
+                </div>
+              </label>
+              <label for="un-married" class="const_labels">
+                <input type="radio" id="un-married" name="marital_status" value="un-married" hidden
+                  {{ old('marital_status', $user->marital_status ?? '') == 'un-married' ? 'checked' : '' }}>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="ti tabler-heart-off fs-4"></i>
+                  <span class="small fw-semibold">Un Married</span>
+                </div>
+              </label>
+            </div>
+            @error('marital_status')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          {{-- Addresses --}}
+          <div class="col-md-6">
+            <label for="present_address" class="form-label fw-semibold small text-uppercase text-muted required">Present
+              Address</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-map-pin text-muted"></i></span>
+              <textarea id="present_address" name="present_address" required rows="1"
+                        class="form-control border-start-0 @error('present_address') is-invalid @enderror"
+                        placeholder="25-B, Street 12, Block C, Karachi">{{ old('present_address') }}</textarea>
+            </div>
+            @error('present_address')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+          <div class="col-md-6">
+            <label for="permanent_address" class="form-label fw-semibold small text-uppercase text-muted required">Permanent
+              Address</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="ti tabler-map-pins text-muted"></i></span>
+              <textarea id="permanent_address" name="permanent_address" required rows="1"
+                        class="form-control border-start-0 @error('permanent_address') is-invalid @enderror"
+                        placeholder="25-B, Street 12, Block C, Karachi">{{ old('permanent_address') }}</textarea>
+            </div>
+            @error('permanent_address')
+            <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+            @enderror
+          </div>
+
+        </div>
+      </div>
+
+      {{-- SUBMIT --}}
+      <div class="card-body p-4 d-flex justify-content-end">
+        <button type="submit" name="submitButton" class="btn btn-primary px-4 fw-bold">
+          <i class="ti tabler-device-floppy me-1"></i> Save User
+        </button>
+      </div>
+
+    </form>
   </div>
+
 @endsection
+
+
+@push('styles')
+  <style>
+    .const_labels {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid #d9dee3;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+    }
+
+    .const_labels:has(input:checked) {
+      border-color: #7367f0;
+      background: rgba(115, 103, 240, 0.08);
+      color: #7367f0;
+    }
+
+    .const_labels:has(input:checked) i {
+      color: #7367f0;
+    }
+  </style>
+@endpush

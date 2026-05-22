@@ -1,4 +1,3 @@
-
 {{-- OverView --}}
 <div class="row g-4">
   {{-- Left Column --}}
@@ -55,7 +54,8 @@
                 <input type="file" id="file_trigger" multiple hidden>
               </label>
 
-              <form id="add_files_form" method="POST" action="{{ route('society.store', [$user_type, $society->uuid]) }}"
+              <form id="add_files_form" method="POST"
+                    action="{{ route('society.store', [$user_type, $society->uuid]) }}"
                     enctype="multipart/form-data" class="d-flex align-items-center gap-2 m-0">
                 @csrf
                 <input type="hidden" name="request_type" value="document">
@@ -83,7 +83,7 @@
             </div>
 
             <div class="d-flex align-items-center">
-              <span data-url="{{ route('societies.bulk_delete') }}"
+              <span data-url="{{ route('attachments.bulk_delete') }}"
                     class="btn btn-xs btn-outline-danger waves-effect d-none bulk_delete_btn" id="bulk_btn">
                 <i class="fa-solid fa-trash  pe-1"></i> Delete
               </span>
@@ -170,7 +170,7 @@
           </span>
           @if (auth()->user()->can('edit_society') && $society->status == 'active')
             <button type="button" class="btn btn-text-info waves-effect" data-bs-toggle="modal"
-                    data-bs-target="#edit_basic_property"><i class="fa-solid fa-pen-to-square"></i></button>
+                    data-bs-target="#edit_society_info"><i class="fa-solid fa-pen-to-square"></i></button>
           @endif
         </h5>
       </div>
@@ -207,6 +207,12 @@
             <div class="info-container">
               <small class="text-muted text-uppercase d-block mb-1">Country</small>
               <h6 class="mb-0">{{ ucfirst($society->country) ?? 'N/A' }}</h6>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-container">
+              <small class="text-muted text-uppercase d-block mb-1">Postal Code:</small>
+              <h6 class="mb-0">{{ ucfirst($society->postal_code) ?? 'N/A'  }}</h6>
             </div>
           </div>
           <div class="col-md-6">

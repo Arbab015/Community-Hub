@@ -22,15 +22,10 @@
                      value="{{ old('marla_size', $society->marla_size) }}">
             </div>
 
-            <div class="col-12">
-              <label class="form-label fw-bolder fw-medium required">Address</label>
-              <textarea class="form-control" rows="2" required name="address">{{ old('address', $society->address) }}</textarea>
-            </div>
-
             <div class="col-md-6">
               <label class="form-label fw-bolder fw-medium required">City</label>
               <input type="text" class="form-control" required name="city"
-                value="{{ old('city', $society->city) }}">
+                     value="{{ old('city', $society->city) }}">
             </div>
             @php
               $selectedCountry = old('country', $society->country ?? '');
@@ -38,7 +33,7 @@
             <div class="col-md-6 form-control-validation">
               <label class="form-label fw-bolder required" for="country">Country</label>
               <select id="country" name="country" class="form-select select2 @error('country') is-invalid @enderror"
-                required data-allow-clear="true">
+                      required data-allow-clear="true">
                 <option value="">Select Society Country</option>
                 <option value="Pakistan" {{ $selectedCountry == 'Pakistan' ? 'selected' : '' }}>Pakistan</option>
                 <option value="Australia" {{ $selectedCountry == 'Australia' ? 'selected' : '' }}>Australia</option>
@@ -81,9 +76,30 @@
                 </option>
               </select>
               @error('country')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
+              <div class="invalid-feedback d-block">{{ $message }}</div>
               @enderror
             </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-bolder fw-medium required">Postal Code:</label>
+              <input type="text"
+                     class="form-control @error('postal_code') is-invalid @enderror"
+                     name="postal_code"
+                     id="postal_code"
+                     placeholder="Enter Postal code"
+                     value="{{ old('postal_code', $society->postal_code) }}"
+                     inputmode="numeric"
+                     oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                     required>
+
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-bolder fw-medium required">Address</label>
+              <textarea class="form-control" rows="2" required name="address">{{ old('address', $society->address) }}</textarea>
+            </div>
+
+
           </div>
           <!-- ACTIONS -->
           <div class="d-flex justify-content-end gap-2 mt-6">

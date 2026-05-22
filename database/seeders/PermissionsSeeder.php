@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -13,7 +12,6 @@ class PermissionsSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-
     public function run(): void
     {
         $permissions = [
@@ -44,10 +42,10 @@ class PermissionsSeeder extends Seeder
             'complaints',
             'listing_tag',
             'block_post',
-          'listing_block_post',
-          'listing_requested_post',
+            'listing_block_post',
+            'listing_requested_post',
             'un-block_request_post',
-          'cancel_unblock_request_post',
+            'cancel_unblock_request_post',
             'un-block_post',
             'add_tag',
             'edit_tag',
@@ -68,6 +66,11 @@ class PermissionsSeeder extends Seeder
             'edit_block',
             'delete_block',
             'view_block',
+
+            'listing_attribute',
+            'create_attribute',
+            'edit_attribute',
+            'delete_attribute',
 
             'create_property',
             'edit_property',
@@ -103,10 +106,15 @@ class PermissionsSeeder extends Seeder
                 'edit_block',
                 'delete_block',
                 'view_block',
-               'create_property',
-              'edit_property',
-              'delete_property',
-              'view_property',
+                'create_property',
+                'edit_property',
+                'delete_property',
+                'view_property',
+
+                'listing_attribute',
+                'create_attribute',
+                'edit_attribute',
+                'delete_attribute',
 
             ])->get()
         );
@@ -115,7 +123,7 @@ class PermissionsSeeder extends Seeder
             $user->assignRole(roles: 'Super Admin');
         }
 
-        //permissions for society admin
+        // permissions for society admin
         $societyAdminPermissions = [
             'dashboard',
             'listing_society',
@@ -142,21 +150,26 @@ class PermissionsSeeder extends Seeder
             'edit_rule',
             'delete_rule',
 
-          'listing_block',
-          'add_block',
-          'edit_block',
-          'delete_block',
-          'view_block',
+            'listing_block',
+            'add_block',
+            'edit_block',
+            'delete_block',
+            'view_block',
 
-          'create_property',
-          'edit_property',
-          'delete_property',
-          'view_property',
+            'create_property',
+            'edit_property',
+            'delete_property',
+            'view_property',
+
+            'listing_attribute',
+            'create_attribute',
+            'edit_attribute',
+            'delete_attribute',
+
         ];
 
         // Get all users with Society Admin role
-        $societyAdmins = User::role('Society Owner')->get();
-        // Assign permissions directly to users
+        $societyAdmins = Role::firstOrCreate(['name' => 'Society Owner']);
         foreach ($societyAdmins as $societyAdmin) {
             $societyAdmin->givePermissionTo($societyAdminPermissions);
         }

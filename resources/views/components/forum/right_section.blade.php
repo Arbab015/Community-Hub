@@ -4,11 +4,11 @@
 
 {{-- Right Section --}}
 <div class="forum-right-sidebar">
-  {{-- Create Post Button --}}
   @if ( ($society->status == 'active') || auth()->user()->hasRole('Society Owner'))
     <div class="card border-0 shadow-sm mb-5">
       <a href="{{ isset($user_type)
-    ? route('posts.create_in_admin', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type]) : route('posts.create', ['type' => $type]) }}" class="btn btn-primary w-100">
+    ? route('posts.create_in_admin', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type]) : route('posts.create', ['type' => $type])}}"
+         class="btn btn-primary w-100">
         Create Post
       </a>
     </div>
@@ -45,8 +45,9 @@
             </div>
           </a>
           @can('listing_block_post')
-            <a href="{{  route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'blocked_posts'])}}"
-               class="d-block text-decoration-none mt-3 text-dark">
+            <a
+              href="{{  route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'blocked_posts'])}}"
+              class="d-block text-decoration-none mt-3 text-dark">
               <div class="d-flex justify-content-between align-items-center">
                 <span>Blocked Posts</span>
                 <i class="ti tabler-chevron-right"></i>
@@ -54,16 +55,9 @@
             </a>
           @endcan
           @can('listing_requested_post')
-            {{--            <a href="{{ route('society.render_posts', ['user_type' => $user_type, 'uuid' => $society->uuid, 'type' => $type , 'slug' => 'requested_posts']) }}"--}}
-            {{--               class="d-block text-decoration-none mt-3 text-dark">--}}
-            {{--              <div class="d-flex justify-content-between align-items-center">--}}
-            {{--                <span>Requested Posts</span>--}}
-            {{--                <i class="ti tabler-chevron-right"></i>--}}
-            {{--              </div>--}}
-            {{--            </a>--}}
-
-            <a href="{{ route('requests.index',  $society->uuid )}}"
-               class="d-block text-decoration-none mt-3 text-dark">
+            <a
+              href="{{ route('requests.index',  ['user_type' => $user_type, 'uuid' => $society->uuid] )}}"
+              class="d-block text-decoration-none mt-3 text-dark">
               <div class="d-flex justify-content-between align-items-center">
                 <span> Requested Posts </span>
                 <i class="ti tabler-chevron-right"></i>
@@ -83,35 +77,35 @@
         </div>
         <div class="card-body">
           @php $inSociety = isset($society) && isset($uuid); @endphp
-            <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'discussions') }}"
-               class="d-block text-decoration-none mb-3"
-               @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-discussions')).show()" @endif>
-              <div class="mb-1 fw-semibold text-dark">Discussions</div>
-              <div class="d-flex align-items-center gap-1 text-muted small">
-                <i class="far fa-file-lines"></i>
-                <span>{{ number_format($counts['discussionsCount']) }} Posts</span>
-              </div>
-            </a>
+          <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'discussions') }}"
+             class="d-block text-decoration-none mb-3"
+             @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-discussions')).show()" @endif>
+            <div class="mb-1 fw-semibold text-dark">Discussions</div>
+            <div class="d-flex align-items-center gap-1 text-muted small">
+              <i class="far fa-file-lines"></i>
+              <span>{{ number_format($counts['discussionsCount']) }} Posts</span>
+            </div>
+          </a>
 
-            <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'suggestions') }}"
-               class="d-block text-decoration-none mb-3"
-               @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-suggestions')).show()" @endif>
-              <div class="mb-1 fw-semibold text-dark">Suggestions</div>
-              <div class="d-flex align-items-center gap-1 text-muted small">
-                <i class="far fa-file-lines"></i>
-                <span>{{ number_format($counts['suggestionsCount']) }} Posts</span>
-              </div>
-            </a>
+          <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'suggestions') }}"
+             class="d-block text-decoration-none mb-3"
+             @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-suggestions')).show()" @endif>
+            <div class="mb-1 fw-semibold text-dark">Suggestions</div>
+            <div class="d-flex align-items-center gap-1 text-muted small">
+              <i class="far fa-file-lines"></i>
+              <span>{{ number_format($counts['suggestionsCount']) }} Posts</span>
+            </div>
+          </a>
 
-            <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'issues') }}"
-               class="d-block text-decoration-none"
-               @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-issues')).show()" @endif>
-              <div class="mb-1 fw-semibold text-dark">Issues</div>
-              <div class="d-flex align-items-center gap-1 text-muted small">
-                <i class="far fa-file-lines"></i>
-                <span>{{ number_format($counts['issuesCount']) }} Posts</span>
-              </div>
-            </a>
+          <a href="{{ $inSociety ? 'javascript:void(0)' : route('posts.index', 'issues') }}"
+             class="d-block text-decoration-none"
+             @if ($inSociety) onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-issues')).show()" @endif>
+            <div class="mb-1 fw-semibold text-dark">Issues</div>
+            <div class="d-flex align-items-center gap-1 text-muted small">
+              <i class="far fa-file-lines"></i>
+              <span>{{ number_format($counts['issuesCount']) }} Posts</span>
+            </div>
+          </a>
         </div>
       </div>
     </div>
