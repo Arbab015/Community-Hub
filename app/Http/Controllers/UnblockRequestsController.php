@@ -7,6 +7,7 @@ use App\Models\Post;
 use App\Models\Society;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Mockery\Exception;
 use Yajra\DataTables\DataTables;
 
 class UnblockRequestsController extends Controller
@@ -119,6 +120,38 @@ class UnblockRequestsController extends Controller
             return back()->with('success', $message);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function bulkCancel(Request $request)
+    {
+
+        try {
+            $posts = Post::whereIn('id', $request->ids)->get();
+            foreach ($posts as $post) {
+                $post->is_unblock_requested = false;
+                $post->save();
+            }
+
+            return response()->json(['success' => true, 'message' => 'Selected posts un-block requests canceled successfully.']);
+        } catch (Exception $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function bulkApprove(Request $request)
+    {
+        try {
+            $posts = Post::whereIn('id', $request->ids)->get();
+            foreach ($posts as $post) {
+                $post->blocked = false;
+                $post->is_unblock_requested = false;
+                $post->save();
+            }
+
+            return response()->json(['success' => true, 'message' => 'Selected posts un-block requests approved successfully.']);
+        } catch (Exception $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
     }
 }

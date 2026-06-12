@@ -3,16 +3,22 @@
 @section('title', 'Rules')
 
 @section('content')
-  <h4 class="mb-1">Society Rules</h4>
-  <nav aria-label="breadcrumb" class="pt-2 pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item active">Rules</li>
-    </ol>
-  </nav>
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <h4 class="mb-1">Forum Rules</h4>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+          <li class="breadcrumb-item active">Rules</li>
+        </ol>
+      </nav>
+    </div>
+    <i class="ti tabler-clipboard-list text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+  </div>
+
   <div class="card">
     <div class="">
       <div class="card-header pb-1">
@@ -20,7 +26,7 @@
           <div class="dt-actions-bar">
             <div id="dt-right-actions" class="d-none">
               <div class="d-flex gap-2">
-                <button class="btn btn-primary" onclick="addRuleModel(event)" >
+                <button class="btn btn-primary" onclick="addRuleModel(event)">
                   Add Rule
                 </button>
               </div>
@@ -80,15 +86,15 @@
         processing: true,
         serverSide: true,
         ajax: `/rules/index`,
-        dom: "<'row align-items-center'" +
-          "<'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0'l f <'#bulk-delete-wrap'>>" +
-          "<'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start'<'dt-actions'>>" +
-          ">" +
-          "<'row'<'col-12'tr>>" +
-          "<'row mt-3 align-items-center'" +
-          "<'col-md-6'i>" +
-          "<'col-md-6 d-flex justify-content-end'p>" +
-          ">",
+        dom: '<\'row align-items-center\'' +
+          '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
+          '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
+          '>' +
+          '<\'row\'<\'col-12\'tr>>' +
+          '<\'row mt-3 align-items-center\'' +
+          '<\'col-md-6\'i>' +
+          '<\'col-md-6 d-flex justify-content-end\'p>' +
+          '>',
         columns: [{
           data: 'checkbox',
           orderable: false,
@@ -99,7 +105,7 @@
           },
           {
             data: 'description'
-          },{
+          }, {
             data: 'related_to'
           },
 
@@ -114,7 +120,7 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('rules.bulk_delete') }}">
+            <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('rules.bulk_delete') }}">
               Bulk Delete
             </button>
           `);
@@ -133,7 +139,7 @@
       modal.show();
     }
 
-    $(document).on('click', '.editRuleBtn', function () {
+    $(document).on('click', '.editRuleBtn', function() {
       let btn = $(this);
       $('#ruleId').val(btn.data('id'));
       $('#name').val(btn.data('name'));
@@ -146,7 +152,7 @@
       let related = btn.data('related_to');
 
       if (related && related.length) {
-        related.forEach(function (item) {
+        related.forEach(function(item) {
           $('input[name="related_to[]"][value="' + item + '"]').prop('checked', true);
         });
       }
@@ -200,7 +206,7 @@
         -webkit-overflow-scrolling: touch;
       }
 
-      .dt-scroll-wrapper>* {
+      .dt-scroll-wrapper > * {
         min-width: 1100px;
       }
 

@@ -3,8 +3,8 @@
   @if(!isset($total_area))
     <div class="d-flex align-items-center gap-2 mb-4">
       <span
-        class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">03</span>
-      <h5 class="mb-0 fw-bold">Property Dimensions</h5>
+        class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">03</span>
+      <h5 class="mb-0 fw-bold section_name">Property Dimensions</h5>
     </div>
   @endif
   <div class="form-repeater">
@@ -38,13 +38,10 @@
             </div>
 
             {{-- Size --}}
-            {{-- Size --}}
             <div class="col-md-4">
               <label class="form-label fw-semibold small text-uppercase text-muted required">Size</label>
               <div class="input-group">
-    <span class="input-group-text bg-light border-end-0">
-      <i class="ti tabler-number text-muted"></i>
-    </span>
+                <span class="input-group-text bg-light border-end-0"><i class="ti tabler-number text-muted"></i></span>
                 @php
                   // If unit exists, it's from DB — convert back to user unit
                   // If no unit, it's a new empty row — show blank
@@ -68,7 +65,7 @@
             </div>
 
             {{-- Unit --}}
-            <div class="col-md-3">
+            <div class="col-10 col-md-3">
               <label class="form-label fw-semibold small text-uppercase text-muted required">Unit</label>
               <select name="unit"
                       class="form-select @error('dimensions.'.$i.'.unit') is-invalid @enderror"
@@ -86,8 +83,8 @@
             </div>
 
             {{-- Remove button --}}
-            <div class="col-md-1 pt-4 mt-1">
-              <button type="button" data-repeater-delete class="btn" title="Remove row">
+            <div class="col-2 col-md-1 ps-0 pt-4 mt-1">
+              <button type="button" data-repeater-delete class="btn ps-3" title="Remove row">
                 <i class="ti tabler-x icon-lg text-danger mt-4"></i>
               </button>
             </div>
@@ -97,7 +94,7 @@
       @endforeach
 
     </div>
-    <button type="button" id="add_dimension" data-repeater-create class="btn btn-outline-primary btn-sm mt-1">
+    <button type="button" id="add_dimension" data-repeater-create class="btn btn-outline-primary btn-sm my-2">
       <i class="ti tabler-plus me-1"></i> Add Dimension
     </button>
   </div>

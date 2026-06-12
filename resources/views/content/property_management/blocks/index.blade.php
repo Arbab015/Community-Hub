@@ -114,7 +114,7 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('blocks.bulk_delete') }}">
+            <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">
               Bulk Delete
             </button>
           `);
@@ -127,7 +127,7 @@
       $('#block_id').val('');
       $('#name').val('');
       $('#hidden_society_id').remove();
-      $('#society_id').val('');
+      $('#society_id').val('').prop('disabled', false);
       let modal = new bootstrap.Modal(document.getElementById('blockModal'));
       modal.show();
     }

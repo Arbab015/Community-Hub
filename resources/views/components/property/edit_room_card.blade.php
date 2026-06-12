@@ -81,7 +81,7 @@
                        class="form-control border-start-0" placeholder="e.g 40, 12.21">
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-10 col-md-3">
               <label class="form-label fw-semibold small text-uppercase text-muted required">Unit</label>
               <select name="{{ $rPrefix }}[dimensions][{{ $di }}][unit]" class="form-select" required>
                 <option value="" disabled selected>Select Unit</option>
@@ -91,8 +91,8 @@
                 <option value="yard" @selected($dim->unit === 'yard')>Yard</option>
               </select>
             </div>
-            <div class="col-md-1">
-              <button type="button" class="btn btn-remove-dim" title="Remove">
+            <div class="col-2 col-md-1">
+              <button type="button" class="btn btn-remove-dim ps-0 " title="Remove">
                 <i class="ti tabler-x icon-lg text-danger"></i>
               </button>
             </div>

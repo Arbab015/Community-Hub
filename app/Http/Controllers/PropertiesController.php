@@ -7,16 +7,17 @@ use App\Jobs\ImportProperties;
 use App\Models\Attachment;
 use App\Models\Block;
 use App\Models\Floor;
+use App\Models\Import;
 use App\Models\Property;
 use App\Models\PropertyAttribute;
 use App\Models\PropertyUnit;
 use App\Models\Room;
 use App\Models\Society;
 use App\Services\FileServices;
-use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class PropertiesController extends Controller
@@ -99,6 +100,9 @@ class PropertiesController extends Controller
         $property_types = $query_dropdown->distinct('id')->pluck('type');
         if ($request->ajax()) {
             return response()->json([
+                'society' => $society,
+                'user_type' => $user_type,
+                'block' => $block,
                 'total_skip' => $total_skip,
                 'properties' => $properties,
                 'total_properties' => $total_properties,
@@ -144,6 +148,7 @@ class PropertiesController extends Controller
         $login_user = auth()->user();
         $scope = SocietyAccessResolver::resolver($login_user);
         $property_attributes = PropertyAttribute::where('owner_id', $scope['ownerId'])->get();
+
         $floor_types = $property_attributes->where('type', 'floor_type');
         $unit_types = $property_attributes->where('type', 'unit_type');
         $room_types = $property_attributes->where('type', 'room_type');
@@ -592,13 +597,11 @@ class PropertiesController extends Controller
     public function details($user_type, $society_uuid, $uuid)
     {
         $property = Property::where('uuid', $uuid)->with('block')->first();
-        //        dd($property);
         $society = $property->block->society ?? null;
 
         $login_user = auth()->user();
         $scope = SocietyAccessResolver::resolver($login_user);
-        $property_attributes = PropertyAttribute::where('owner_id', $scope['ownerId'])->get();
-
+        $property_attributes = PropertyAttribute::where('owner_id', $scope['onwerId'] ?? $society->owner->id)->get();
         $floor_types = $property_attributes->where('type', 'floor_type');
         $unit_types = $property_attributes->where('type', 'unit_type');
         $room_types = $property_attributes->where('type', 'room_type');
@@ -610,17 +613,6 @@ class PropertiesController extends Controller
         );
     }
 
-    //    Delete property
-    private function getConstraintMessage($section)
-    {
-        return match ($section) {
-            'floor' => 'Cannot delete floor because it has units.',
-            'unit' => 'Cannot delete unit because it has rooms.',
-            'room' => 'Cannot delete room because it is in use.',
-            default => 'Cannot delete this record due to related data.',
-        };
-    }
-
     public function destroy($section, $uuid)
     {
         try {
@@ -630,7 +622,6 @@ class PropertiesController extends Controller
                 ], 400);
             }
 
-            // Resolve model dynamically
             switch ($section) {
                 case 'floor':
                     $model = Floor::where('uuid', $uuid)->first();
@@ -651,7 +642,6 @@ class PropertiesController extends Controller
                     'error' => ucfirst($section).' not found.',
                 ], 404);
             }
-
             $model->delete();
 
             return back()->with([
@@ -674,42 +664,124 @@ class PropertiesController extends Controller
             'block_id' => 'required|exists:blocks,id',
         ]);
 
-        try {
-            $file = $request->file('file');
-            $path = $file->storeAs('imports', time().' '.$file->getClientOriginalName(), 'public');
-            $block = Block::find($request->block_id);
-            $fullPath = Storage::disk('public')->path($path);
+        $block = Block::find($request->block_id);
+        $file = $request->file('file');
 
-            $result = ImportProperties::validate($fullPath, $block->id);
-            if (! $result['success']) {
-                return response()->json(['errors' => $result['errors']]);
-            }
-            $block->update(['import_properties_progress' => 0]);
-            ImportProperties::dispatch($result['rows'], $block->id);
+        $original_filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-            return response()->json(['success' => true]);
+        $fileName = $original_filename.time().'.csv';
+        $path = $file->storeAs('imports', $fileName, 'public');
+        $fullPath = Storage::disk('public')->path($path);
 
-        } catch (Exception $e) {
-            return response()->json(['errors' => [$e->getMessage()]], 500);
+        $result = ImportProperties::validate($fullPath, $block->id);
+        if (! $result['success']) {
+            return response()->json(['errors' => $result['errors']]);
         }
+
+        $import = Import::create([
+            'uuid' => Str::uuid(),
+            'user_id' => auth()->id(),
+            'file_name' => $fileName,
+            'file_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'percent_completed' => 0,
+            'status' => 'pending',
+        ]);
+        ImportProperties::dispatch($path, $block->id, $import->id);
+
+        return response()->json(['success' => true]);
     }
 
     public function importProgress($block_uuid)
     {
-        $block = Block::where('uuid', $block_uuid)->firstOrFail();
+        $block = Block::where('uuid', $block_uuid)->first();
+        if (! $block) {
+            return response()->json(['progress' => 0, 'has_errors' => null, 'status' => 'completed']);
+        }
 
-        return response()->json(['progress' => $block->import_properties_progress ?? 0]);
+        $running = Import::where('user_id', auth()->id())
+            ->whereIn('status', ['pending', 'processing'])
+            ->latest()
+            ->first();
+
+        if ($running) {
+            return response()->json([
+                'progress' => (int) $running->percent_completed,
+                'status' => 'processing',
+                'has_errors' => null,
+            ]);
+        }
+
+        $latest = Import::where('user_id', auth()->id())
+            ->where('status', 'completed')
+            ->latest()
+            ->first();
+
+        $errorPath = ImportProperties::errorFilePath($block->id);
+        $hasErrors = $latest
+          && $latest->error_file_path === $errorPath
+          && Storage::disk('public')->exists($errorPath);
+
+        return response()->json([
+            'progress' => 100,
+            'status' => 'completed',
+            'has_errors' => $hasErrors ?? null,
+        ]);
     }
 
-    public function fileUploadProgress(Request $request)
+    public function findImportErrorsFiles($block_uuid)
     {
-        $ids = explode(',', $request->ids);
+        $block = Block::where('uuid', $block_uuid)->first();
+        $errorPath = ImportProperties::errorFilePath($block->id);
+        $latest = Import::where('user_id', auth()->id())
+            ->where('status', 'completed')
+            ->latest()
+            ->first();
+        $files = collect();
+        if ($latest && $latest->error_file_path === $errorPath && Storage::disk('public')->exists($errorPath)) {
+            $files = collect([$latest]);
+        }
 
-        return Attachment::whereIn('id', $ids)
-            ->get()
-            ->keyBy('id')
-            ->map(fn ($item) => [
-                'progress' => $item->progress,
-            ]);
+        return response()->json([
+            'success' => true,
+            'import_error_files' => $files,
+        ]);
+    }
+
+    public function deleteImportErrors($block_uuid)
+    {
+        $block = Block::where('uuid', $block_uuid)->firstOrFail();
+        $errorPath = ImportProperties::errorFilePath($block->id);
+        if (Storage::disk('public')->exists($errorPath)) {
+            Storage::disk('public')->delete($errorPath);
+        }
+        $import = Import::where('user_id', auth()->id())
+            ->where('error_file_path', $errorPath)
+            ->latest()
+            ->first();
+        if ($import) {
+            if (Storage::disk('public')->exists('imports/'.$import->file_name)) {
+                Storage::disk('public')->delete('imports/'.$import->file_name);
+            }
+            $import->update(['error_file_path' => null]);
+            $import->delete();
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function downloadImportErrors($block_uuid)
+    {
+        $block = Block::where('uuid', $block_uuid)->firstOrFail();
+        $errorPath = ImportProperties::errorFilePath($block->id);
+
+        if (Storage::disk('public')->exists($errorPath)) {
+            $path = public_path('storage/'.$errorPath);
+            logger($path);
+
+            return response()->download($path);
+        }
+
+        return response()->json(['success' => false], 404);
     }
 }

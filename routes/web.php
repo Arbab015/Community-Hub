@@ -7,6 +7,7 @@ use App\Http\Controllers\authentications\ResetPasswordBasic;
 use App\Http\Controllers\BlocksController;
 use App\Http\Controllers\CommentsController;
 use App\Http\Controllers\dashboard\Analytics;
+use App\Http\Controllers\frontend\landingPageController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\PropertiesController;
@@ -24,7 +25,12 @@ use Illuminate\Support\Facades\Route;
 
 // Main Page Route
 Route::middleware(['guest'])->group(function () {
-    // Login Routes
+
+    Route::controller(LandingPageController::class)->group(function () {
+        Route::get('/', 'index')->name('landing-page');
+        Route::post('property/search', 'findProperty')->name('property.search');
+        Route::post('property/send-email', 'sendPropertyMail')->name('property.send.email');
+    });
     Route::get('/auth/login', [LoginController::class, 'index'])->name('login');
     // Forgot Password
     Route::get('auth/forgot-password', [ForgotPasswordBasic::class, 'index'])->name('password.request');
@@ -35,12 +41,10 @@ Route::middleware(['guest'])->group(function () {
 });
 
 Route::post('/auth/login', [LoginController::class, 'login'])->name('user.login');
-// Route::post('/auth/register-basic', [RegisterBasic::class, 'register'])->name('auth-register-submit');
 Route::post('/auth/logout', [LoginController::class, 'logout'])->name('auth-logout')->middleware('auth');
 
 Route::middleware(['auth'])->group(function () {
     // Main Dashboard Routes
-    Route::get('/', [Analytics::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [Analytics::class, 'index'])->name('dashboard.analytics');
     // users Route
     Route::controller(UsersController::class)->group(function () {
@@ -129,7 +133,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reports/index', 'index')->name('reports.index')->middleware('permission:listing_reports');
         Route::post('report/store', 'store')->name('reports.store');
         // Route::get('/societies/{slug}/{uuid}/{type}/reports/{criteria}', 'show')->name('reports.show');
-        Route::get('reports/view/{id}', 'show')->name('reports.show');
+        Route::get('reports/view/{slug}', 'show')->name('reports.show');
         Route::delete('reports/dismiss/{id}', 'dismissReport')->name('reports.dismiss');
         Route::post('/reports/{type}/{id}', 'takeAction')->name('reports.action');
         Route::post('/reports/bulk_delete', 'bulkDelete')->name('reports.bulk_delete');
@@ -152,6 +156,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('unblock-requests/index/{user_type?}/{uuid?}/{type?}', 'index')->name('requests.index');
         Route::post('unblock-requests/cancel-post/{uuid}', 'requestCancel')->name('requests.cancel');
         Route::post('unblock-requests/accept-post/{uuid}', 'requestApprove')->name('requests.approve');
+        Route::post('/requested_posts/bulk_cancel', 'bulkCancel')->name('requested_posts.cancel');
+        Route::post('/requested_posts/bulk_approve', 'bulkApprove')->name('requested_posts.approve');
+
     });
 
     // Properties Management
@@ -172,12 +179,32 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/blocks/{block_uuid}/import-progress', 'importProgress')
             ->name('properties.import_properties');
 
+        Route::get('/blocks/{block_uuid}/import-errors/download', 'downloadImportErrors')
+            ->name('properties.import_errors_download');
+
         Route::get('property/create/{block_uuid}/{uuid?}', 'create')->name('property.create')->middleware('permission:create_property');
         Route::post('property/store', 'storeOrUpdate')->name('property.store')->middleware('permission:create_property');
         Route::get('property/details/{uuid}', 'propertyDetails')->name('property.details');
         Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'societyDetailsFromSociety')->name('society.property.details');
-        Route::get('{section}/destroy/{uuid}', 'destroy')->name('property.destroy')->middleware('permission:delete_property');
+        // In the PropertiesController group, add a where constraint:
+        Route::get('{section}/destroy/{uuid}', 'destroy')
+            ->name('property.destroy')
+            ->where('section', 'property|floor|unit|room') // list only valid sections
+            ->middleware('permission:delete_property');
         Route::get('/attachments/progress', 'fileUploadProgress');
+
+        Route::delete('blocks/{block_uuid}/import-errors', 'deleteImportErrors')
+            ->name('properties.import_errors_delete');
+
+        Route::get('blocks/{block_uuid}/import-errors-files', 'findImportErrorsFiles')->name('properties.import_errors_files');
+
+    });
+
+    Route::controller(\App\Http\Controllers\PropertyListingController::class)->group(function () {
+        Route::post('property-listing', 'store')->name('listing.store');
+        // web.php
+        Route::get('property_listing/destroy/{uuid}', 'destroy')->name('listing.destroy');
+
     });
 
     Route::controller(\App\Http\Controllers\PropertyAttributeController::class)->group(function () {

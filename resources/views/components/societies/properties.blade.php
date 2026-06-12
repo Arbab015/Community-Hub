@@ -1,8 +1,3 @@
-@php
-  $palette = ['color-blue','color-green','color-pink','color-amber','color-purple','color-coral'];
-@endphp
-
-
 <div class="card mb-4">
   <div class="card-header bg-white border-0 py-3 px-4">
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
@@ -20,7 +15,7 @@
       <!-- Action Button -->
       @can('add_block')
         <button
-          class="btn btn-primary btn-sm d-flex align-items-center gap-2 px-3 py-2 shadow-sm"
+          class="btn btn-xs rounded btn-primary  d-flex align-items-center gap-2 px-3 py-2 shadow-sm"
           onclick="addBlockModel(event)">
           <i class="ti tabler-plus"></i>
           <span>Add New Block</span>
@@ -35,9 +30,8 @@
   @if($society->blocks->count())
     <div class="row g-3">
       @foreach($society->blocks as $i => $block)
-        @php $color = $palette[$i % count($palette)]; @endphp
         <div class="col-12 col-md-4 col-xxl-3">
-          <div class="card shadow-sm block-card h-100 {{ $color }}">
+          <div class="card shadow-sm block-card h-100 color-blue">
             <div class="block-top-bar"></div>
             <div class="card-body p-3">
               <div class="d-flex justify-content-between align-items-start mb-3">
@@ -54,27 +48,49 @@
          {{ $block->properties->count() }} Properties
           </span>
                 <div class="d-flex gap-1">
-                  @can('delete_block')
-                    <form action="{{ route('blocks.destroy', $block->uuid) }}"
-                          method="POST"
-                          class="d-inline"
-                          onsubmit="confirmDelete(event)">
-                      @csrf
-                      @method('DELETE')
-                      <button type="submit" id="delete_btn"
-                              class="btn btn-xs btn-danger border fw-semibold rounded-3">
-                        Delete
-                      </button>
-                    </form>
-                  @endcan
 
-                  @can('view_block')
-                    <a href="{{ route('society.block.view', [$user_type, $society->uuid,$block->uuid]) }}"
-                       class="btn btn-xs btn-primary border fw-semibold rounded-3" id="view_btn">
-                      View
-                    </a>
-                  @endcan
+                  <button type="button"
+                          class="btn btn-primary btn-icon rounded-pill dropdown-toggle hide-arrow"
+                          data-bs-toggle="dropdown"
+                          aria-expanded="false">
+                    <i class="icon-base ti tabler-dots-vertical"></i>
+                  </button>
 
+                  <ul class="dropdown-menu  dropdown-menu-end  small">
+
+                    @can('view_block')
+                      <li>
+                        <a class="dropdown-item"
+                           href="{{ route('society.block.view', [$user_type, $society->uuid,$block->uuid]) }}">
+                          <i class="ti tabler-eye me-2"></i> View
+                        </a>
+                      </li>
+                    @endcan
+
+                    <li>
+                      <a class="dropdown-item edit_block_btn"
+                         data-id='{{$block->id}}'
+                         data-name='{{$block->name}}'>
+                        <i class="ti tabler-edit me-2"></i> Edit
+                      </a>
+                    </li>
+
+                    @can('delete_block')
+                      <li>
+                        <form action="{{ route('blocks.destroy', $block->uuid) }}"
+                              method="POST"
+                              onsubmit="confirmDelete(event)">
+                          @csrf
+                          @method('DELETE')
+
+                          <button type="submit" class="dropdown-item text-danger">
+                            <i class="ti tabler-trash me-2"></i> Delete
+                          </button>
+                        </form>
+                      </li>
+                    @endcan
+
+                  </ul>
                 </div>
 
               </div>
@@ -253,7 +269,9 @@
       color: #993C1D;
     }
 
-
+    .card {
+      overflow: visible;
+    }
   </style>
 
 @endpush
@@ -269,6 +287,15 @@
       modal.show();
     }
 
+    $(document).on('click', '.edit_block_btn', function() {
+      let btn = $(this);
+      $('#block_id').val(btn.data('id'));
+      $('#name').val(btn.data('name'));
+      $('#modalTitle').text('Edit Block');
+      // Show modal
+      let modal = new bootstrap.Modal(document.getElementById('blockModal'));
+      modal.show();
+    });
   </script>
 
 @endpush

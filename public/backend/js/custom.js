@@ -29,9 +29,13 @@ $(document).on('change', '#select_all', function() {
   toggleBulkDelete();
 });
 
-$(document).on('click', '.bulk_delete_btn', function() {
+$(document).on('click', '.bulk_btn', function() {
   let ids = [];
   let url = $(this).data('url');
+  let action = null;
+  if ($(this).data('action')) {
+    action = $(this).data('action');
+  }
   $('.checkbox:checked').each(function() {
     ids.push($(this).val());
   });
@@ -40,12 +44,11 @@ $(document).on('click', '.bulk_delete_btn', function() {
     text: 'This action cannot be undone!',
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Yes, delete'
+    confirmButtonText: action ? 'Yes, ' + action + ' it!' : 'Yes, delete'
   }).then(result => {
     if (!result.isConfirmed) return;
-
     Swal.fire({
-      title: 'Deleting...',
+      title: action === 'Cancel' ? 'Cancelling...' : action === 'Approve' ? 'Approving...' : 'Deleting...',
       allowOutsideClick: false,
       showConfirmButton: false,
       didOpen: () => Swal.showLoading()
@@ -59,15 +62,11 @@ $(document).on('click', '.bulk_delete_btn', function() {
       },
       success: function(res) {
         let msg = res.message;
-
-        Swal.fire('Deleted!', `${msg}`, 'success');
-
+        Swal.fire(action === 'Cancel' ? 'Cancelled' : action === 'Approve' ? 'Approved' : 'Deleted', `${msg}`, 'success');
         if ($('.table_to_reload').length > 0) {
-
           if ($.fn.DataTable.isDataTable('.table_to_reload')) {
             $('.table_to_reload').DataTable().ajax.reload(null, false);
           }
-
           $('#select_all').prop('checked', false);
           toggleBulkDelete();
 
@@ -84,7 +83,7 @@ $(document).on('click', '.bulk_delete_btn', function() {
 
 function toggleBulkDelete() {
   let checked = $('.checkbox:checked').length > 1;
-  $('.bulk_delete_btn').toggleClass('d-none', !checked);
+  $('.bulk_btn').toggleClass('d-none', !checked);
 }
 
 $(document).on('change', '.checkbox', toggleBulkDelete);
@@ -191,7 +190,7 @@ function openReport(id, type) {
   currentReportId = id;
   document.getElementById('report_id').value = id;
   document.getElementById('report_type').value = type;
-  document.getElementById('reason').value = '';
+  document.getElementById('reason_select').value = '';
   new bootstrap.Modal(document.getElementById('report_modal')).show();
 }
 
@@ -229,46 +228,13 @@ if (report_form) {
         Swal.fire('Success!', data.message, 'success');
       })
       .catch(err => {
-        console.error(err);
         Swal.fire('Error!', err.message || 'Something went wrong', 'error');
       });
   });
 }
 
-// At the top of custom.js — before the notify() function
-class CustomNotyf extends Notyf {
-  _renderNotification(options) {
-    const notification = super._renderNotification(options);
-    if (options.message) {
-      notification.message.innerHTML = options.message;
-    }
-    return notification;
-  }
-}
-
-window.notyf = new CustomNotyf({
-  duration: 3000,
-  ripple: true,
-  dismissible: false,
-  position: { x: 'right', y: 'bottom' },
-  types: [
-    {
-      type: 'success',
-      background: '#71dd37',
-      icon: { className: 'icon-base ti tabler-circle-check-filled icon-md text-white', tagName: 'i' }
-    },
-    {
-      type: 'error',
-      background: '#ff3e1d',
-      icon: { className: 'icon-base ti tabler-xbox-x-filled icon-md text-white', tagName: 'i' }
-    }
-  ]
-});
-
 
 // submit filter form on keys up in societies and properties filter
-
-
 function notify(message, type) {
   notyf.open({
     duration: 3000,

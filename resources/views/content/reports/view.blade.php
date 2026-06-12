@@ -1,20 +1,25 @@
 @extends('layouts/layoutMaster')
 @section('title', 'Reports - Post')
 @section('content')
-  <h4 class="mb-4">Reports Details</h4>
-  <nav aria-label="breadcrumb" class="pb-3">
-    <ol class="breadcrumb breadcrumb-custom-icon">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard.analytics') }}">Home</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item">
-        <a href="{{ route('reports.index') }}">Reports</a>
-        <i class="breadcrumb-icon icon-base ti tabler-chevron-right align-middle icon-xs"></i>
-      </li>
-      <li class="breadcrumb-item active">Details</li>
-    </ol>
-  </nav>
+  <div
+    class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
+    <div>
+      <h4 class="mb-1">Reported Post Details</h4>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
+          </li>
+          <li class="breadcrumb-item">
+            <a href="{{ route('reports.index') }}">Reports</a>
+          </li>
+          <li class="breadcrumb-item active">Reports Details</li>
+        </ol>
+      </nav>
+    </div>
+    <i class="ti tabler-building-estate text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
+  </div>
+
 
   @if (session('success'))
     <div class="alert alert-success alert-dismissible fade show">
@@ -57,8 +62,9 @@
 
         <div class="card-body">
           <div class="text-muted small mb-3 ">
-            By <strong class="fst-italic">{{ $post->user->first_name }} {{ $post->user->last_name }}</strong>
-            <span class="ms-2 badge bg-primary">{{ $post->category }}</span>
+            By <strong
+              class="fst-italic">{{ ucwords($post->user->first_name) }} {{ ucwords($post->user->last_name) }}</strong>
+            <span class="ms-2 badge bg-primary">{{ ucwords($post->category) }}</span>
           </div>
           <hr class="my-3">
           <h6 class="fw-semibold ">
@@ -70,12 +76,13 @@
           @forelse($reports as $report)
             <div class="d-flex justify-content-between align-items-start border-bottom py-3">
               <div class="d-flex gap-3">
-                <img src="{{ optional($report->user->attachment)->link ? asset('storage/' . $report->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
-                     class="rounded-circle flex-shrink-0" width="40" height="40" alt="User">
+                <img
+                  src="{{ optional($report->user->attachment)->link ? asset('storage/' . $report->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
+                  class="rounded-circle flex-shrink-0" width="40" height="40" alt="User">
                 <div class="w-100">
                   <div class="fw-semibold small">{{ $report->user->first_name }} {{ $report->user->last_name }}</div>
                   <div class="text-muted small mb-1">{{ $report->created_at->diffForHumans() }}</div>
-                  <span class="badge bg-light text-dark text-wrap d-inline-block mw-100" >
+                  <span class="badge bg-light text-dark text-wrap d-inline-block mw-100">
                     {{ $report->reason }}
                   </span>
                 </div>
@@ -104,7 +111,7 @@
 
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold mb-0">
-{{--          <i class="ti tabler-message-report-filled me-1 text-warning icon-sm"></i>--}}
+          {{--          <i class="ti tabler-message-report-filled me-1 text-warning icon-sm"></i>--}}
           Reported Comments
         </h5>
         <span class="badge bg-warning text-dark fs-6">
@@ -118,13 +125,14 @@
           {{-- Comment Card Header --}}
           <div class="card-header d-flex justify-content-between align-items-center py-3 bg-light mb-2">
             <div class="d-flex align-items-center gap-2">
-              <img src="{{ optional($comment->user->attachment)->link ? asset('storage/' . $comment->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
-                   class="rounded-circle  " width="36" height="36" alt="Commenter">
+              <img
+                src="{{ optional($comment->user->attachment)->link ? asset('storage/' . $comment->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
+                class="rounded-circle  " width="36" height="36" alt="Commenter">
               <div>
                 <div class="fw-semibold small">
                   {{ ucfirst($comment->user->first_name)}}  {{ ucfirst($comment->user->last_name) }}
                 </div>
-                <div class="text-muted fs-xs" >
+                <div class="text-muted fs-xs">
                   {{ $comment->created_at->diffForHumans() }}
                 </div>
               </div>
@@ -136,7 +144,8 @@
                 <span class="d-none d-sm-inline">Report{{ $comment->reports->count() !== 1 ? 's' : '' }}</span>
                 ({{ $comment->reports->count() }})
               </button>
-              <form action="{{ route('reports.action', ['type' => 'comment', $comment->id]) }}" method="POST" class="m-0">
+              <form action="{{ route('reports.action', ['type' => 'comment', $comment->id]) }}" method="POST"
+                    class="m-0">
                 @csrf
                 <button type="submit" class="btn btn-danger btn-sm btn_responsive">
                   <i class="ti tabler-trash me-1 d-inline d-sm-none"></i>
@@ -167,16 +176,19 @@
             </h6>
 
             @foreach($comment->reports as $report)
-              <div class="d-flex justify-content-between align-items-start py-2 {{ !$loop->last ? 'border-bottom' : '' }}">
+              <div
+                class="d-flex justify-content-between align-items-start py-2 {{ !$loop->last ? 'border-bottom' : '' }}">
                 <div class="d-flex gap-3 flex-grow-1">
-                  <img src="{{ optional($report->user->attachment)->link ? asset('storage/' . $report->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
-                       class="rounded-circle flex-shrink-0" width="36" height="36" alt="Reporter">
+                  <img
+                    src="{{ optional($report->user->attachment)->link ? asset('storage/' . $report->user->attachment->link) : asset('assets/img/avatars/1.png') }}"
+                    class="rounded-circle flex-shrink-0" width="36" height="36" alt="Reporter">
                   <div>
                     <div class="fw-semibold small">
                       {{ $report->user->first_name }} {{ $report->user->last_name }}
                     </div>
                     <div class="text-muted small mb-1">{{ $report->created_at->diffForHumans() }}</div>
-                    <span class="badge bg-light text-dark text-wrap text-break d-inline-block w-100 text-start">{{ $report->reason }}</span>
+                    <span
+                      class="badge bg-light text-dark text-wrap text-break d-inline-block w-100 text-start">{{ $report->reason }}</span>
                   </div>
                 </div>
                 <form action="{{ route('reports.dismiss', $report->id) }}" method="POST">
@@ -205,18 +217,18 @@
 
 @push('styles')
   <style>
-    .badge_count{
+    .badge_count {
       font-size: 12px;
     }
 
     @media (max-width: 576px) {
-      .btn_responsive{
+      .btn_responsive {
         padding: 0.153rem 0.75rem;
         font-size: 0.6875rem;
         border-radius: 0.125rem;
       }
 
-      .btn_responsive i{
+      .btn_responsive i {
         font-size: 0.91rem;
       }
     }

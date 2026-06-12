@@ -122,3 +122,24 @@
   </div>
   @include('_partials._modals.report_an_issue')
 @endsection
+
+
+@push('scripts')
+  <script>
+    let select = document.getElementById('reason_select');
+    let hiddenReason = document.getElementById('reason');
+    let textarea = document.getElementById('other_reason');
+    select.addEventListener('change', function() {
+      if (this.value === 'other') {
+        textarea.classList.remove('d-none');
+        hiddenReason.value = textarea.value;
+      } else {
+        textarea.classList.add('d-none');
+        hiddenReason.value = this.value;
+      }
+    });
+    textarea.addEventListener('input', function() {
+      hiddenReason.value = this.value;
+    });
+  </script>
+@endpush

@@ -175,7 +175,7 @@
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
 
           $('#bulk-delete-wrap').html(`
-        <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('users.bulk_delete') }}" >
+        <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('users.bulk_delete') }}" >
           Bulk Delete
         </button>
       `);

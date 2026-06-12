@@ -60,7 +60,7 @@ class PermissionsSeeder extends Seeder
             'add_rule',
             'edit_rule',
             'delete_rule',
-
+            'society_blocks',
             'listing_block',
             'add_block',
             'edit_block',
@@ -101,15 +101,14 @@ class PermissionsSeeder extends Seeder
                 'add_rule',
                 'edit_rule',
                 'delete_rule',
-                'listing_block',
+
+                'society_blocks',
                 'add_block',
                 'edit_block',
                 'delete_block',
-                'view_block',
                 'create_property',
                 'edit_property',
                 'delete_property',
-                'view_property',
 
                 'listing_attribute',
                 'create_attribute',
@@ -127,6 +126,17 @@ class PermissionsSeeder extends Seeder
         $societyAdminPermissions = [
             'dashboard',
             'listing_society',
+            'add_user',
+            'edit_user',
+            'delete_user',
+            'import_user',
+            'export_user',
+
+            'listing_role',
+            'add_role',
+            'edit_role',
+            'delete_role',
+
             'add_society',
             'edit_society',
             'delete_society',
@@ -149,7 +159,7 @@ class PermissionsSeeder extends Seeder
             'add_rule',
             'edit_rule',
             'delete_rule',
-
+            'society_blocks',
             'listing_block',
             'add_block',
             'edit_block',
@@ -169,10 +179,10 @@ class PermissionsSeeder extends Seeder
         ];
 
         // Get all users with Society Admin role
-        $societyAdmins = Role::firstOrCreate(['name' => 'Society Owner']);
-        foreach ($societyAdmins as $societyAdmin) {
-            $societyAdmin->givePermissionTo($societyAdminPermissions);
-        }
+        $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);
+
+        // Assign all Society Admin permissions to the role
+        $societyOwnerRole->syncPermissions($societyAdminPermissions);
 
         $role = Role::firstOrCreate(['name' => 'Society Member']);
         $role->syncPermissions(

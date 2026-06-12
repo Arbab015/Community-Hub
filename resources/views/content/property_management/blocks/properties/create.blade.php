@@ -106,20 +106,24 @@
   @endphp
 
   <div class="col-12">
-    <ul class="nav nav-pills mb-4" role="tablist">
-      <li class="nav-item">
-        <a class="nav-link {{ $activeTab === 'property' ? 'active' : '' }} position-relative" type="button">
-          Property Basic
+    <ul class="nav nav-pills flex-nowrap overflow-auto gap-1 border rounded-3 p-1 bg-light mb-4" role="tablist">
+      <li class="nav-item flex-shrink-0">
+        <a class="nav-link {{ $activeTab === 'property' ? 'active' : '' }} position-relative w-100 text-start"
+           type="button">
+          <i class="ti tabler-home me-2"></i> Property Basic
         </a>
       </li>
-      <li class="nav-item">
-        <a class="nav-link {{ $activeTab === 'documents' ? 'active' : '' }} position-relative" type="button">
-          Documents & Media
+      <li class="nav-item flex-shrink-0">
+        <a class="nav-link {{ $activeTab === 'documents' ? 'active' : '' }} position-relative w-100 text-start"
+           type="button">
+          <i class="ti tabler-photo me-2"></i> Documents & Media
         </a>
       </li>
-      <li class="nav-item {{ $property?->construction_status === "pending" ?  'd-none': 'd-block'  }}" id="const_tab">
-        <a class="nav-link {{ $activeTab === 'construction' ? 'active' : '' }} position-relative" type="button">
-          Construction Details
+      <li class="nav-item flex-shrink-0 {{ $property?->construction_status === 'pending' ? 'd-none' : '' }}"
+          id="const_tab">
+        <a class="nav-link {{ $activeTab === 'construction' ? 'active' : '' }} position-relative w-100 text-start"
+           type="button">
+          <i class="ti tabler-building me-2"></i> Construction Details
         </a>
       </li>
     </ul>
@@ -142,8 +146,8 @@
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">01</span>
-              <h5 class="mb-0 fw-bold">Property Category</h5>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">01</span>
+              <h5 class="mb-0 fw-bold section_name">Property Category</h5>
             </div>
 
             <div class="row g-3" id="categoryGrid">
@@ -209,8 +213,8 @@
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">02</span>
-              <h5 class="mb-0 fw-bold">Property Details</h5>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">02</span>
+              <h5 class="mb-0 fw-bold section_name">Property Details</h5>
             </div>
 
             <div class="row g-4">
@@ -295,39 +299,40 @@
               <div class="col-md-6 @if(!isset($property) )d-none @else property_exist @endif " id="constructed_wrapper">
                 <label class="form-label fw-semibold small text-uppercase text-muted required">Construction
                   Status</label>
-                <div class="d-flex gap-3">
-                  <label for="cons_constructed" id="label_constructed" class="const_labels">
+                <div class="d-flex flex-nowrap overflow-auto gap-2">
+                  <label for="cons_constructed" id="label_constructed" class="const_labels flex-shrink-0">
                     <input type="radio" id="cons_constructed" name="construction_status"
                            {{ old('construction_status', $property->construction_status ?? '') == "constructed" ? 'checked' : '' }} value="constructed"
                            hidden>
-                    <div class="d-flex align-items-center justify-content-center gap-2">
-                      <i class="ti tabler-check fs-4 text-success"></i>
+                    <div class="const-inner d-flex align-items-center justify-content-center gap-2">
+                      <i class="ti tabler-check fs-4 text-success const-icon"></i>
                       <span class="small fw-semibold">Constructed</span>
                     </div>
                   </label>
-                  <label for="cons_in_progress" id="label_progress" class="const_labels">
+                  <label for="cons_in_progress" id="label_progress" class="const_labels flex-shrink-0">
                     <input type="radio" id="cons_in_progress" name="construction_status"
                            {{ old('construction_status', $property->construction_status ?? '') == "in_progress" ? 'checked' : '' }} value="in_progress"
                            hidden>
-                    <div class="d-flex align-items-center justify-content-center gap-2">
-                      <i class="ti tabler-clock fs-4 text-primary"></i>
+                    <div class="const-inner d-flex align-items-center justify-content-center gap-2">
+                      <i class="ti tabler-clock fs-4 text-primary const-icon"></i>
                       <span class="small fw-semibold text-primary">In Progress</span>
                     </div>
                   </label>
-                  <label for="cons_pending" id="label_pending" class="const_labels">
+                  <label for="cons_pending" id="label_pending" class="const_labels flex-shrink-0">
                     <input type="radio" id="cons_pending" name="construction_status"
                            {{ old('construction_status', $property->construction_status ?? '') == "pending" ? 'checked' : '' }} value="pending"
                            hidden>
-                    <div class="d-flex align-items-center justify-content-center gap-2">
-                      <i class="ti tabler-loader fs-4 text-warning"></i>
+                    <div class="const-inner d-flex align-items-center justify-content-center gap-2">
+                      <i class="ti tabler-loader fs-4 text-warning const-icon"></i>
                       <span class="small fw-semibold text-primary">Pending</span>
                     </div>
                   </label>
                 </div>
                 @error('construction_status')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
+                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                @enderror
               </div>
+
 
             </div>
           </div>
@@ -336,12 +341,12 @@
           @include('components.property.dimensions')
 
           <div class="card-body p-4 float-end">
-            <button type="submit" id="form-submit-btn" class="btn btn-primary px-4 fw-bold">
+            <button type="submit" id="form-submit-btn" class="btn btn-sm btn-primary px-4 fw-bold">
               <i class="ti tabler-arrow-right me-1"></i>Save & Continue
             </button>
           </div>
         </form>
-      </div>{{-- /.tab-pane #property --}}
+      </div>
 
 
       {{--  DOCUMENTS & MEDIA TAB--}}
@@ -356,8 +361,8 @@
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">04</span>
-              <h5 class="mb-0 fw-bold">Documents & Media (optional)</h5>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">04</span>
+              <h5 class="mb-0 fw-bold section_name">Documents & Media (optional)</h5>
             </div>
 
             <div class="row g-4 mb-3">
@@ -409,14 +414,14 @@
           </div>
 
 
-          <div class="card-body p-4 d-flex justify-content-between">
+          <div class="card-body p-4 d-flex justify-content-between flex-column flex-sm-row gap-2">
             <a
               href="{{ route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'property']) }}"
-              class="btn btn-outline-secondary px-4">
+              class="btn btn-sm btn-outline-secondary px-4">
               <i class="ti tabler-arrow-left me-1"></i> Previous
             </a>
 
-            <a class="btn btn-primary px-4 fw-bold" id="save_documents_btn"
+            <a class="btn btn-sm btn-primary px-4 fw-bold" id="save_documents_btn"
                href="{{ $property?->construction_status !== "pending" ? route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'construction']) :  route('block.view', ['uuid' => $block->uuid , "isPending"=> "yes"]) }}">
               <i
                 class="ti @if($property?->construction_status === "pending")tabler-device-floppy @else tabler-arrow-right @endif me-1"
@@ -439,8 +444,8 @@
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">05</span>
-              <h5 class="mb-0 fw-bold">Floors with Details</h5>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">05</span>
+              <h5 class="mb-0 fw-bold section_name">Floors with Details</h5>
             </div>
 
             {{-- SERVER-SIDE RE-RENDER on validation failure --}}
@@ -454,27 +459,25 @@
             </div>
 
             <button type="button" id="btn-add-floor"
-                    class="btn btn-sm d-inline-flex align-items-center gap-1 mt-2 rounded-pill px-3 py-2 fw-semibold"
-                    style="font-size:.78rem; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:#fff; border:none; box-shadow:0 2px 8px rgba(102,126,234,.35);">
+                    class="btn btn-sm d-inline-flex align-items-center gap-1 mt-2 rounded-pill px-3 py-2 fw-semibold">
               <i class="ti tabler-plus me-1"></i> Add Floor
             </button>
           </div>
 
-          <div class="card-body p-4 d-flex justify-content-between">
+          <div class="card-body p-4 d-flex justify-content-between flex-column flex-sm-row gap-2">
             <a
               href="{{ route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'documents']) }}"
-              class="btn btn-outline-secondary px-4">
+              class="btn btn-sm btn-outline-secondary px-4">
               <i class="ti tabler-arrow-left me-1"></i> Previous
             </a>
-            <button type="submit" class="btn btn-primary px-4 fw-bold">
+            <button type="submit" class="btn btn-sm btn-primary px-4 fw-bold">
               <i class="ti tabler-device-floppy me-1"></i> Save Construction
             </button>
           </div>
         </form>
-      </div>{{-- /.tab-pane #const_details --}}
-
-    </div>{{-- /.tab-content --}}
-  </div>{{-- /.card --}}
+      </div>
+    </div>
+  </div>
 
   {{-- JS templates: unset loop vars first so templates render as <template> tags, not visible divs --}}
   @php unset($fPrefix, $fi, $floor, $hasUnits, $rPrefix, $uPrefix, $ri, $ui, $room, $unit, $p, $di, $dim); @endphp
@@ -484,6 +487,34 @@
   @include('components.property.templates.floor')
 
 @endsection
+
+
+@push('styles')
+  <style>
+
+
+    @media (max-width: 420px) {
+      .const_labels {
+        padding: 0.25rem 0.5rem !important;
+      }
+
+      .const-inner {
+        flex-direction: column;
+      }
+
+      .const-inner .const-icon {
+        font-size: 1rem !important;
+      }
+
+      .const-inner span {
+        font-size: 0.72rem !important;
+        text-align: center;
+      }
+    }
+
+
+  </style>
+@endpush
 
 @push('scripts')
   <script>

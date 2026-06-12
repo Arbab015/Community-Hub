@@ -9,8 +9,8 @@
   @include('layouts/sections/navbar/navbar-front')
 
   <!-- Sections:Start -->
-  @yield('content')c
+  @yield('content')
   <!-- / Sections:End -->
 
-  @include('layouts/sections/footer/footer-front')
+  {{--  @include('layouts/sections/footer/footer-front')--}}
 @endsection

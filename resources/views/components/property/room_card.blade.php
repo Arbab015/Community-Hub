@@ -11,7 +11,7 @@
         class="room-name text-dark fw-semibold">{{ ucwords($room_types->firstWhere('id', $room_type_id)?->title) }}</span>
     </div>
 
-    @if(!is_array($room))
+    @if(!is_array($room) && auth()->user()->can('edit_property') )
       <a href="{{ route('property.destroy', ['section'=>'room', $room->uuid]) }}"
          onclick="confirmDelete(event, null)"
          class="btn-del-icon text-decoration-none" title="Delete room">

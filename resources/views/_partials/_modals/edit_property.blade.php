@@ -4,7 +4,7 @@
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content border-0 shadow p-4">
 
-      <div class="modal-header border-0 pb-0">
+      <div class="modal-header px-0 border-0 pb-0">
         <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="editBasicInfoModalLabel">
           <span class="d-inline-block bg-primary rounded" style="width:3px;height:18px;"></span>
           Edit Basic Information
@@ -18,23 +18,21 @@
         <input type="hidden" name="property_id" value="{{ $property->id }}">
         <input type="hidden" name="request_type" value="property_info">
         <input type="hidden" name="block_id" value="{{ $property->block_id }}">
-        <div class="modal-body pt-3">
+        <div class="modal-body px-0 pt-3 basic_info_modal">
           <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-12 col-md-6">
               <label class="form-label fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em;">Property
                 Name</label>
               <input type="text" name="name" class="form-control"
                      value="{{ old('name', $property->name) }}" placeholder="e.g. Plot A-12">
             </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small text-uppercase text-muted required"
-                     style="letter-spacing:.05em;">Property No.</label>
+            <div class="col-12 col-lg-6">
+              <label class="form-label fw-semibold small text-uppercase text-muted required">Property No.</label>
               <input type="text" name="property_no" class="form-control" required
                      value="{{ old('property_no', $property->property_no) }}" placeholder="e.g. A-12">
             </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small text-uppercase text-muted required"
-                     style="letter-spacing:.05em;">Category</label>
+            <div class="col-12 col-lg-6">
+              <label class="form-label fw-semibold small text-uppercase text-muted required">Category</label>
               <select name="category" id="category" required class="form-select">
                 @foreach(['residential','commercial','other'] as $cat)
                   <option value="{{ $cat }}" @selected(strtolower($property->category) === $cat)>
@@ -43,70 +41,68 @@
                 @endforeach
               </select>
             </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small text-uppercase text-muted required "
-                     style="letter-spacing:.05em;">Type</label>
+            <div class="col-12 col-lg-6">
+              <label class="form-label fw-semibold small text-uppercase text-muted required">Type</label>
               <select name="type" id="type" class="form-select" required
                       data-old="{{ old('type', $property->type) }}">
                 <option value="" disabled>Select category first…</option>
               </select>
             </div>
 
-            {{-- Construction Status: hidden for plots via JS --}}
-            <div class="col-md-6 cons-wrapper {{ $property->type === 'plot' ? 'd-none' : '' }}"
+            {{-- Construction Status --}}
+            <div class="col-12 col-lg-6 cons-wrapper {{ $property->type === 'plot' ? 'd-none' : '' }}"
                  id="constructed_wrapper">
-              <label class="form-label fw-semibold small text-uppercase text-muted required "
+              <label class="form-label fw-semibold small text-uppercase text-muted required"
                      style="letter-spacing:.05em;">Construction Status</label>
-              <div class="d-flex gap-3" id="">
-                <label for="cons_constructed" id="label_constructed" class="const_labels">
+              <div class="d-flex flex-wrap gap-2">
+                <label for="cons_constructed" id="label_constructed" class="const_labels flex-shrink-0">
                   <input type="radio" id="cons_constructed" name="construction_status" value="constructed"
                          @checked($property->construction_status === "constructed") hidden>
-
-                  <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="ti tabler-check fs-4 text-success"></i>
-                    <span class="small fw-semibold">Constructed</span>
+                  <div class="const-inner d-flex align-items-center justify-content-center">
+                    <i class="ti tabler-check const-icon text-success"></i>
+                    <span class="fw-semibold const-text">Constructed</span>
                   </div>
                 </label>
-                <label for="cons_in_progress" id="label_progress" class="const_labels">
+                <label for="cons_in_progress" id="label_progress" class="const_labels flex-shrink-0">
                   <input type="radio" id="cons_in_progress" name="construction_status" value="in_progress"
                          @checked($property->construction_status === "in_progress") hidden>
-                  <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="ti tabler-clock fs-4 text-primary"></i>
-                    <span class="small fw-semibold text-primary">In Progress</span>
+                  <div class="const-inner d-flex align-items-center justify-content-center">
+                    <i class="ti tabler-clock const-icon text-primary"></i>
+                    <span class="fw-semibold text-primary const-text">In Progress</span>
                   </div>
                 </label>
-                <label for="cons_pending" id="label_pending" class="const_labels">
+                <label for="cons_pending" id="label_pending" class="const_labels flex-shrink-0">
                   <input type="radio" id="cons_pending" name="construction_status"
-                         @checked($property->construction_status === "pending")
-                         value="pending" hidden>
-                  <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="ti tabler-loader fs-4 text-warning"></i>
-                    <span class="small fw-semibold text-primary">Pending</span>
+                         @checked($property->construction_status === "pending") value="pending" hidden>
+                  <div class="const-inner d-flex align-items-center justify-content-center">
+                    <i class="ti tabler-loader const-icon text-warning"></i>
+                    <span class="fw-semibold text-primary const-text">Pending</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small text-uppercase text-muted required"
-                     style="letter-spacing:.05em;">Street</label>
-              <input type="text" name="street" class="form-control" required
-                     value="{{ old('street', $property->street) }}" placeholder="Enter street">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold small text-uppercase text-muted" style="letter-spacing:.05em;">Nearest
+
+            <div class="col-12 col-lg-6">
+              <label class="form-label fw-semibold small text-uppercase text-muted">Nearest
                 Landmark</label>
               <input type="text" name="landmark" class="form-control"
                      value="{{ old('landmark', $property->landmark) }}" placeholder="Imtiyaz mall etc">
             </div>
 
+            <div class="col-12 col-lg-6">
+              <label class="form-label fw-semibold small text-uppercase text-muted required"
+                     style="letter-spacing:.05em;">Street</label>
+              <input type="text" name="street" class="form-control" required
+                     value="{{ old('street', $property->street) }}" placeholder="Enter street">
+            </div>
           </div>
         </div>
 
-        <div class="modal-footer border-0 pt-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4">
-            <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
+        <div class="modal-footer border-0 p-0 mt-2 d-flex flex-column gap-2 ">
+          <button type="button" class="btn btn-outline-secondary w-100 me-0" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4 w-100 ms-0">
+            <i class="fa-solid fa-floppy-disk me-2"></i> Save Changes
           </button>
         </div>
       </form>
@@ -134,13 +130,13 @@
         <input type="hidden" name="property_id" value="{{ $property->id }}">
         <input type="hidden" name="request_type" value="property_dimension">
         <input type="hidden" name="block_id" value="{{ $property->block_id }}">
-        <div class="modal-body pt-3">
+        <div class="modal-body pt-3 " id="dimension_modal_body">
           @include('components.property.dimensions')
         </div>
 
-        <div class="modal-footer border-0 pt-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4">
+        <div class="modal-footer border-0 d-flex flex-column pt-0 gap-1">
+          <button type="button" class="btn btn-outline-secondary w-100 me-0" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4 w-100 ms-0">
             <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
           </button>
         </div>
@@ -151,16 +147,15 @@
 </div>
 
 {{-- MODAL: Edit Construction Details --}}
-
 <div class="modal fade" id="edit_construction_modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">
 
       <div class="modal-header border-bottom px-4 py-3">
-        <h5 class="modal-title fw-bold d-flex align-items-center gap-1">
-          <span class="d-inline-block bg-primary rounded" style="width:3px;height:18px;"></span>
-          Edit Construction Details
-          — <span class="text-muted badge bg-label-info   ms-1">  {{ $property->property_no }}</span>
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-1 flex-wrap">
+          <span class="d-inline-block bg-primary rounded flex-shrink-0" style="width:3px;height:18px;"></span>
+          <span class="flex-shrink-0">Edit Construction Details —</span>
+          <span class="text-muted badge bg-label-info ms-1">{{ $property->property_no }}</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -174,10 +169,8 @@
           <input type="hidden" name="request_type" value="property_const">
 
           <div id="edit-floors-container">
-
             @foreach($property->floors as $fi => $floor)
               @php $fPrefix = "floors[$fi]"; @endphp
-
               <div class="floor-item border rounded-3 mb-3 overflow-hidden shadow-sm"
                    data-floor-id="{{ $floor->id }}"
                    data-floor-prefix="{{ $fPrefix }}">
@@ -456,9 +449,8 @@
             @endforeach
 
           </div>
-          <button type="button" id="edit-btn-add-floor"
-                  class="btn btn-sm d-inline-flex align-items-center gap-1 mt-2 rounded-pill px-3 py-2 fw-semibold"
-                  style="font-size:.78rem; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:#fff; border:none; box-shadow:0 2px 8px rgba(102,126,234,.35);">
+          <button type="button" id="btn-add-floor"
+                  class="btn btn-sm d-inline-flex align-items-center gap-1 mt-2 rounded-pill px-3 py-2 fw-semibold">
             <i class="ti tabler-plus me-1"></i> Add Floor
           </button>
 
@@ -466,8 +458,7 @@
       </div>
 
       <div class="modal-footer border-top px-4 py-3">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" form="construction_form" class="btn btn-primary px-4 fw-bold">
+        <button type="submit" form="construction_form" class="btn btn-sm btn-primary px-4 w-100 fw-bold">
           <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
         </button>
       </div>

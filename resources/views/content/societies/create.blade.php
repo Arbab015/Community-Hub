@@ -211,8 +211,8 @@
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">02</span>
-              <h5 class="mb-0 fw-bold">Documents & Media <span class="text-muted fw-normal small">(optional)</span></h5>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">02</span>
+              <h5 class="mb-0 fw-bold">Documents & Media (optional)</h5>
             </div>
 
             <div class="row g-4">
@@ -256,7 +256,7 @@
           </div>
 
           <div class="card-body p-4 d-flex justify-content-between">
-            <a href="{{ route('society.create', [$slug, $society->uuid]) }}"
+            <a href="{{ route('society.create', [$slug, $society?->uuid]) }}"
                class="btn btn-outline-secondary px-4">
               <i class="ti tabler-arrow-left me-1"></i> Previous
             </a>

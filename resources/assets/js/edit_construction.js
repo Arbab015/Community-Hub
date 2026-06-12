@@ -18,7 +18,7 @@ function editAddFloor() {
   $('#edit-floors-container').append($floor);
 }
 
-document.getElementById('edit-btn-add-floor')?.addEventListener('click', editAddFloor);
+document.getElementById('btn-add-floor')?.addEventListener('click', editAddFloor);
 
 //Delegated clicks (scoped to edit modal only)
 document.addEventListener('click', function(e) {

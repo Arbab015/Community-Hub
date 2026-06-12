@@ -36,4 +36,9 @@ class PropertyUnit extends Model
     {
         return $this->morphMany(Dimension::class, 'dimensionable');
     }
+
+    public function listing()
+    {
+        return $this->morphOne(PropertyListing::class, 'listable');
+    }
 }

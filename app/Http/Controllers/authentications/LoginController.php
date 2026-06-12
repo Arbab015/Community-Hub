@@ -9,47 +9,46 @@ use Illuminate\Support\Facades\Validator;
 
 class LoginController extends Controller
 {
-  public function index()
-  {
+    public function index()
+    {
+        $pageConfigs = ['myLayout' => 'blank'];
 
-    $pageConfigs = ['myLayout' => 'blank'];
-    return view('content.authentications.auth-login', ['pageConfigs' => $pageConfigs]);
-  }
-
-  public function login(Request $request)
-  {
-    $validator = Validator::make($request->all(), [
-      'email' => 'required|email|exists:users,email',
-      'password' => 'required|string',
-    ]);
-
-    if ($validator->fails()) {
-      return redirect()->back()
-        ->withErrors($validator)
-        ->withInput();
+        return view('content.authentications.auth-login', ['pageConfigs' => $pageConfigs]);
     }
 
-    $credentials = $request->only('email', 'password');
-    $remember = $request->has('remember-me');
+    public function login(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+            'password' => 'required|string',
+        ]);
 
-    if (Auth::attempt($credentials, $remember)) {
-      $request->session()->regenerate();
-      return redirect()->route('dashboard')->with('success', 'Login successful!');
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $credentials = $request->only('email', 'password');
+        $remember = $request->has('remember-me');
+
+        if (Auth::attempt($credentials, $remember)) {
+            $request->session()->regenerate();
+
+            return redirect()->route('dashboard.analytics')->with('success', 'Login successful!');
+        }
+
+        return redirect()->back()
+            ->withErrors(['email' => 'Invalid credentials'])
+            ->withInput($request->only('email'));
     }
 
-    return redirect()->back()
-      ->withErrors(['email' => 'Invalid credentials'])
-      ->withInput($request->only('email'));
-  }
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
-
-
-  public function logout(Request $request)
-  {
-    Auth::logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-
-    return redirect('/auth/login')->with('success', 'Logged out successfully!');
-  }
+        return redirect('/auth/login')->with('success', 'Logged out successfully!');
+    }
 }

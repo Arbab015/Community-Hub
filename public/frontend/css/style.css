@@ -1,0 +1,255 @@
+.prop-search {
+  width: 100%;
+  max-width: 840px;
+  margin-inline: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.prop-search,
+.prop-search * {
+  pointer-events: auto !important;
+}
+
+.prop-intent-tabs {
+  display: inline-flex;
+}
+
+.prop-itab {
+  background: rgb(248 249 251);
+  color: rgb(93 85 85 / 90%);
+  border: 1.5px solid rgba(255, 255, 255, .3);
+  border-bottom: none;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  padding: .45rem 2rem;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.prop-itab:first-child {
+  border-radius: 6px 0 0 0;
+}
+
+.prop-itab:last-child {
+  border-radius: 0 6px 0 0;
+}
+
+.prop-itab.active {
+  background: #fff;
+  color: var(--bs-primary);
+}
+
+.prop-card {
+  background: #fff;
+  border-radius: 0 6px 6px 6px !important;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, .15);
+}
+
+.prop-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.prop-row:last-of-type {
+  border-bottom: none;
+}
+
+.prop-row-filters .prop-field {
+  padding: .5rem .85rem;
+}
+
+.prop-field {
+  flex: 1;
+  padding: .4rem 1rem;
+  border-right: 1px solid #eef0f3;
+  min-width: 0;
+}
+
+.prop-field:last-of-type {
+  border-right: none;
+}
+
+.prop-field-society {
+  max-width: 190px;
+}
+
+.prop-field-price {
+  min-width: 140px;
+}
+
+.prop-field-area {
+  min-width: 130px;
+}
+
+.prop-field input,
+.prop-field select {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: .875rem;
+  color: #4a4f5a;
+  background: transparent;
+  padding: 0;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+}
+
+.prop-field input::placeholder {
+  color: #b0b7c3;
+}
+
+.prop-field select {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ea5b1' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 16px;
+}
+
+.prop-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prop-range input {
+  width: 0;
+  flex: 1;
+  font-size: .82rem;
+  color: #4a4f5a;
+  background: #f4f5f8;
+  border: 1px solid #e2e5ec !important;
+  border-radius: 5px !important;
+  padding: .28rem .55rem !important;
+  text-align: center;
+  transition: border-color .15s, background .15s;
+}
+
+.prop-range input:focus {
+  background: #fff;
+  border-color: var(--bs-primary) !important;
+  outline: none;
+}
+
+.prop-range input::placeholder {
+  color: #c4c9d4;
+  font-size: .75rem;
+}
+
+.prop-range .range-sep {
+  font-size: .7rem;
+  color: #b0b7c3;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.prop-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: .4rem 1rem;
+  background: #f8f9fb;
+  border-top: 1px solid #eef0f3;
+  flex-wrap: wrap;
+  border-radius: 0 0 6px 6px;
+}
+
+.prop-links a {
+  font-size: .72rem;
+  color: var(--bs-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.prop-links a:hover {
+  text-decoration: underline;
+}
+
+.prop-links > span {
+  color: #dde0e8;
+}
+
+.prop-filters-collapse {
+  display: none;
+}
+
+.prop-filters-collapse.prop-open {
+  display: block;
+}
+
+.search_label {
+  font-size: .7rem;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 768px) {
+  .prop-search {
+    max-width: 100%;
+  }
+
+  .prop-row {
+    flex-wrap: wrap;
+  }
+
+  .prop-field {
+    border-right: none !important;
+    border-bottom: 1px solid #eef0f3;
+  }
+
+  .prop-field-society {
+    max-width: 100%;
+  }
+
+  .prop-itab {
+    padding: .45rem 1.2rem;
+  }
+
+  .prop-picker {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .1);
+    min-width: 200px;
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  .prop-picker-item {
+    display: block;
+    padding: .45rem 1rem;
+    font-size: .8rem;
+    color: #4a4f5a;
+    text-decoration: none;
+    transition: background .12s;
+  }
+
+  .prop-picker-item:hover {
+    background: #f4f5f8;
+    color: var(--bs-primary);
+  }
+
+  .prop-links {
+    position: relative;
+  }
+
+  .prop-card {
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+
+}
+
+.prop-links .dropdown-menu {
+  z-index: 1055;
+}

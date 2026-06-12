@@ -99,6 +99,11 @@ class User extends Authenticatable
 
     public function properties()
     {
-        return $this->hasMany(Property::class, 'owner_id');
+        return $this->hasMany(Property::class);
+    }
+
+    public function imports()
+    {
+        return $this->hasMany(Import::class);
     }
 }

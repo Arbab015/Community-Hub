@@ -107,7 +107,7 @@
           '>',
         columns: [{
           data: 'checkbox',
-          orderable: true,
+          orderable: false,
           searchable: true
         },
           {
@@ -127,9 +127,14 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger d-none bulk_delete_btn" data-url="{{ route('reports.bulk_delete') }}">
-              Bulk Delete
+          <div class="d-flex justify-content-between gap-2">
+            <button class="btn btn-sm btn-danger d-none bulk_btn" data-action="Cancel" data-url="{{ route('requested_posts.cancel') }}">
+              Bulk Cancel
             </button>
+             <button class="btn btn-sm btn-success d-none bulk_btn" data-action="Approve" data-url="{{ route('requested_posts.approve') }}">
+              Bulk Approve
+            </button>
+            </div>
           `);
         }
       });

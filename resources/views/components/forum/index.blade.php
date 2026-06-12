@@ -123,7 +123,7 @@
                       @else
                         @if (!$reported_post && $roleMember)
                           <li class="report_{{ $post->id }}">
-                            <a class="dropdown-item py-1 small" href="#"
+                            <a class="dropdown-item py-1 small"
                                onclick="openReport({{ $post->id }}, 'post')">
                               <i class="ti tabler-flag me-1"></i> Report an issue
                             </a>

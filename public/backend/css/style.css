@@ -80,7 +80,7 @@
 }
 
 /* Property*/
-.detail_section {
+.section_no {
   width: 32px;
   height: 32px;
   font-size: .72rem;
@@ -183,4 +183,22 @@
   border-radius: 6px;
   padding: 5px 8px;
   cursor: pointer;
+}
+
+#btn-add-floor {
+  font-size: .65rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, .35);
+}
+
+@media (max-width: 576px) {
+  #btn-add-floor {
+    font-size: .50rem;
+  }
+}
+
+.dropdown-menu {
+  z-index: 1055;
 }

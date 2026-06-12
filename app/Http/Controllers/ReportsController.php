@@ -18,7 +18,6 @@ class ReportsController extends Controller
     public function index(Request $request)
     {
         $login_user = Auth::user();
-
         if ($request->ajax()) {
             $query = Report::with([
                 'user',
@@ -75,8 +74,8 @@ class ReportsController extends Controller
                     if ($report->reportable) {
                         $title = $report->reportable->title ?? $report->reportable->post->title;
                         $postId = $report->reportable->post
-                          ? $report->reportable->post->id
-                          : $report->reportable->id;
+                          ? $report->reportable->post->slug
+                          : $report->reportable->slug;
                         $url = route('reports.show', $postId);
                         $shortTitle = Str::limit($title, 55, '...');
 
@@ -103,7 +102,7 @@ class ReportsController extends Controller
                     }
                     $url = route(
                         'reports.show',
-                        $report->reportable->post ? $report->reportable->post->id : $report->reportable->id
+                        $report->reportable->post ? $report->reportable->post->slug : $report->reportable->slug
                     );
                     $view = '';
                     if ($login_user->can('view_post_reports')) {
@@ -164,10 +163,12 @@ class ReportsController extends Controller
         return response()->json(['message' => 'Report submitted successfully.', 'ids' => $related_comments_ids]);
     }
 
-    public function show($id)
+    public function show($slug)
     {
         // dd($type);
-        $post = Post::with(['reports.user', 'user'])->findOrFail($id);
+        $post = Post::with(['reports.user', 'user'])
+            ->where('slug', $slug)
+            ->firstOrFail();
         // reported comments of this post
         $reportedComments = $post->comments()
             ->whereHas('reports')

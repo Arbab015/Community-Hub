@@ -7,14 +7,14 @@
 
 @isset($p)
   {{-- Blade old-data render --}}
-  <div class="dimension-row row g-3 mb-2 align-items-end rounded-3 p-2 mx-0">
+  <div class="dimension-row row g-3 mb-2 align-items-end rounded-3 mx-0">
     @else
       {{-- JS template --}}
       <template id="tpl-dim-row">
-        <div class="dimension-row row g-3 mb-2 align-items-end rounded-3 p-2 mx-0">
+        <div class="dimension-row row g-3 mb-2 align-items-end rounded-3 mx-0">
           @endisset
 
-          <div class="col-md-4">
+          <div class="col-md-4 ">
             <label class="form-label fw-semibold small text-uppercase text-muted required">Side Name</label>
             <div class="input-group">
               <span class="input-group-text bg-light border-end-0"><i class="ti tabler-ruler text-muted"></i></span>
@@ -42,7 +42,7 @@
               @enderror
             @endisset
           </div>
-          <div class="col-md-3">
+          <div class="col-10 col-md-3">
             <label class="form-label fw-semibold small text-uppercase text-muted required">Unit</label>
             <select name="{{ $unitAttr }}" class="form-select" required>
               <option value="" disabled selected>Select Unit</option>
@@ -69,8 +69,8 @@
               @enderror
             @endisset
           </div>
-          <div class="col-md-1">
-            <button type="button" class="btn btn-remove-dim" title="Remove">
+          <div class="col-2 col-md-1 ps-0 pt-4 mt-1">
+            <button type="button" class="btn btn-remove-dim ps-3" title="Remove">
               <i class="ti tabler-x icon-lg text-danger"></i>
             </button>
           </div>

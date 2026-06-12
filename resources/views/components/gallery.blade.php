@@ -77,7 +77,7 @@
                 <input class="form-check-input" type="checkbox" id="select_all">
                 <label class="form-check-label fw-semibold" for="select_all">Select All</label>
               </div>
-              <button type="button" id="bulk_delete_btn" class="btn btn-danger btn-sm d-none bulk_delete_btn"
+              <button type="button" id="bulk_delete_btn" class="btn btn-sm btn-danger btn-sm d-none bulk_btn"
                       data-url="{{ route('attachments.bulk_delete') }}">
                 <i class="fa-solid fa-trash me-1"></i>
                 <span class="d-none d-sm-block">Delete Selected</span>

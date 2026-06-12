@@ -4,61 +4,247 @@ namespace App\Jobs;
 
 use App\Http\Controllers\PropertiesController;
 use App\Models\Block;
+use App\Models\Import;
 use App\Models\Property;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 class ImportProperties implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected array $validatedRows;
+    protected string $csvPath;
 
     protected int $blockId;
 
-    public function __construct(array $validatedRows, int $blockId)
+    protected int $importId;
+
+    public function __construct(string $csvPath, int $blockId, int $importId)
     {
-        $this->validatedRows = $validatedRows;
+        $this->csvPath = $csvPath;
         $this->blockId = $blockId;
+        $this->importId = $importId;
+    }
+
+    public static function errorFilePath(int $blockId): string
+    {
+        $block = Block::find($blockId);
+
+        return "imports/errors/{$block->society->name}_{$block->name}_import_errors_.csv";
     }
 
     public function handle(): void
     {
         $block = Block::find($this->blockId);
-        if (! $block) {
+        $import = Import::find($this->importId);
+        logger($import);
+
+        $import->update(['status' => 'processing']);
+
+        $valid_categories = ['residential', 'commercial', 'other'];
+        $type_map = [
+            'residential' => ['plot', 'house', 'other'],
+            'commercial' => ['plot', 'building', 'plaza', 'other'],
+            'other' => ['plot', 'mosque', 'temple', 'hospital', 'park', 'school', 'govt-office', 'other'],
+        ];
+        $valid_statuses = ['constructed', 'in_progress', 'pending'];
+        $valid_units = ['feet', 'meter', 'yard'];
+
+        $fullPath = Storage::disk('public')->path($this->csvPath);
+        $handle = fopen($fullPath, 'r');
+
+        $header = array_map('trim', fgetcsv($handle));
+
+        $rows = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count(array_filter($row)) === 0) {
+                continue;
+            }
+            $rows[] = array_combine($header, array_map('trim', $row));
+        }
+        fclose($handle);
+
+        $total = count($rows);
+        if ($total === 0) {
+            $import->update(['percent_completed' => 100, 'status' => 'completed']);
+
             return;
         }
 
-        $total = count($this->validatedRows);
+        $societyBlockIds = $block->society->blocks()->pluck('id');
+        $existingPropertyNos = Property::whereIn('block_id', $societyBlockIds)
+            ->pluck('property_no')
+            ->map(fn ($v) => strtolower(trim($v)))
+            ->toArray();
+
+        $errors = [];
         $processed = 0;
 
-        foreach (array_chunk($this->validatedRows, 10) as $chunk) {
-            foreach ($chunk as $data) {
-                $dimensions = $data['dimensions'];
-                unset($data['dimensions']);
+        foreach ($rows as $index => $row) {
+            $rowNo = $index + 1;
+            $rowErrors = [];
 
-                $property = Property::create($data);
+            $category = strtolower($row['category'] ?? '');
+            $type = strtolower($row['type'] ?? '');
+            $construction_status = strtolower($row['construction_status'] ?? 'pending');
+            $property_no = trim($row['property_no'] ?? '');
+            $street = trim($row['street'] ?? '');
+            $name = $row['name'] ?? '' ?: null;
+            $landmark = $row['landmark'] ?? '' ?: null;
 
-                foreach ($dimensions as $dim) {
-                    $property->dimensions()->create([
-                        'name' => $dim['name'],
-                        'size' => PropertiesController::convertForSystem($dim['size'], $dim['unit']),
-                        'unit' => $dim['unit'],
+            // Validate category
+            if (! in_array($category, $valid_categories)) {
+                $rowErrors[] = "Invalid category '$category'. Must be: ".implode(', ', $valid_categories);
+            }
+
+            // Validate type
+            if (empty($rowErrors) && (! isset($type_map[$category]) || ! in_array($type, $type_map[$category]))) {
+                $rowErrors[] = "Invalid type '$type' for category '$category'. Allowed: ".implode(', ', $type_map[$category] ?? []);
+            }
+
+            // Validate property_no
+            if (empty($property_no)) {
+                $rowErrors[] = 'Property No is required.';
+            } elseif (in_array(strtolower($property_no), $existingPropertyNos)) {
+                $rowErrors[] = "Property No '$property_no' already exists in this society.";
+            }
+
+            // Validate street
+            if (empty($street)) {
+                $rowErrors[] = 'Street is required.';
+            } elseif (strlen($street) > 50) {
+                $rowErrors[] = 'Street must not exceed 50 characters.';
+            }
+
+            // Validate construction_status
+            if (! in_array($construction_status, $valid_statuses)) {
+                $rowErrors[] = "Invalid construction_status '$construction_status'. Must be: ".implode(', ', $valid_statuses);
+                $construction_status = 'pending';
+            }
+            if ($type === 'plot') {
+                $construction_status = 'pending';
+            }
+
+            if ($name && strlen($name) > 100) {
+                $rowErrors[] = 'Name must not exceed 100 characters.';
+            }
+            if ($landmark && strlen($landmark) > 50) {
+                $rowErrors[] = 'Landmark must not exceed 50 characters.';
+            }
+
+            // Validate dimensions
+            $dimensions = [];
+            $dimNamesSeen = [];
+            for ($i = 1; $i <= 8; $i++) {
+                $dim_name = trim($row["dimension_{$i}_name"] ?? '');
+                $dim_size = trim($row["dimension_{$i}_size"] ?? '');
+                $dim_unit = strtolower(trim($row["dimension_{$i}_unit"] ?? ''));
+
+                if ($dim_name === '' && $dim_size === '' && $dim_unit === '') {
+                    break;
+                }
+
+                if ($dim_name === '' || $dim_size === '' || $dim_unit === '') {
+                    $rowErrors[] = "Dimension $i is incomplete (name, size and unit are all required).";
+
+                    continue;
+                }
+                if (! in_array($dim_unit, $valid_units)) {
+                    $rowErrors[] = "Dimension $i has invalid unit '$dim_unit'. Must be: ".implode(', ', $valid_units);
+
+                    continue;
+                }
+                if (! is_numeric($dim_size) || (float) $dim_size < 0 || (float) $dim_size > 999999.9999) {
+                    $rowErrors[] = "Dimension $i size '$dim_size' is invalid.";
+
+                    continue;
+                }
+                if (strlen($dim_name) > 20) {
+                    $rowErrors[] = "Dimension $i name must not exceed 20 characters.";
+
+                    continue;
+                }
+                if (in_array(strtolower($dim_name), $dimNamesSeen)) {
+                    $rowErrors[] = "Dimension name '$dim_name' is duplicated.";
+
+                    continue;
+                }
+                $dimNamesSeen[] = strtolower($dim_name);
+                $dimensions[] = ['name' => $dim_name, 'size' => (float) $dim_size, 'unit' => $dim_unit];
+            }
+
+            if (count($dimensions) < 2) {
+                $rowErrors[] = 'At least 2 dimensions are required (found '.count($dimensions).').';
+            }
+
+            // If any errors — skip this row, record error
+            if (! empty($rowErrors)) {
+                $label = $property_no ?: "Row $rowNo";
+                foreach ($rowErrors as $e) {
+                    $errors[] = ['property_no' => $label, 'error' => $e];
+                }
+            } else {
+                // Create the property
+                try {
+                    $property = Property::create([
+                        'block_id' => $block->id,
+                        'name' => $name,
+                        'category' => $category,
+                        'property_no' => $property_no,
+                        'type' => $type,
+                        'street' => $street,
+                        'landmark' => $landmark,
+                        'construction_status' => $construction_status,
                     ]);
+
+                    foreach ($dimensions as $dim) {
+                        $property->dimensions()->create([
+                            'name' => $dim['name'],
+                            'size' => PropertiesController::convertForSystem($dim['size'], $dim['unit']),
+                            'unit' => $dim['unit'],
+                        ]);
+                    }
+
+                    // Add to existing list so duplicates later in same file are caught
+                    $existingPropertyNos[] = strtolower($property_no);
+
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'property_no' => $property_no,
+                        'error' => 'Failed to save: '.$e->getMessage(),
+                    ];
                 }
             }
-            $processed += count($chunk);
-            $block->update([
-                'import_properties_progress' => (int) round(($processed / $total) * 100),
+
+            $processed++;
+            $import->update([
+                'percent_completed' => (int) round(($processed / $total) * 100),
             ]);
-            logger((int) round(($processed / $total) * 100));
         }
 
-        $block->update(['import_properties_progress' => 100]);
-        logger("ImportProperties completed. Created: $total properties.");
+        // Write error file if needed
+        if (! empty($errors)) {
+            $filePath = Storage::disk('public')->path(self::errorFilePath($this->blockId));
+            if (! is_dir(dirname($filePath))) {
+                mkdir(dirname($filePath), 0755, true);
+            }
+
+            $fh = fopen($filePath, 'w');
+            fputcsv($fh, ['Property No / Row', 'Error']);
+            foreach ($errors as $e) {
+                fputcsv($fh, [$e['property_no'], $e['error']]);
+            }
+            fclose($fh);
+
+            $import->update(['error_file_path' => self::errorFilePath($this->blockId)]);
+        }
+
+        $import->update(['percent_completed' => 100, 'status' => 'completed']);
+        logger("Import done. Total: $total, Errors: ".count($errors));
     }
 
     public static function validate(string $path, int $blockId): array
@@ -69,16 +255,6 @@ class ImportProperties implements ShouldQueue
 
             return ['success' => false, 'errors' => ['Block not found.']];
         }
-        $valid_categories = ['residential', 'commercial', 'other'];
-        $type_map = [
-            'residential' => ['plot', 'house', 'other'],
-            'commercial' => ['plot', 'building', 'plaza', 'other'],
-            'other' => ['plot', 'mosque', 'temple', 'hospital', 'park', 'school', 'govt-office', 'other'],
-        ];
-
-        $valid_statuses = ['constructed', 'in_progress', 'pending'];
-        $valid_units = ['feet', 'meter', 'yard'];
-
         if (! file_exists($path)) {
             logger('ImportProperties: file not found: '.$path);
 
@@ -91,14 +267,14 @@ class ImportProperties implements ShouldQueue
         }
         $header = fgetcsv($handle);
         logger($header);
-
         if (! $header) {
             fclose($handle);
 
             return ['success' => false, 'errors' => ['CSV file is empty or has no header row.']];
         }
         $header = array_map('trim', $header);
-        // validate CSV file columns
+
+        // Validate CSV file columns
         $requiredColumns = [
             'category',
             'name',
@@ -179,176 +355,6 @@ class ImportProperties implements ShouldQueue
             return ['success' => false, 'errors' => ['CSV file has no data rows.']];
         }
 
-        $societyBlockIds = $block->society->blocks()->pluck('id');
-        $existingPropertyNos = Property::whereIn('block_id', $societyBlockIds)
-            ->pluck('property_no')
-            ->map(fn ($v) => strtolower(trim($v)))
-            ->toArray();
-
-        $errors = [];
-        $validatedRows = [];
-        $seenNosInFile = [];
-
-        foreach ($rows as $index => $row) {
-            $lineNo = $index + 1;
-            $rowErrors = [];
-
-            $category = strtolower($row['category'] ?? '');
-            if (empty($category) || ! in_array($category, $valid_categories)) {
-                $rowErrors[] = "  Invalid category '$category'. Must be one of: ".implode(', ', $valid_categories);
-            }
-
-            $type = strtolower($row['type'] ?? '');
-            if (! empty($category) && in_array($category, $valid_categories)) {
-                if (empty($type) || ! in_array($type, $type_map[$category])) {
-                    $rowErrors[] = "  Invalid type '$type' for category '$category'. Allowed: ".implode(', ', $type_map[$category]);
-                }
-            }
-
-            $property_no = $row['property_no'] ?? '';
-            if (empty($property_no)) {
-                $rowErrors[] = '  Property_no is required.';
-            } else {
-                $propertyNoLower = strtolower(trim($property_no));
-
-                if (in_array($propertyNoLower, $existingPropertyNos)) {
-                    $rowErrors[] = "  Property_no '$property_no' already exists in this society.";
-                }
-
-                if (in_array($propertyNoLower, $seenNosInFile)) {
-                    $rowErrors[] = "  Property_no '$property_no' is duplicated within the CSV file.";
-                }
-
-                if (! in_array($propertyNoLower, $seenNosInFile)) {
-                    $seenNosInFile[] = $propertyNoLower;
-                }
-            }
-
-            $street = $row['street'] ?? '';
-            if (empty($street)) {
-                $rowErrors[] = '  Street is required.';
-            } elseif (strlen($street) > 50) {
-                $rowErrors[] = $street.' Street must not exceed 50 characters.';
-            }
-
-            $construction_status = strtolower($row['construction_status'] ?? 'pending');
-            if (! in_array($construction_status, $valid_statuses)) {
-                $rowErrors[] = "  Invalid construction_status '$construction_status'. Must be one of: ".implode(', ', $valid_statuses);
-                $construction_status = 'pending';
-            }
-            if ($type === 'plot' && $construction_status !== 'pending') {
-                $construction_status = 'pending';
-            }
-
-            $name = ! empty($row['name']) ? $row['name'] : null;
-            $landmark = ! empty($row['landmark']) ? $row['landmark'] : null;
-
-            if ($name && strlen($name) > 100) {
-                $rowErrors[] = '  Name must not exceed 100 characters.';
-            }
-            if ($landmark && strlen($landmark) > 50) {
-                $rowErrors[] = '  Landmark must not exceed 50 characters.';
-            }
-
-            $dimensions = [];
-            $dimErrors = [];
-            $dimNamesSeen = [];
-
-            for ($i = 1; $i <= 8; $i++) {
-                $dim_name = $row["dimension_{$i}_name"] ?? '';
-                $dim_size = $row["dimension_{$i}_size"] ?? '';
-                $dim_unit = strtolower($row["dimension_{$i}_unit"] ?? '');
-
-                $nameEmpty = ($dim_name === '');
-                $sizeEmpty = ($dim_size === '');
-                $unitEmpty = ($dim_unit === '');
-
-                if ($nameEmpty && $sizeEmpty && $unitEmpty) {
-                    break;
-                }
-
-                if ($nameEmpty || $sizeEmpty || $unitEmpty) {
-                    $missing = [];
-                    if ($nameEmpty) {
-                        $missing[] = 'name';
-                    }
-                    if ($sizeEmpty) {
-                        $missing[] = 'size';
-                    }
-                    if ($unitEmpty) {
-                        $missing[] = 'unit';
-                    }
-                    $dimErrors[] = "  Dimension $i is incomplete — missing: ".implode(', ', $missing).'. All three fields (name, size, unit) are required together.';
-
-                    continue;
-                }
-
-                if (! in_array($dim_unit, $valid_units)) {
-                    $dimErrors[] = "  Dimension $i has invalid unit '$dim_unit'. Must be one of: ".implode(', ', $valid_units);
-
-                    continue;
-                }
-
-                if (! is_numeric($dim_size) || (float) $dim_size < 0 || (float) $dim_size > 999999.9999) {
-                    $dimErrors[] = "  Dimension $i size '$dim_size' is invalid. Must be a positive number up to 999999.9999.";
-
-                    continue;
-                }
-
-                if (strlen($dim_name) > 20) {
-                    $dimErrors[] = "  Dimension $i name '$dim_name' must not exceed 20 characters.";
-
-                    continue;
-                }
-
-                $dimNameLower = strtolower($dim_name);
-                if (in_array($dimNameLower, $dimNamesSeen)) {
-                    $dimErrors[] = "  Dimension name '$dim_name' is duplicated. Dimension names must be unique within a property.";
-
-                    continue;
-                }
-                $dimNamesSeen[] = $dimNameLower;
-
-                $dimensions[] = [
-                    'name' => $dim_name,
-                    'size' => (float) $dim_size,
-                    'unit' => $dim_unit,
-                ];
-            }
-
-            foreach ($dimErrors as $de) {
-                $rowErrors[] = $de;
-            }
-
-            if (empty($dimErrors) && count($dimensions) < 2) {
-                $rowErrors[] = '  At least 2 dimensions are required (found '.count($dimensions).').';
-            }
-
-            if (! empty($rowErrors)) {
-                foreach ($rowErrors as $e) {
-                    $errors[] = empty($property_no) ? "Row Number $lineNo:   $e" : "Property NO $property_no:    $e";
-                }
-            } else {
-                $validatedRows[] = [
-                    'block_id' => $block->id,
-                    'name' => $name,
-                    'category' => $category,
-                    'property_no' => $property_no,
-                    'type' => $type,
-                    'street' => $street,
-                    'landmark' => $landmark,
-                    'construction_status' => $construction_status,
-                    'dimensions' => $dimensions,
-                ];
-            }
-        }
-
-        if (! empty($errors)) {
-            logger('ImportProperties: validation failed.', $errors);
-
-            return ['success' => false, 'errors' => $errors];
-        }
-
-        return ['success' => true, 'rows' => $validatedRows];
+        return ['success' => true];
     }
 }
