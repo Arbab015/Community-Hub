@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\SocietyAccessResolver;
 use App\Models\PropertyAttribute;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -17,10 +16,8 @@ class PropertyAttributeController extends Controller
     public function index(Request $request)
     {
         $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
-        $owner_id = $scope['ownerId'];
         if ($request->ajax()) {
-            return DataTables::of(PropertyAttribute::where('owner_id', $owner_id)->orderBy('id', 'desc'))
+            return DataTables::of(PropertyAttribute::orderBy('id', 'desc'))
                 ->addColumn('checkbox', function ($attribute) {
                     return '<input type="checkbox" class="form-check-input checkbox" title="Select Record" value="'.$attribute->id.'">';
                 })
@@ -58,7 +55,7 @@ class PropertyAttributeController extends Controller
         $can_delete = $login_user->can('delete_attribute');
         $show_actions = $can_edit || $can_delete;
 
-        return view('content.property_management.attributes.index', compact('login_user', 'owner_id', 'show_actions'));
+        return view('content.property_management.attributes.index', compact('login_user', 'show_actions'));
     }
 
     /**
@@ -74,13 +71,10 @@ class PropertyAttributeController extends Controller
      */
     public function store(Request $request)
     {
-        //        dd($request->all());
-        $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
+        // dd($request->all());
         $request->validate([
             'type' => 'required|string|in:floor_type,unit_type,room_type,amenity',
-            'title' => 'required|string|max:255',
-            'owner_id' => ['required', 'integer', 'in:'.$scope['ownerId']],
+            'title' => 'required|string|max:255|unique:property_attributes,title,'.$request->id,
         ]);
         try {
             PropertyAttribute::updateOrCreate(
@@ -88,7 +82,6 @@ class PropertyAttributeController extends Controller
                     'id' => $request->id,
                 ],
                 [
-                    'owner_id' => $request->owner_id,
                     'type' => $request->type,
                     'title' => $request->title,
                 ]
@@ -133,11 +126,8 @@ class PropertyAttributeController extends Controller
      */
     public function destroy(Request $request)
     {
-        $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
         try {
             $attribute = PropertyAttribute::where('id', $request->id)
-                ->where('owner_id', $scope['ownerId'])
                 ->firstOrFail();
             $attribute->delete();
 
@@ -149,26 +139,9 @@ class PropertyAttributeController extends Controller
 
     public function bulkDelete(Request $request)
     {
-        $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
         try {
             PropertyAttribute::whereIn('id', $request->ids)
-                ->where('owner_id', $scope['ownerId'])
                 ->delete();
-            //            $notDeleted = [];
-            //            $deletedIds = [];
-            //
-            //            //            foreach ($attributes as $attribute) {
-            //            //                if ($attribute->properties()->exists()) {
-            //            //                    $notDeleted[] = $attribute->title;
-            //            //                } else {
-            //            //                    $deletedIds[] = $attribute->id;
-            //            //                }
-            //            //            }
-            //
-            //            if (! empty($deletedIds)) {
-            //                Block::whereIn('id', $deletedIds)->delete();
-            //            }
 
             return response()->json([
                 'success' => true,

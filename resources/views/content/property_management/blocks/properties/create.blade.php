@@ -25,19 +25,39 @@
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
-      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Property Management</p>
-      <h3 class="text-dark fw-bold mb-2">Add New Property</h3>
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+        @if(isset($society) && $user_type)
+          Society Management
+        @else
+          Property Management
+        @endif</p>
+      <h4 class="mb-1">Block/Sector Details</h4>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
-            <a href="{{ route('dashboard.analytics') }}" class="text-dark opacity-75 text-decoration-none">Home
-            </a>
+            <a href="{{ route('dashboard.analytics') }}">Home</a>
           </li>
-          <li class="breadcrumb-item"><a href="{{ route('blocks.index', "society_blocks") }}"
-                                         class="text-dark opacity-75 text-decoration-none">Blocks</a></li>
-          <li class="breadcrumb-item"><a href="{{ route('block.view', ['uuid' => $block->uuid]) }}"
-                                         class="text-dark opacity-75 text-decoration-none">Block Details</a></li>
-          <li class="breadcrumb-item active text-dark opacity-50">Add Property</li>
+          @if(isset($society) && $user_type)
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.index', $user_type) }}" class="text-dark opacity-75 text-decoration-none">Societies</a>
+            </li>
+            <li class="breadcrumb-item">
+              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
+                 class="text-dark opacity-75 text-decoration-none">Society</a>
+            </li>
+            <li class="breadcrumb-item">
+              <a href="{{ route('society.block.view', [$user_type, $society->uuid,$block->uuid]) }}"
+                 class="text-dark opacity-75 text-decoration-none">Block details</a>
+            </li>
+          @else
+            <li class="breadcrumb-item">
+              <a href="{{ route('block.view', $block->uuid) }}">Blocks</a>
+            </li>
+            <li class="breadcrumb-item">
+              <a href="{{ route('blocks.index', "society_blocks") }}">Block details</a>
+            </li>
+          @endif
+          <li class="breadcrumb-item active">Create</li>
         </ol>
       </nav>
     </div>
@@ -87,7 +107,6 @@
         </li>
         <li>Ensure that all required fields are properly filled to avoid incomplete records.</li>
         <li>Please upload only one image as the main property picture.</li>
-        <li>A maximum of <strong>six files</strong> can be uploaded at a time in the documents section.</li>
       </ul>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -115,7 +134,7 @@
       </li>
       <li class="nav-item flex-shrink-0">
         <a class="nav-link {{ $activeTab === 'documents' ? 'active' : '' }} position-relative w-100 text-start"
-           type="button">
+           type="button" id="documents_tab">
           <i class="ti tabler-photo me-2"></i> Documents & Media
         </a>
       </li>
@@ -132,10 +151,13 @@
   <div class="card border-0 shadow-sm rounded-3">
     <div class="tab-content p-0">
 
-      {{--  PROPERTY BASIC TAB --}}
+      {{-- PROPERTY BASIC TAB --}}
       <div class="tab-pane fade {{ $activeTab === 'property' ? 'show active' : '' }}" id="property">
         <form id="property_form" method="post" action="{{ route('property.store') }}">
           @csrf
+          @if(isset($user_type))
+            <input type="hidden" name="user_type" value="{{$user_type}}">
+          @endif
           @if(isset($property))
             <input type="hidden" name="property_id" value="{{ $property->id }}">
           @endif
@@ -202,11 +224,8 @@
             </div>
 
             @error('category')
-            <div class="text-danger small mt-2">
-              <i class="ti tabler-alert-triangle me-1"></i>{{ $message }}
-            </div>
+            <div class="text-danger small mt-2"><i class="ti tabler-alert-triangle me-1"></i>{{ $message }}</div>
             @enderror
-
           </div>
 
           {{-- STEP 02 — PROPERTY DETAILS --}}
@@ -218,8 +237,142 @@
             </div>
 
             <div class="row g-4">
+
+              {{-- CREATE MODE--}}
+              @if(!isset($property))
+
+                {{-- Mode toggle --}}
+                <div class="col-12">
+                  <label class="form-label fw-semibold small text-uppercase text-muted">Property Scope</label>
+                  <div class="d-flex gap-2">
+
+                    <input type="radio" class="btn-check" name="property_count_mode" id="mode_single"
+                           value="single" {{ old('property_count_mode', 'single') === 'single' ? 'checked' : '' }}>
+                    <label for="mode_single"
+                           class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
+      <span class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+        <i class="ti tabler-building"></i>
+      </span>
+                      <span class="text-start">
+        <span class="d-block fw-semibold prop-mode-title">Single</span>
+        <span class="d-block text-muted prop-mode-sub">One property</span>
+      </span>
+                    </label>
+
+                    <input type="radio" class="btn-check" name="property_count_mode" id="mode_multiple"
+                           value="multiple" {{ old('property_count_mode', 'single') === 'multiple' ? 'checked' : '' }}>
+                    <label for="mode_multiple"
+                           class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
+      <span class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+        <i class="ti tabler-building-community"></i>
+      </span>
+                      <span class="text-start">
+        <span class="d-block fw-semibold prop-mode-title">Multiple</span>
+        <span class="d-block text-muted prop-mode-sub">Range of properties</span>
+      </span>
+                    </label>
+
+                  </div>
+                </div>
+
+                {{-- Single: Property No --}}
+                <div class="col-md-4" id="single_no_wrapper"
+                     @if(old('property_count_mode', 'single') === 'multiple') style="display:none" @endif>
+                  <label for="property_no" class="form-label fw-semibold small text-uppercase text-muted required">Property
+                    No</label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i
+                        class="ti tabler-hash text-muted"></i></span>
+                    <input type="text" id="property_no" name="property_no"
+                           value="{{ old('property_no') }}"
+                           class="form-control border-start-0 @error('property_no') is-invalid @enderror"
+                           placeholder="e.g. A-101">
+                  </div>
+                  @error('property_no')
+                  <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                  @enderror
+                </div>
+
+                {{-- Multiple: 3 separate fields --}}
+                <div class="col-12" id="multiple_no_wrapper"
+                     @if(old('property_count_mode', 'single') !== 'multiple') style="display:none" @endif>
+                  <label class="form-label fw-semibold small text-uppercase text-muted required">Property No
+                    Range</label>
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i
+                            class="ti tabler-tag text-muted"></i></span>
+                        <input type="text" name="property_no_prefix" id="range_prefix"
+                               value="{{ old('property_no_prefix') }}"
+                               class="form-control border-start-0 @error('property_no_prefix') is-invalid @enderror"
+                               placeholder="Prefix (optional)"
+                               oninput="updateRangePreview()">
+                      </div>
+                      @error('property_no_prefix')
+                      <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
+                      </div>
+                      @enderror
+                    </div>
+                    <div class="col-md-4">
+                      <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 small fw-semibold text-muted">FROM</span>
+                        <input type="number" name="property_no_start" id="range_start" min="1"
+                               value="{{ old('property_no_start') }}"
+                               class="form-control border-start-0 @error('property_no_start') is-invalid @enderror"
+                               placeholder="1"
+                               oninput="updateRangePreview()">
+                      </div>
+                      @error('property_no_start')
+                      <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
+                      </div>
+                      @enderror
+                    </div>
+                    <div class="col-md-4">
+                      <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 small fw-semibold text-muted">TO</span>
+                        <input type="number" name="property_no_end" id="range_end" min="1"
+                               value="{{ old('property_no_end') }}"
+                               class="form-control border-start-0 @error('property_no_end') is-invalid @enderror"
+                               placeholder="10"
+                               oninput="updateRangePreview()">
+                      </div>
+                      @error('property_no_end')
+                      <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
+                      </div>
+                      @enderror
+                    </div>
+                    <div class="col-md-3 d-flex align-items-center">
+                      <small id="range_preview" class="text-muted d-none">
+                        <i class="ti tabler-eye me-1" style="font-size:13px;"></i>
+                        <span id="range_preview_text"></span>
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+              @else
+                {{-- Edit mode --}}
+                <div class="col-md-4">
+                  <label for="property_no" class="form-label fw-semibold small text-uppercase text-muted required">Property
+                    No</label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i
+                        class="ti tabler-hash text-muted"></i></span>
+                    <input type="text" id="property_no" name="property_no"
+                           value="{{ old('property_no', $property->property_no) }}"
+                           class="form-control border-start-0 @error('property_no') is-invalid @enderror"
+                           required placeholder="e.g. A-101">
+                  </div>
+                  @error('property_no')
+                  <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                  @enderror
+                </div>
+              @endif
+
+              {{-- Property Name --}}
               <div class="col-md-4">
-                <label for="name" class="form-label fw-semibold small text-uppercase text-muted ">Property Name</label>
+                <label for="name" class="form-label fw-semibold small text-uppercase text-muted">Property Name</label>
                 <div class="input-group">
                   <span class="input-group-text bg-light border-end-0"><i class="ti tabler-tag text-muted"></i></span>
                   <input type="text" id="name" name="name"
@@ -228,25 +381,11 @@
                          placeholder="e.g. Gillani Market">
                 </div>
                 @error('name')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
+                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                @enderror
               </div>
 
-              <div class="col-md-4">
-                <label for="property_no" class="form-label fw-semibold small text-uppercase text-muted required">Property
-                  No</label>
-                <div class="input-group">
-                  <span class="input-group-text bg-light border-end-0"><i class="ti tabler-hash text-muted"></i></span>
-                  <input type="text" id="property_no" name="property_no"
-                         value="{{ old('property_no', $property->property_no ?? '') }}"
-                         class="form-control border-start-0 @error('property_no') is-invalid @enderror"
-                         required placeholder="e.g. A-101">
-                </div>
-                @error('property_no')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
-              </div>
-
+              {{-- Type --}}
               <div class="col-md-4">
                 <label for="type" class="form-label fw-semibold small text-uppercase text-muted required">Type</label>
                 <div class="input-group">
@@ -256,15 +395,15 @@
                           required
                           data-old="{{ old('type', $property->type ?? '') }}">
                     <option value="" selected disabled>Select category first…</option>
-                    {{-- Options populated by JS based on selected category --}}
                   </select>
                 </div>
                 @error('type')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
+                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                @enderror
               </div>
 
-              <div class="col-md-6">
+              {{-- Street --}}
+              <div class="col-md-4">
                 <label for="street"
                        class="form-label fw-semibold small text-uppercase text-muted required">Street</label>
                 <div class="input-group">
@@ -275,10 +414,11 @@
                          required placeholder="Street-7">
                 </div>
                 @error('street')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
+                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                @enderror
               </div>
 
+              {{-- Landmark --}}
               <div class="col-md-6">
                 <label for="landmark" class="form-label fw-semibold small text-uppercase text-muted">Nearest
                   Landmark</label>
@@ -291,12 +431,12 @@
                          placeholder="Opposite of dubai plaza..">
                 </div>
                 @error('landmark')
-                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}
-                </div>@enderror
+                <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
+                @enderror
               </div>
 
-
-              <div class="col-md-6 @if(!isset($property) )d-none @else property_exist @endif " id="constructed_wrapper">
+              {{-- Construction Status --}}
+              <div class="col-md-6 @if(!isset($property))d-none @else property_exist @endif" id="constructed_wrapper">
                 <label class="form-label fw-semibold small text-uppercase text-muted required">Construction
                   Status</label>
                 <div class="d-flex flex-nowrap overflow-auto gap-2">
@@ -333,7 +473,6 @@
                 @enderror
               </div>
 
-
             </div>
           </div>
 
@@ -341,19 +480,23 @@
           @include('components.property.dimensions')
 
           <div class="card-body p-4 float-end">
-            <button type="submit" id="form-submit-btn" class="btn btn-sm btn-primary px-4 fw-bold">
+            <button type="submit" id="save_property_btn" class="btn btn- btn-primary px-4 fw-bold">
               <i class="ti tabler-arrow-right me-1"></i>Save & Continue
             </button>
           </div>
+
+
         </form>
       </div>
-
 
       {{--  DOCUMENTS & MEDIA TAB--}}
       <div class="tab-pane fade {{ $activeTab === 'documents' ? 'show active' : '' }}" id="doc_&_media">
         <form method="post" action="{{ route('property.store') }}" enctype="multipart/form-data"
               id="upload_media_property">
           @csrf
+          @if(isset($user_type))
+            <input type="hidden" name="user_type" value="{{$user_type}}">
+          @endif
           <input type="hidden" name="block_id" value="{{ $block->id }}">
           <input type="hidden" name="section" value="documents">
           <input type="hidden" name="property_id" value="{{ $property->id ?? '' }}">
@@ -415,14 +558,22 @@
 
 
           <div class="card-body p-4 d-flex justify-content-between flex-column flex-sm-row gap-2">
-            <a
-              href="{{ route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'property']) }}"
-              class="btn btn-sm btn-outline-secondary px-4">
+            @php
+              $previous_to_property = isset($user_type) ? route('society.property.create', [$user_type, $block->uuid, $property?->uuid, 'tab' => 'property']) : route('property.create', [$block->uuid, $property?->uuid]);
+
+              $save_documents = $property?->construction_status !== "pending"? (isset($user_type)
+                          ? route('society.property.create', [$user_type, $block->uuid, $property?->uuid, 'tab' => 'construction'])
+                          : route('property.create', [$block->uuid, $property?->uuid, 'tab' => 'construction']) )
+                  : route('block.view', ['uuid' => $block->uuid, 'isPending' => 'yes']);
+            @endphp
+
+            <a href="{{ $previous_to_property }}"
+               class="btn btn-sm btn-outline-secondary px-4">
               <i class="ti tabler-arrow-left me-1"></i> Previous
             </a>
 
             <a class="btn btn-sm btn-primary px-4 fw-bold" id="save_documents_btn"
-               href="{{ $property?->construction_status !== "pending" ? route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'construction']) :  route('block.view', ['uuid' => $block->uuid , "isPending"=> "yes"]) }}">
+               href="{{ $save_documents }}">
               <i
                 class="ti @if($property?->construction_status === "pending")tabler-device-floppy @else tabler-arrow-right @endif me-1"
                 id="btn_icon"></i>
@@ -437,6 +588,9 @@
       <div class="tab-pane fade {{ $activeTab === 'construction' ? 'show active' : '' }}" id="const_details">
         <form method="post" action="{{ route('property.store') }}" id="construction_form">
           @csrf
+          @if(isset($user_type))
+            <input type="hidden" name="user_type" value="{{$user_type}}">
+          @endif
           <input type="hidden" name="block_id" value="{{ $block->id }}">
           <input type="hidden" name="section" value="construction">
           <input type="hidden" name="property_id" value="{{ $property->id ?? '' }}">
@@ -465,9 +619,11 @@
           </div>
 
           <div class="card-body p-4 d-flex justify-content-between flex-column flex-sm-row gap-2">
-            <a
-              href="{{ route('property.create', ['block_uuid' => $block->uuid, 'uuid' => $property->uuid ?? '', 'tab' => 'documents']) }}"
-              class="btn btn-sm btn-outline-secondary px-4">
+            @php
+              $urlDocuments = isset($user_type) ?  route('society.property.create', [$user_type, $block->uuid, $property?->uuid , 'tab' => 'documents' ] ) : route('property.create', [$block->uuid, $property?->uuid, 'tab' => 'documents']);
+            @endphp
+            <a href="{{ $urlDocuments }}"
+               class="btn btn-sm btn-outline-secondary px-4">
               <i class="ti tabler-arrow-left me-1"></i> Previous
             </a>
             <button type="submit" class="btn btn-sm btn-primary px-4 fw-bold">
@@ -491,7 +647,27 @@
 
 @push('styles')
   <style>
+    .prop-mode-label {
+      min-width: 130px;
+      padding: 0.5rem 0.75rem;
+    }
 
+    .prop-mode-icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+
+    .prop-mode-title {
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .prop-mode-sub {
+      font-size: 11px;
+      line-height: 1.2;
+    }
 
     @media (max-width: 420px) {
       .const_labels {
@@ -518,6 +694,37 @@
 
 @push('scripts')
   <script>
+
+    document.querySelectorAll('input[name="property_count_mode"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        var isMultiple = this.value === 'multiple';
+        document.getElementById('single_no_wrapper').style.display = isMultiple ? 'none' : '';
+        document.getElementById('multiple_no_wrapper').style.display = isMultiple ? '' : 'none';
+        document.getElementById('save_property_btn').textContent = isMultiple ? 'Save Properties' : 'Save & continue';
+        document.getElementById('documents_tab').style.display = isMultiple ? 'none' : '';
+        document.getElementById('const_tab').style.display = isMultiple ? 'none' : '';
+      });
+    });
+
+    function updateRangePreview() {
+      var prefix = (document.getElementById('range_prefix')?.value || '').trim();
+      var start = parseInt(document.getElementById('range_start')?.value);
+      var end = parseInt(document.getElementById('range_end')?.value);
+      var preview = document.getElementById('range_preview');
+      var text = document.getElementById('range_preview_text');
+      if (!isNaN(start) && !isNaN(end) && end >= start) {
+        var count = end - start + 1;
+        var examples = [];
+        for (var i = start; i <= Math.min(start + 2, end); i++) examples.push(prefix + i);
+        text.textContent = examples.join(', ') + (count > 3 ? ' … ' + prefix + end : '') + ' (' + count + ' properties)';
+        preview.classList.remove('d-none');
+      } else {
+        preview.classList.add('d-none');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', updateRangePreview);
+
     @if(($property?->attachments && $property->attachments->count()) || $property?->attachment)
       @if($property?->attachments && $property->attachments->count())
       window.existingDocuments = {!! json_encode(

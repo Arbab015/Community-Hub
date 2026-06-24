@@ -1,5 +1,3 @@
-// common_property.js — shared across create and edit pages
-
 //  Property type options
 const PROPERTY_TYPES = {
   residential: ['Plot', 'House', 'Other'],
@@ -49,6 +47,7 @@ document.querySelectorAll('input[name="construction_status"]').forEach(r => {
 // Hide construction wrapper when type = plot
 document.getElementById('type')?.addEventListener('change', function() {
   document.getElementById('constructed_wrapper')?.classList.toggle('d-none', this.value === 'plot');
+  document.getElementById('const_tab')?.classList.toggle('d-none', this.value === 'plot');
 });
 
 //  Template cloning

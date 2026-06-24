@@ -12,6 +12,10 @@ class PropertyUnit extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'amenities' => 'array',
+    ];
+
     public function uniqueIds(): array
     {
         return ['uuid'];
@@ -30,6 +34,17 @@ class PropertyUnit extends Model
     public function rooms()
     {
         return $this->hasMany(Room::class, 'unit_id');
+    }
+
+    public function attachment()
+    {
+        return $this->morphOne(Attachment::class, 'attachable')->where('is_main', true);
+    }
+
+    // for multiple documents related to society
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable')->where('is_main', false);
     }
 
     public function dimensions()

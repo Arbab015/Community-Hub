@@ -12,6 +12,11 @@
   color: red;
 }
 
+.file-counter {
+  overflow-y: auto;
+  max-height: 110px;
+}
+
 .file_item {
   border-radius: 12px;
   transition: all 0.3s ease;
@@ -111,6 +116,7 @@
   height: 22px;
 }
 
+
 .remove_item {
   font-size: .7rem;
   color: #dc3545;
@@ -201,4 +207,120 @@
 
 .dropdown-menu {
   z-index: 1055;
+}
+
+.card_label {
+  font-size: .65rem;
+  letter-spacing: .06em;
+}
+
+.hr_bar {
+  width: 3px;
+  height: 16px;
+}
+
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .5rem;
+}
+
+.room-header-bg {
+  background: #c6dbef;
+  border-bottom: 1px solid #eaedf5;
+}
+
+.room-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5477a1;
+  flex-shrink: 0;
+}
+
+.room-name {
+  font-size: .75rem;
+}
+
+.dim-side-chip {
+  background: #f1f3f5;
+  border: 0.5px solid #dee2e6;
+  font-size: .68rem;
+}
+
+.dim-side-name {
+  font-size: .68rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.dim-side-unit {
+  background: #c8cfe4;
+  color: #6c757d;
+  font-size: .6rem;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.area-chip {
+  background: #E6F1FB;
+  border: 0.5px solid #85B7EB;
+  font-size: .68rem;
+}
+
+.area-val {
+  font-weight: 600;
+  color: #0C447C;
+}
+
+.area-unit {
+  font-size: .6rem;
+  color: #185FA5;
+}
+
+.amenity-chip {
+  background: #f8f9fc;
+  border: 0.5px solid #dee2e6;
+  font-size: .65rem;
+  color: #6c757d;
+}
+
+.sell_rent_btn {
+  background: linear-gradient(135deg, #6c63ff, #534ab7);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: .82rem;
+  letter-spacing: .02em;
+}
+
+.sell_rent_btn:hover {
+  background: linear-gradient(135deg, #534ab7, #3c3489);
+  color: #fff;
+}
+
+.sell_rent_icon {
+  font-size: 1rem;
+}
+
+.listing-status-icon {
+  width: 32px;
+  height: 32px;
+  background: #eeedfe;
+}
+
+.listing-status-icon-i {
+  color: #7f77dd;
+  font-size: .9rem;
+}
+
+.listing_description {
+  font-size: .65rem;
+  color: #6c757d;
+}
+
+.border-dashed {
+  border-style: dashed !important;
 }

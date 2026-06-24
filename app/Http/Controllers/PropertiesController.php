@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\SocietyAccessResolver;
 use App\Jobs\ImportProperties;
 use App\Models\Attachment;
 use App\Models\Block;
@@ -14,6 +13,7 @@ use App\Models\PropertyUnit;
 use App\Models\Room;
 use App\Models\Society;
 use App\Services\FileServices;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -129,9 +129,20 @@ class PropertiesController extends Controller
 
     }
 
-    public function create(Request $request, $block_uuid, $uuid = null)
+    public function createFromSociety(Request $request, $user_type, $block_uuid, $uuid = null)
+    {
+        return $this->create($request, $block_uuid, $user_type, $uuid);
+    }
+
+    public function createProperty(Request $request, $block_uuid, $uuid = null)
+    {
+        return $this->create($request, $block_uuid, null, $uuid);
+    }
+
+    public function create($request, $block_uuid, $user_type = null, $uuid = null)
     {
         $block = Block::where('uuid', $block_uuid)->first();
+        $society = $user_type ? $block->society : null;
         $tab = $request->query('tab');
         $property = $uuid ? $property = Property::where('uuid', $uuid)
             ->with([
@@ -145,52 +156,80 @@ class PropertiesController extends Controller
             ])
             ->first() : null;
 
-        $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
-        $property_attributes = PropertyAttribute::where('owner_id', $scope['ownerId'])->get();
+        $property_attributes = PropertyAttribute::orderBy('created_at', 'asc')->get();
 
         $floor_types = $property_attributes->where('type', 'floor_type');
         $unit_types = $property_attributes->where('type', 'unit_type');
         $room_types = $property_attributes->where('type', 'room_type');
         $amenities = $property_attributes->where('type', 'amenity');
 
-        return view('content.property_management.blocks.properties.create', compact('block', 'property', 'tab', 'property_attributes', 'floor_types', 'unit_types', 'room_types', 'amenities'));
+        return view('content.property_management.blocks.properties.create', compact('block', 'property', 'tab', 'property_attributes', 'society', 'floor_types', 'unit_types', 'room_types', 'amenities', 'user_type'));
     }
 
     public function storeOrUpdate(Request $request)
     {
-        //        dd($request->all());
         $section = $request->input('section');
-        $block = Block::findOrFail($request->block_id);
+        $block = Block::find($request->block_id);
         $society = $block->society;
         $property = $request->property_id ? Property::findOrFail($request->property_id) : null;
         $request_type = strtolower($request->input('request_type', 'on_create'));
         if ($section === 'property') {
-            $rules[] = '';
+            $isMultiple = $request->input('property_count_mode') === 'multiple' && $request_type === 'on_create';
+
+            $rules = [];
+
             if ($request_type === 'property_info' || $request_type === 'on_create') {
                 $rules = [
                     'block_id' => 'required|exists:blocks,id',
                     'category' => 'required|string|in:residential,commercial,other',
                     'name' => 'nullable|string|max:100',
-                    'property_no' => [
-                        'required', 'string', 'max:50',
-                        Rule::unique('properties', 'property_no')
-                            ->where(fn ($q) => $q->whereIn('block_id', $society->blocks()->pluck('id')))
-                            ->ignore($property?->id),
-                    ],
                     'type' => 'required|string|max:20',
                     'street' => 'required|string|max:50',
                     'landmark' => 'nullable|string|max:50',
                     'construction_status' => 'nullable|string|in:constructed,in_progress,pending',
                 ];
+
+                if ($isMultiple) {
+                    $rules['property_no_prefix'] = 'nullable|string|max:20';
+                    $rules['property_no_start'] = 'required|integer|min:1';
+                    $rules['property_no_end'] = 'required|integer|min:1|gt:property_no_start';
+                } else {
+                    $rules['property_no'] = [
+                        'required', 'string', 'max:50',
+                        Rule::unique('properties', 'property_no')
+                            ->where(fn ($q) => $q->whereIn('block_id', $society->blocks()->pluck('id')))
+                            ->ignore($property?->id),
+                    ];
+                }
             }
+
             if ($request_type === 'property_dimension' || $request_type === 'on_create') {
                 $rules['dimensions'] = 'required|array|min:2|max:8';
                 $rules['dimensions.*.name'] = 'required|string|max:15|distinct';
                 $rules['dimensions.*.size'] = ['required', 'regex:/^\d+(\.\d{1,4})?$/', 'min:0', 'max:999999.9999'];
                 $rules['dimensions.*.unit'] = 'required|string|in:feet,meter,yard';
             }
+
             $request->validate($rules);
+
+            // Extra uniqueness check for multiple — none of the generated nos must already exist
+            if ($isMultiple) {
+                $prefix = trim($request->property_no_prefix ?? '');
+                $nos = range((int) $request->property_no_start, (int) $request->property_no_end);
+                $generated = array_map(fn ($n) => $prefix.$n, $nos);
+                $blockIds = $society->blocks()->pluck('id');
+
+                $taken = Property::whereIn('block_id', $blockIds)
+                    ->whereIn('property_no', $generated)
+                    ->pluck('property_no')
+                    ->toArray();
+
+                if (! empty($taken)) {
+                    return back()
+                        ->withErrors(['property_no_start' => 'These property nos already exist: '.implode(', ', $taken)])
+                        ->withInput();
+                }
+            }
         }
 
         if ($section === 'documents') {
@@ -324,7 +363,8 @@ class PropertiesController extends Controller
             //            dd($request->floors);
             // PROPERTY BASIC
             if ($section === 'property') {
-                $is_pending = $request->construction_status === 'pending';
+                $isMultiple = $request->input('property_count_mode') === 'multiple' && $request_type === 'on_create';
+
                 if ($property && ($request_type === 'property_info' || $request_type === 'on_create')) {
                     $isNotPending = $property->construction_status !== 'pending';
                     $property->update([
@@ -345,30 +385,54 @@ class PropertiesController extends Controller
                     }
 
                 } elseif ($request_type === 'on_create' && ! isset($property)) {
-                    $property = Property::create([
+
+                    $baseData = [
                         'block_id' => $block->id,
                         'name' => $request->get('name'),
                         'category' => $request->category,
-                        'property_no' => $request->property_no,
                         'type' => $request->type,
                         'street' => $request->street,
                         'landmark' => $request->landmark,
                         'construction_status' => $request->construction_status,
-                    ]);
+                    ];
+
+                    if ($isMultiple) {
+                        $prefix = trim($request->property_no_prefix ?? '');
+                        $nos = range((int) $request->property_no_start, (int) $request->property_no_end);
+                        $firstProperty = null;
+
+                        foreach ($nos as $n) {
+                            $p = Property::create(array_merge($baseData, ['property_no' => $prefix.$n]));
+                            if (! $firstProperty) {
+                                $firstProperty = $p;
+                            }
+                            $this->syncRoomDimensions($p, $request->dimensions ?? [], false);
+                        }
+
+                        $property = $firstProperty;
+
+                    } else {
+                        $property = Property::create(array_merge($baseData, [
+                            'property_no' => $request->property_no,
+                        ]));
+                    }
                 }
 
-                if ($request_type === 'property_dimension' || $request_type === 'on_create') {
+                if ($request_type === 'property_dimension' || ($request_type === 'on_create' && ! $isMultiple)) {
                     $this->syncRoomDimensions($property, $request->dimensions, $property && $request->property_id);
                 }
 
                 if ($request_type !== 'on_create') {
                     return redirect()->back()->with('success', 'Property Updated Successfully');
                 } else {
-                    return redirect()->route('property.create', [
-                        'block_uuid' => $block->uuid,
-                        'uuid' => $property->uuid,
-                        'tab' => 'documents',
-                    ])->with('success', 'Property saved. Now add documents.');
+                    $user_type = $request->input('user_type');
+
+                    return redirect()->route(
+                        $user_type ? 'society.property.create' : 'property.create',
+                        $user_type
+                          ? [$user_type, $block->uuid, $property->uuid, 'tab' => 'documents']
+                          : ['block_uuid' => $block->uuid, 'uuid' => $property->uuid, 'tab' => 'documents']
+                    )->with('success', 'Property saved. Now add documents.');
                 }
             }
 
@@ -544,7 +608,7 @@ class PropertiesController extends Controller
         }
     }
 
-    private function syncRoomDimensions(\Illuminate\Database\Eloquent\Model $model, array $dimensions, bool $isUpdate): void
+    private function syncRoomDimensions(Model $model, array $dimensions, bool $isUpdate): void
     {
         $submitted_Ids = [];
 
@@ -566,7 +630,7 @@ class PropertiesController extends Controller
                     ]);
                     $submitted_Ids[] = $dimId;
 
-                    continue; // prevent from duplication
+                    continue;
                 }
             }
 
@@ -584,24 +648,22 @@ class PropertiesController extends Controller
             ->delete();
     }
 
-    public function propertyDetails($uuid)
+    public function propertyDetails(Request $request, $uuid)
     {
-        return $this->details(null, null, $uuid);
+        return $this->details($request, null, null, $uuid);
     }
 
-    public function societyDetailsFromSociety($user_type, $society_uuid, $uuid)
+    public function propertyDetailsFromSociety(Request $request, $user_type, $society_uuid, $uuid)
     {
-        return $this->details($user_type, $society_uuid, $uuid);
+        return $this->details($request, $user_type, $society_uuid, $uuid);
     }
 
-    public function details($user_type, $society_uuid, $uuid)
+    public function details($request, $user_type, $society_uuid, $uuid)
     {
         $property = Property::where('uuid', $uuid)->with('block')->first();
         $society = $property->block->society ?? null;
 
-        $login_user = auth()->user();
-        $scope = SocietyAccessResolver::resolver($login_user);
-        $property_attributes = PropertyAttribute::where('owner_id', $scope['onwerId'] ?? $society->owner->id)->get();
+        $property_attributes = PropertyAttribute::orderBy('created_at', 'asc')->get();
         $floor_types = $property_attributes->where('type', 'floor_type');
         $unit_types = $property_attributes->where('type', 'unit_type');
         $room_types = $property_attributes->where('type', 'room_type');
@@ -611,6 +673,52 @@ class PropertiesController extends Controller
             'content.property_management.blocks.properties.property_details',
             compact('property', 'floor_types', 'unit_types', 'room_types', 'amenities', 'society', 'user_type')
         );
+    }
+
+    public function roomsByFloor(Request $request, $floor_id)
+    {
+        $take = 4;
+        $skip = $request->input('skip', 0);
+        $floor = Floor::findOrFail($floor_id);
+
+        $query = $floor->rooms()
+            ->with(['dimensions'])
+            ->when($request->input('search'), fn ($q) => $q->whereHas('type', fn ($q2) => $q2->where('title', 'LIKE', '%'.$request->input('search').'%')))
+            ->when($request->input('room_type'), fn ($q) => $q->where('room_type', $request->input('room_type')))
+            ->latest();
+
+        $total = $query->count();
+        $rooms = $query->skip($skip)->take($take)->get();
+
+        return response()->json([
+            'rooms' => $rooms,
+            'total' => $total,
+            'next_skip' => $skip + $take,
+            'has_more' => ($skip + $take) < $total,
+        ]);
+    }
+
+    public function unitsByFloor(Request $request, $floor_id)
+    {
+        $take = 2;
+        $skip = $request->input('skip', 0);
+        $floor = Floor::findOrFail($floor_id);
+
+        $query = $floor->units()
+            ->with(['rooms.dimensions', 'dimensions', 'listing', 'owner'])
+            ->when($request->input('search'), fn ($q) => $q->where('unit_name', 'LIKE', '%'.$request->input('search').'%'))
+            ->when($request->input('unit_type'), fn ($q) => $q->where('unit_type', $request->input('unit_type')))
+            ->latest();
+
+        $total = $query->count();
+        $units = $query->skip($skip)->take($take)->get();
+
+        return response()->json([
+            'units' => $units,
+            'total' => $total,
+            'next_skip' => $skip + $take,
+            'has_more' => ($skip + $take) < $total,
+        ]);
     }
 
     public function destroy($section, $uuid)
@@ -668,13 +776,14 @@ class PropertiesController extends Controller
         $file = $request->file('file');
 
         $original_filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-
         $fileName = $original_filename.time().'.csv';
         $path = $file->storeAs('imports', $fileName, 'public');
         $fullPath = Storage::disk('public')->path($path);
 
         $result = ImportProperties::validate($fullPath, $block->id);
         if (! $result['success']) {
+            Storage::disk('public')->delete($path);
+
             return response()->json(['errors' => $result['errors']]);
         }
 
@@ -687,6 +796,7 @@ class PropertiesController extends Controller
             'percent_completed' => 0,
             'status' => 'pending',
         ]);
+
         ImportProperties::dispatch($path, $block->id, $import->id);
 
         return response()->json(['success' => true]);
@@ -760,11 +870,9 @@ class PropertiesController extends Controller
             ->latest()
             ->first();
         if ($import) {
-            if (Storage::disk('public')->exists('imports/'.$import->file_name)) {
-                Storage::disk('public')->delete('imports/'.$import->file_name);
-            }
-            $import->update(['error_file_path' => null]);
-            $import->delete();
+
+            return $this->deleteImportErrors($import->id);
+
         }
 
         return response()->json(['success' => true]);
@@ -783,5 +891,41 @@ class PropertiesController extends Controller
         }
 
         return response()->json(['success' => false], 404);
+    }
+
+    public function bulkDelete(Request $request)
+    {
+
+        $request->validate([
+            'units' => 'nullable|array',
+            'units.*' => 'integer|exists:property_units,id',
+            'rooms' => 'nullable|array',
+            'rooms.*' => 'integer|exists:rooms,id',
+        ]);
+
+        $unitIds = $request->input('units', []);
+        $roomIds = $request->input('rooms', []);
+
+        if (empty($unitIds) && empty($roomIds)) {
+            return response()->json(['success' => false, 'message' => 'Nothing to delete.'], 422);
+        }
+
+        $deleted = 0;
+
+        if (! empty($unitIds)) {
+            $deleted += PropertyUnit::whereIn('id', $unitIds)->delete();
+        }
+
+        if (! empty($roomIds)) {
+
+            $deleted += Room::whereIn('id', $roomIds)
+                ->whereNull('unit_id')
+                ->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$deleted} item(s) deleted successfully.",
+        ]);
     }
 }

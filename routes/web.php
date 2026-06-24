@@ -182,22 +182,47 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/blocks/{block_uuid}/import-errors/download', 'downloadImportErrors')
             ->name('properties.import_errors_download');
 
-        Route::get('property/create/{block_uuid}/{uuid?}', 'create')->name('property.create')->middleware('permission:create_property');
+        Route::get('societies/{user_type}/society/property/create/{block_uuid}/{uuid?}', 'createFromSociety')->name('society.property.create')->middleware('permission:create_property');
+
+        Route::get('property/create/{block_uuid}/{uuid?}', 'createProperty')->name('property.create')->middleware('permission:create_property');
         Route::post('property/store', 'storeOrUpdate')->name('property.store')->middleware('permission:create_property');
         Route::get('property/details/{uuid}', 'propertyDetails')->name('property.details');
-        Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'societyDetailsFromSociety')->name('society.property.details');
-        // In the PropertiesController group, add a where constraint:
+        Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'propertyDetailsFromSociety')->name('society.property.details');
+
         Route::get('{section}/destroy/{uuid}', 'destroy')
             ->name('property.destroy')
             ->where('section', 'property|floor|unit|room') // list only valid sections
             ->middleware('permission:delete_property');
-        Route::get('/attachments/progress', 'fileUploadProgress');
 
         Route::delete('blocks/{block_uuid}/import-errors', 'deleteImportErrors')
             ->name('properties.import_errors_delete');
 
         Route::get('blocks/{block_uuid}/import-errors-files', 'findImportErrorsFiles')->name('properties.import_errors_files');
 
+        Route::post('/construction/bulk-delete', 'bulkDelete')->name('construction.bulk_delete');
+
+        Route::get('/floor/{floor_id}/units', 'unitsByFloor')->name('floor.units');
+        Route::get('/floor/{floor_id}/rooms', 'roomsByFloor');
+    });
+
+    Route::controller(\App\Http\Controllers\PropertyUnitController::class)->group(function () {
+
+        Route::get('unit/details/{uuid}', 'show')->name('unit.details');
+        Route::get('societies/{user_type}/society/{society_uuid}/unit/{uuid}', 'unitFromSociety')
+            ->name('society.unit.details');
+        Route::post('unit/store', 'update')->name('unit.store')->middleware('permission:edit_property');
+        Route::get('unit/{uuid}/{user_type?}', 'destroy')
+            ->name('unit.destroy')
+            ->middleware('permission:delete_property');
+
+        Route::post('/unit/add', 'add')->name('unit.add');
+        Route::post('/unit/update', 'update')->name('unit.update');
+        Route::post('/unit/clone', 'clone')->name('unit.clone');
+    });
+
+    Route::controller(\App\Http\Controllers\RoomController::class)->group(function () {
+        Route::post('/room/store', 'storeOrUpdate')->name('floor.room.store');
+        Route::get('/room/{room}', 'getDimensions')->name('floor.room.show');
     });
 
     Route::controller(\App\Http\Controllers\PropertyListingController::class)->group(function () {
@@ -218,6 +243,7 @@ Route::middleware(['auth'])->group(function () {
     // Attachment controller
     Route::controller(AttachmentController::class)->group(function () {
         Route::post('/attachments/bulk_delete', 'bulkDelete')->name('attachments.bulk_delete');
+        Route::get('/attachments/progress', 'fileUploadProgress');
 
     });
 

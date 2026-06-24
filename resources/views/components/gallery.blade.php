@@ -1,7 +1,12 @@
-@php
-  $modal = $property ?? $society;
-  $canDelete = (auth()->user()->can('edit_society') && $modal->status == 'active') || (isset($property) && auth()->user()->can('delete_property'));
-  $canEdit = (auth()->user()->can('edit_society') && $modal->status == 'active') || (isset($property) && auth()->user()->can('edit_property'))
+@php  $modal = isset($unit) ? $unit : (isset($property) ? $property : $society);
+
+$canDelete = isset($unit) ? auth()->user()->can('edit_property')
+           : (isset($property) ? auth()->user()->can('delete_property')
+           : (auth()->user()->can('edit_society') && $modal->status == 'active'));
+
+$canEdit   = isset($unit) ? auth()->user()->can('edit_property')
+           : (isset($property) ? auth()->user()->can('edit_property')
+           : (auth()->user()->can('edit_society') && $modal->status == 'active'));
 @endphp
 <div class="row g-4">
   <div class="col-12">
@@ -25,14 +30,21 @@
         <div class="upload_media_section" id="upload_media_section">
           <div class="upload_media_inner border rounded-3 p-3 mb-3 bg-light">
             <form method="POST" id="upload_media_property"
-                  action="{{ isset($society) && $user_type ? route('society.store', [$user_type, $society->uuid]) : route('property.store') }}"
+                  action="{{ isset($unit) ? route('unit.store') : (isset($society) && $user_type ? route('society.store', [$user_type, $society->uuid]) : route('property.store')) }}"
                   enctype="multipart/form-data">
               @csrf
               <input type="hidden" name="request_type" value="media">
+              @php
+                $formSection = 'documents';
+                $formModelId = isset($unit) ? $unit->id : (isset($property) ? $property->id : null);
+                $formModelKey = isset($unit) ? 'unit_id' : 'property_id';
+              @endphp
+              <input type="hidden" name="section" value="{{ $formSection }}">
+              @if($formModelId)
+                <input type="hidden" name="{{ $formModelKey }}" value="{{ $formModelId }}">
+              @endif
               @if(isset($property))
                 <input type="hidden" name="block_id" value="{{ $property->block->id }}">
-                <input type="hidden" name="section" value="documents">
-                <input type="hidden" name="property_id" value="{{ $property->id ?? '' }}">
               @endif
 
               {{-- Scrollable dropzone wrapper --}}

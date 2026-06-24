@@ -37,6 +37,20 @@ class ImportProperties implements ShouldQueue
         return "imports/errors/{$block->society->name}_{$block->name}_import_errors_.csv";
     }
 
+    public static function deleteFile($uuid)
+    {
+        $import = Import::where('uuid', $uuid)->first();
+        if (! $import) {
+            return;
+        }
+        logger('deleting file');
+        if (Storage::disk('public')->exists('imports/'.$import->file_name)) {
+            Storage::disk('public')->delete('imports/'.$import->file_name);
+        }
+        $import->delete();
+
+    }
+
     public function handle(): void
     {
         $block = Block::find($this->blockId);
@@ -70,7 +84,11 @@ class ImportProperties implements ShouldQueue
 
         $total = count($rows);
         if ($total === 0) {
-            $import->update(['percent_completed' => 100, 'status' => 'completed']);
+            $import->update([
+                'percent_completed' => 100,
+                'status' => 'completed',
+            ]);
+            $this->deleteFile($import->uuid);
 
             return;
         }
@@ -209,7 +227,6 @@ class ImportProperties implements ShouldQueue
                         ]);
                     }
 
-                    // Add to existing list so duplicates later in same file are caught
                     $existingPropertyNos[] = strtolower($property_no);
 
                 } catch (\Exception $e) {
@@ -221,9 +238,11 @@ class ImportProperties implements ShouldQueue
             }
 
             $processed++;
-            $import->update([
-                'percent_completed' => (int) round(($processed / $total) * 100),
-            ]);
+            if ($processed < $total) {
+                $import->update([
+                    'percent_completed' => (int) round(($processed / $total) * 100),
+                ]);
+            }
         }
 
         // Write error file if needed
@@ -244,6 +263,7 @@ class ImportProperties implements ShouldQueue
         }
 
         $import->update(['percent_completed' => 100, 'status' => 'completed']);
+        $this->deleteFile($import->uuid);
         logger("Import done. Total: $total, Errors: ".count($errors));
     }
 
@@ -307,7 +327,6 @@ class ImportProperties implements ShouldQueue
         }
 
         // For optional dims: if ANY column of a dimension group is present,
-        // ALL three must be present (partial group = error)
         for ($i = 3; $i <= 8; $i++) {
             $namCol = "dimension_{$i}_name";
             $sizeCol = "dimension_{$i}_size";

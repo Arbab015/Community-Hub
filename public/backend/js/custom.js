@@ -108,17 +108,20 @@ let selectedFiles = [];
 const trigger = document.getElementById('file_trigger');
 const input = document.getElementById('documents_input');
 
-trigger?.addEventListener('change', e => {
-  const card = e.target.closest('.card');
-  const card_body = card.querySelector('.card-body');
+document.querySelectorAll('.file_trigger').forEach(trigger => {
+  trigger?.addEventListener('change', e => {
+    const card = e.target.closest('.card');
+    const card_body = card.querySelector('.card-body');
 
-  // Add files
-  selectedFiles = [...selectedFiles, ...Array.from(e.target.files)];
-  updateInputFiles();
-  renderFileList(card_body);
+    // Add files
+    selectedFiles = [...selectedFiles, ...Array.from(e.target.files)];
+    updateInputFiles(card_body);
+    renderFileList(card_body);
 
-  trigger.value = ''; // reset
+    trigger.value = '';
+  });
 });
+
 
 function renderFileList(card_body) {
   if (selectedFiles.length === 0) {
@@ -163,7 +166,7 @@ function renderFileList(card_body) {
 
   counter.appendChild(list);
   // Show save button
-  const save_btn = document.getElementById('save_files_btn');
+  const save_btn = card_body.closest('.card').querySelector('.btn-outline-success');
   const bulk_btn = document.getElementById('bulk_btn');
   const bulkVisible = bulk_btn && !bulk_btn.classList.contains('d-none');
 
@@ -174,11 +177,19 @@ function renderFileList(card_body) {
   }
 }
 
-function updateInputFiles() {
+function updateInputFiles(card_body) {
+  if (!card_body) return;
+
+  const input = card_body.closest('.card').querySelector('.documents_input');
+
+  if (!input) return;
+
   const dataTransfer = new DataTransfer();
+
   selectedFiles.forEach(file => {
     dataTransfer.items.add(file);
   });
+
   input.files = dataTransfer.files;
 }
 

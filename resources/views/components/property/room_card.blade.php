@@ -1,6 +1,5 @@
 @php
   use App\Helpers\GetArea;
-//  dd($room_types);
 @endphp
 <div class="border rounded-3 overflow-hidden">
   <div class="room-header-bg d-flex align-items-center justify-content-between px-2 py-2">
@@ -12,11 +11,26 @@
     </div>
 
     @if(!is_array($room) && auth()->user()->can('edit_property') )
-      <a href="{{ route('property.destroy', ['section'=>'room', $room->uuid]) }}"
-         onclick="confirmDelete(event, null)"
-         class="btn-del-icon text-decoration-none" title="Delete room">
-        <i class="fa-regular fa-trash-can"></i>
-      </a>
+      <div class="d-flex gap-2">
+        <a
+          class="text-primary "
+          data-bs-toggle="modal"
+          data-bs-target="#room_modal"
+          data-mode="edit"
+          data-room-id="{{ $room->id }}"
+          data-room-type="{{ $room->room_type }}"
+          data-amenities='{{ json_encode($room_amenities_data ?? []) }}'
+          data-dimensions='{{ json_encode($room_dimensions_data ?? []) }}'
+          title="Edit Room">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </a>
+
+        <a href="{{ route('property.destroy', ['section'=>'room', $room->uuid]) }}"
+           onclick="confirmDelete(event, null)"
+           class="btn-del-icon text-decoration-none" title="Delete room">
+          <i class="fa-regular fa-trash-can"></i>
+        </a>
+      </div>
     @endif
 
   </div>

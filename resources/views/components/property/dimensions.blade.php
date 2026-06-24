@@ -1,16 +1,32 @@
 {{-- Dimensions --}}
 <div class="card-body border-bottom p-4">
-  @if(!isset($total_area))
+  @if(!isset($total_area) && (!isset($isUnitDetailsPage) || !$isUnitDetailsPage))
     <div class="d-flex align-items-center gap-2 mb-4">
-      <span
-        class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">03</span>
+        <span
+          class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">
+            03
+        </span>
       <h5 class="mb-0 fw-bold section_name">Property Dimensions</h5>
     </div>
   @endif
   <div class="form-repeater">
     <div data-repeater-list="dimensions">
       @php
-        $dimItems = old('dimensions', isset($property) ? $property->dimensions->toArray() : [['name'=>'','size'=>'','unit'=>'']]);
+        $dimItems = old(
+        'dimensions',
+        isset($dimensions)
+         ? (is_array($dimensions) ? $dimensions : $dimensions->toArray())
+         : (isset($property)
+             ? $property->dimensions->toArray()
+             : (isset($unit) && $unit
+                 ? $unit->dimensions->toArray()
+                 : [['name' => '', 'size' => '', 'unit' => '']]))
+ );
+       if (empty($dimItems)) {
+      $dimItems = [
+          ['id' => '', 'name' => '', 'size' => '', 'unit' => ''],
+      ];
+  }
       @endphp
 
       @foreach($dimItems as $i => $dimension)
@@ -43,16 +59,12 @@
               <div class="input-group">
                 <span class="input-group-text bg-light border-end-0"><i class="ti tabler-number text-muted"></i></span>
                 @php
-                  // If unit exists, it's from DB — convert back to user unit
-                  // If no unit, it's a new empty row — show blank
+
                   $val = !empty($dimension['unit'])
                       ? app()->make(\App\Http\Controllers\PropertiesController::class)->convertForUser($dimension['size'], $dimension['unit'])
                       : ($dimension['size'] ?? '');
                 @endphp
-                <input type="number"
-                       name="size"
-                       step="0.01"
-                       value="{{ $val !== '' ? round($val, 2) : '' }}"
+                <input type="number" name="size" step="0.01" value="{{ $val !== '' ? round($val, 2) : '' }}"
                        class="form-control border-start-0 @error('dimensions.'.$i.'.size') is-invalid @enderror"
                        required
                        placeholder="e.g. 40, 12.21">
@@ -71,6 +83,9 @@
                       class="form-select @error('dimensions.'.$i.'.unit') is-invalid @enderror"
                       required>
                 <option value="" disabled {{ empty($dimension['unit']) ? 'selected' : '' }}>Select Unit</option>
+                @if(isset($isUnitDetailsPage) )
+                  <option value="inch" {{ ($dimension['unit'] ?? '') == 'inch'        ? 'selected' : '' }}>Inch</option>
+                @endif
                 <option value="feet" {{ ($dimension['unit'] ?? '') == 'feet'        ? 'selected' : '' }}>Feet</option>
                 <option value="meter" {{ ($dimension['unit'] ?? '') == 'meter'       ? 'selected' : '' }}>Meter</option>
                 <option value="yard" {{ ($dimension['unit'] ?? '') == 'yard'        ? 'selected' : '' }}>Yard</option>

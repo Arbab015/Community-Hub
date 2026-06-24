@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class PermissionsSeeder extends Seeder
 {
@@ -78,51 +79,53 @@ class PermissionsSeeder extends Seeder
             'view_property',
         ];
 
-        // Create permissions
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $superAdminPermissions = Permission::whereNotIn('name', [
+            'add_society',
+            'edit_society',
+            'delete_society',
+            'owner_societies',
+            'listing_society_manager',
+            'listing_society_member',
+            'discussions',
+            'suggestions',
+            'issues',
+            'complaints',
+            'add_reports',
+            'listing_rule',
+            'add_rule',
+            'edit_rule',
+            'delete_rule',
+
+            'society_blocks',
+            'add_block',
+            'edit_block',
+            'delete_block',
+            'create_property',
+            'edit_property',
+            'delete_property',
+
+        ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
-        $role->syncPermissions(
-            Permission::whereNotIn('name', [
-                'add_society',
-                'edit_society',
-                'delete_society',
-                'owner_societies',
-                'listing_society_manager',
-                'listing_society_member',
-                'discussions',
-                'suggestions',
-                'issues',
-                'complaints',
-                'add_reports',
-                'listing_rule',
-                'add_rule',
-                'edit_rule',
-                'delete_rule',
+        $role->syncPermissions($superAdminPermissions);
 
-                'society_blocks',
-                'add_block',
-                'edit_block',
-                'delete_block',
-                'create_property',
-                'edit_property',
-                'delete_property',
+        User::role('Super Admin')->get()->each(function ($admin) use ($superAdminPermissions) {
+            $admin->syncPermissions($superAdminPermissions);
+        });
 
-                'listing_attribute',
-                'create_attribute',
-                'edit_attribute',
-                'delete_attribute',
-
-            ])->get()
-        );
         $user = User::where('email', 'arbabr904@gmail.com')->first();
         if ($user) {
             $user->assignRole(roles: 'Super Admin');
         }
 
-        // permissions for society admin
+        // ---------------------------------------------------------------
+        // Society Owner
+        // ---------------------------------------------------------------
         $societyAdminPermissions = [
             'dashboard',
             'listing_society',
@@ -171,30 +174,35 @@ class PermissionsSeeder extends Seeder
             'delete_property',
             'view_property',
 
-            'listing_attribute',
-            'create_attribute',
-            'edit_attribute',
-            'delete_attribute',
-
         ];
 
-        // Get all users with Society Admin role
         $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);
-
-        // Assign all Society Admin permissions to the role
         $societyOwnerRole->syncPermissions($societyAdminPermissions);
 
+        User::role('Society Owner')->get()->each(function ($owner) use ($societyAdminPermissions) {
+            $owner->syncPermissions($societyAdminPermissions);
+        });
+
+        // ---------------------------------------------------------------
+        // Society Member
+        // ---------------------------------------------------------------
+        $societyMemberPermissions = Permission::whereIn('name', [
+            'dashboard',
+            'discussions',
+            'suggestions',
+            'issues',
+            'complaints',
+            'add_reports',
+            'un-block_request_post',
+        ])->get();
+
         $role = Role::firstOrCreate(['name' => 'Society Member']);
-        $role->syncPermissions(
-            Permission::whereIn('name', [
-                'dashboard',
-                'discussions',
-                'suggestions',
-                'issues',
-                'complaints',
-                'add_reports',
-                'un-block_request_post',
-            ])->get()
-        );
+        $role->syncPermissions($societyMemberPermissions);
+
+        User::role('Society Member')->get()->each(function ($member) use ($societyMemberPermissions) {
+            $member->syncPermissions($societyMemberPermissions);
+        });
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

@@ -13,11 +13,10 @@
           @csrf
           <div class="alert alert-warning alert-dismissible " role="alert">
             <h5 class="alert-heading mb-1">Ensure that these requirements are met</h5>
-            <span>Please ensure that the block name you enter is unique within the selected society. Duplicate entries within the same society are not permitted, in order to maintain data accuracy and consistency.
+            <span>Please ensure that all property attributes are unique. Duplicate property attributes are not permitted, as uniqueness is required to maintain data accuracy, consistency, and integrity.
              </span>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
-          <input type="hidden" name="owner_id" value="{{ $owner_id }}">
           <input type="hidden" name="id" id="attribute_id">
 
           <div class="mb-3">

@@ -33,7 +33,7 @@
 
               <input type="radio" class="btn-check" name="listing_type" id="type_rent" value="rent">
               <label class="btn btn-outline-primary flex-fill text-center py-2" for="type_rent"
-                     {{ optional($property->listing)->listing_type === "rent" ? 'checked' : ''}}
+                     {{ optional($property ?? null)?->listing?->listing_type === 'rent' ? 'checked' : '' }}
                      style="border-radius:10px;">
                 <i class="ti tabler-home-dollar d-block fs-5 mb-1"></i>
                 <span style="font-size:.8rem;">Rent</span>

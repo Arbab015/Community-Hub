@@ -111,13 +111,15 @@
           "name": "Society Blocks",
           "route": "blocks.index",
           "permission": "society_blocks"
-        },
-        {
-          "name": "Property Attributes",
-          "route": "attributes.index",
-          "permission": "listing_attribute"
         }
       ]
+    },
+    {
+      "name": "Property Attributes",
+      "slug": "property_attributes",
+      "icon": "menu-icon icon-base ti tabler-clipboard-list",
+      "url": "property_attributes/index",
+      "permission": "listing_attribute"
     },
     {
       "name": "Rules",

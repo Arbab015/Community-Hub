@@ -296,7 +296,6 @@
             </a>
           @endif
 
-          {{-- Block / Un-block --}}
           @if ($canBlock)
             <p class="mt-4 mb-3">
               {{ $society->status === "active" ? 'Blocking this society will temporarily disable all activities for society users. You can unblock the society at any time. set this for unblockng' : 'Unblocking this society will restore all activities for society users. You can block the society again at any time.' }}

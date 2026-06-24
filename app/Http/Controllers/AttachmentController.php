@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attachment;
 use App\Services\FileServices;
 use Illuminate\Http\Request;
 
@@ -21,5 +22,17 @@ class AttachmentController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function fileUploadProgress(Request $request)
+    {
+        $ids = explode(',', $request->ids);
+
+        return Attachment::whereIn('id', $ids)
+            ->get()
+            ->keyBy('id')
+            ->map(fn ($item) => [
+                'progress' => $item->progress,
+            ]);
     }
 }

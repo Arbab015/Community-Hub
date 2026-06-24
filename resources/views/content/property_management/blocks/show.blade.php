@@ -17,7 +17,8 @@
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
-      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">@if(isset($society) && $user_type)
+      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+        @if(isset($society) && $user_type)
           Society Management
         @else
           Property Management
@@ -103,9 +104,11 @@
           <button id="import_btn" class="btn btn-sm btn-outline-secondary" onclick="showModel()">
             <i class="fa-solid fa-upload me-1 text-primary"></i> Import
           </button>
+          @php
+            $url = isset($society) && $user_type ?  route('society.property.create', [$user_type, $block->uuid] ) : route('property.create', [$block->uuid]);
+          @endphp
 
-          <a href="{{ route('property.create', ['block_uuid' => $block->uuid]) }}"
-             class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
+          <a href="{{ $url }}" class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
             <i class="ti tabler-plus"></i>
             Add Property
           </a>
