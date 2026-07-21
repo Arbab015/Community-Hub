@@ -2,6 +2,7 @@
 body {
   background-color: var(--#{$prefix}paper-bg);
 }
+
 .section-py {
   padding-block: 6.25rem;
   padding-inline: 0;
@@ -18,10 +19,7 @@ body {
 }
 
 .first-section-pt {
-  padding-block-start: 11.28rem;
-  @include media-breakpoint-down(xl) {
-    padding-block-start: 7.5rem;
-  }
+  padding-block-start: 5.8rem;
 }
 
 .card {

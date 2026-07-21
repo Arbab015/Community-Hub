@@ -32,7 +32,7 @@
               <div class="d-flex gap-2">
                 @can('export_user')
                   <div class="btn-group">
-                    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle btn-sm" data-bs-toggle="dropdown">
                       <i class="fa-solid fa-upload me-1 text-primary"></i> Export
                     </button>
                     <ul class="dropdown-menu">
@@ -43,13 +43,14 @@
                     </ul>
                   </div>
                 @endcan
-                @can('import_user')
-                  <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#userImportModal">
-                    <i class="fa-solid fa-download me-1 text-primary"></i> Import
-                  </button>
-                @endcan
+                {{--                @can('import_user')--}}
+                {{--                  <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"--}}
+                {{--                          data-bs-target="#userImportModal">--}}
+                {{--                    <i class="fa-solid fa-download me-1 text-primary"></i> Import--}}
+                {{--                  </button>--}}
+                {{--                @endcan--}}
                 @can('add_user')
-                  <a href="{{ route('user.create', $slug) }}" class="btn btn-primary">
+                  <a href="{{ route('user.create', $slug) }}" class="btn btn-primary btn-sm">
                     Add {{ $slug == 'society_owners' ? 'Owner' : 'User' }}
                   </a>
                 @endcan

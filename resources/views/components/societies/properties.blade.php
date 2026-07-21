@@ -50,23 +50,24 @@
                 <div class="d-flex gap-1">
 
                   <button type="button"
-                          class="btn btn-primary btn-icon rounded-pill dropdown-toggle hide-arrow"
+                          class="btn  btn-icon rounded-pill dropdown-toggle hide-arrow"
                           data-bs-toggle="dropdown"
                           aria-expanded="false">
-                    <i class="icon-base ti tabler-dots-vertical"></i>
+                    <i class="ti tabler-dots-vertical"></i>
                   </button>
 
-                  <ul class="dropdown-menu  dropdown-menu-end  small">
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm small"
 
-                    @can('view_block')
-                      <li>
-                        <a class="dropdown-item"
-                           href="{{ route('society.block.view', [$user_type, $society->uuid,$block->uuid]) }}">
-                          <i class="ti tabler-eye me-2"></i> View
-                        </a>
-                      </li>
-                    @endcan
+                  @can('view_block')
+                    <li>
+                      <a class="dropdown-item"
+                         href="{{ route('society.block.view', [$user_type, $society->uuid,$block->uuid]) }}">
+                        <i class="ti tabler-eye me-2"></i> View
+                      </a>
+                    </li>
+                  @endcan
 
+                  @can('edit_block')
                     <li>
                       <a class="dropdown-item edit_block_btn"
                          data-id='{{$block->id}}'
@@ -74,23 +75,24 @@
                         <i class="ti tabler-edit me-2"></i> Edit
                       </a>
                     </li>
+                  @endcan
 
-                    @can('delete_block')
-                      <li>
-                        <form action="{{ route('blocks.destroy', $block->uuid) }}"
-                              method="POST"
-                              onsubmit="confirmDelete(event)">
-                          @csrf
-                          @method('DELETE')
+                  @can('delete_block')
+                    <li>
+                      <form action="{{ route('blocks.destroy', $block->uuid) }}"
+                            method="POST"
+                            onsubmit="confirmDelete(event)">
+                        @csrf
+                        @method('DELETE')
 
-                          <button type="submit" class="dropdown-item text-danger">
-                            <i class="ti tabler-trash me-2"></i> Delete
-                          </button>
-                        </form>
-                      </li>
+                        <button type="submit" class="dropdown-item text-danger">
+                          <i class="ti tabler-trash me-2"></i> Delete
+                        </button>
+                      </form>
+                    </li>
                     @endcan
 
-                  </ul>
+                    </ul>
                 </div>
 
               </div>

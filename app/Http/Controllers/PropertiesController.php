@@ -16,6 +16,7 @@ use App\Services\FileServices;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -76,12 +77,6 @@ class PropertiesController extends Controller
         $society = Society::where('uuid', $society_uuid)->first();
         $query = Property::where('block_id', $block->id)->with(
             'dimensions',
-            'attachment',
-            'attachments',
-            'floors.dimensions',
-            'floors.rooms.dimensions',
-            'floors.units.rooms.dimensions',
-            'floors.units.owner',
         )->latest();
         $query->when($request->category, fn ($q) => $q->where('category', $request->category));
         $query->when($request->type, fn ($q) => $q->where('type', $request->type));
@@ -129,6 +124,96 @@ class PropertiesController extends Controller
 
     }
 
+    public function ownerProperties(Request $request)
+    {
+        $login_user = Auth::user();
+        $skip = (int) $request->input('skip', 0);
+        $take = 4;
+        $total_skip = 4 + $skip;
+
+        $unit_types = PropertyAttribute::where('type', 'unit_type')->orderBy('created_at', 'asc')->get();
+
+        $propertyQuery = Property::where('owner_id', $login_user->id)
+            ->with('dimensions', 'attachment');
+
+        $propertyQuery->when($request->category, fn ($q) => $q->where('category', $request->category));
+        $propertyQuery->when($request->type, fn ($q) => $q->where('type', $request->type));
+        $propertyQuery->when($request->search_content, function ($q) use ($request) {
+            $search = $request->search_content;
+            $q->where(function ($subQ) use ($search) {
+                $subQ->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('property_no', 'LIKE', "%{$search}%");
+            });
+        });
+
+        $unitQuery = PropertyUnit::where('owner_id', $login_user->id)
+            ->with('dimensions', 'attachments', 'floor.property');
+
+        $unitQuery->when($request->type, fn ($q) => $q->where('unit_type', $request->type));
+        $unitQuery->when($request->category, function ($q) use ($request) {
+            $q->whereHas('floor.property', fn ($q2) => $q2->where('category', $request->category));
+        });
+        $unitQuery->when($request->search_content, function ($q) use ($request) {
+            $search = $request->search_content;
+            $q->where('unit_name', 'LIKE', "%{$search}%");
+        });
+
+        $properties = $propertyQuery->get();
+        $units = $unitQuery->get();
+
+        $normalizedProperties = $properties->map(function ($p) {
+            return (object) [
+                'uuid' => $p->uuid,
+                'source_type' => 'property',
+                'name' => $p->name,
+                'type' => $p->type,
+                'category' => $p->category,
+                'property_no' => $p->property_no,
+                'image_link' => $p->attachment?->link,
+                'updated_at' => $p->updated_at,
+                'details_url' => route('owner.property.details', $p->uuid),
+            ];
+        });
+
+        $normalizedUnits = $units->map(function ($u) use ($unit_types) {
+            $property = $u->floor?->property;
+
+            return (object) [
+                'uuid' => $u->uuid,
+                'source_type' => 'unit',
+                'name' => $u->unit_name,
+                'type' => $unit_types->firstWhere('id', $u->unit_type)?->title ?? '',
+                'category' => $property?->category,
+                'property_no' => $u->unit_name,
+                'image_link' => $u->attachments->first()?->link,
+                'updated_at' => $u->updated_at,
+                'details_url' => route('unit.details', ['uuid' => $u->uuid, 'isOwner' => true]),
+            ];
+        });
+
+        $all = $normalizedProperties->concat($normalizedUnits)
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $total_properties = $all->count();
+        $properties_paged = $all->slice($skip, $take)->values();
+
+        $property_categories = $all->pluck('category')->filter()->unique()->values();
+        $property_types = $all->pluck('type')->filter()->unique()->values();
+
+        if ($request->ajax()) {
+            return response()->json([
+                'total_skip' => $total_skip,
+                'properties' => $properties_paged,
+                'total_properties' => $total_properties,
+            ]);
+        }
+
+        return view('content.property_management.blocks.properties.owner_properties',
+            compact('properties_paged', 'total_skip', 'property_categories', 'property_types', 'total_properties')
+        )->with('properties', $properties_paged);
+    }
+
     public function createFromSociety(Request $request, $user_type, $block_uuid, $uuid = null)
     {
         return $this->create($request, $block_uuid, $user_type, $uuid);
@@ -171,7 +256,7 @@ class PropertiesController extends Controller
         $section = $request->input('section');
         $block = Block::find($request->block_id);
         $society = $block->society;
-        $property = $request->property_id ? Property::findOrFail($request->property_id) : null;
+        $property = $request->property_id ? Property::find($request->property_id) : null;
         $request_type = strtolower($request->input('request_type', 'on_create'));
         if ($section === 'property') {
             $isMultiple = $request->input('property_count_mode') === 'multiple' && $request_type === 'on_create';
@@ -650,15 +735,20 @@ class PropertiesController extends Controller
 
     public function propertyDetails(Request $request, $uuid)
     {
-        return $this->details($request, null, null, $uuid);
+        return $this->details($request, null, null, $uuid, null);
+    }
+
+    public function ownerPropertyDetails(Request $request, $uuid)
+    {
+        return $this->details($request, null, null, $uuid, true);
     }
 
     public function propertyDetailsFromSociety(Request $request, $user_type, $society_uuid, $uuid)
     {
-        return $this->details($request, $user_type, $society_uuid, $uuid);
+        return $this->details($request, $user_type, $society_uuid, $uuid, null);
     }
 
-    public function details($request, $user_type, $society_uuid, $uuid)
+    public function details($request, $user_type, $society_uuid, $uuid, $isOwner = null)
     {
         $property = Property::where('uuid', $uuid)->with('block')->first();
         $society = $property->block->society ?? null;
@@ -671,13 +761,13 @@ class PropertiesController extends Controller
 
         return view(
             'content.property_management.blocks.properties.property_details',
-            compact('property', 'floor_types', 'unit_types', 'room_types', 'amenities', 'society', 'user_type')
+            compact('property', 'floor_types', 'unit_types', 'isOwner', 'room_types', 'amenities', 'society', 'user_type')
         );
     }
 
     public function roomsByFloor(Request $request, $floor_id)
     {
-        $take = 4;
+        $take = (int) $request->input('take', 4);
         $skip = $request->input('skip', 0);
         $floor = Floor::findOrFail($floor_id);
 
@@ -700,7 +790,7 @@ class PropertiesController extends Controller
 
     public function unitsByFloor(Request $request, $floor_id)
     {
-        $take = 2;
+        $take = (int) $request->input('take', 4);
         $skip = $request->input('skip', 0);
         $floor = Floor::findOrFail($floor_id);
 
@@ -780,13 +870,6 @@ class PropertiesController extends Controller
         $path = $file->storeAs('imports', $fileName, 'public');
         $fullPath = Storage::disk('public')->path($path);
 
-        $result = ImportProperties::validate($fullPath, $block->id);
-        if (! $result['success']) {
-            Storage::disk('public')->delete($path);
-
-            return response()->json(['errors' => $result['errors']]);
-        }
-
         $import = Import::create([
             'uuid' => Str::uuid(),
             'user_id' => auth()->id(),
@@ -796,6 +879,14 @@ class PropertiesController extends Controller
             'percent_completed' => 0,
             'status' => 'pending',
         ]);
+
+        $result = ImportProperties::validate($fullPath, $block->id);
+        logger('result', $result);
+        if (! $result['success']) {
+            Storage::disk('public')->delete($path);
+
+            return response()->json(['errors' => $result['errors']]);
+        }
 
         ImportProperties::dispatch($path, $block->id, $import->id);
 
@@ -826,11 +917,14 @@ class PropertiesController extends Controller
             ->where('status', 'completed')
             ->latest()
             ->first();
+        logger(['latest' => $latest]);
 
         $errorPath = ImportProperties::errorFilePath($block->id);
+        logger($errorPath);
         $hasErrors = $latest
           && $latest->error_file_path === $errorPath
           && Storage::disk('public')->exists($errorPath);
+        logger(['has_errors' => $hasErrors, 'latest' => $latest, 'error_path' => $errorPath]);
 
         return response()->json([
             'progress' => 100,
@@ -860,7 +954,7 @@ class PropertiesController extends Controller
 
     public function deleteImportErrors($block_uuid)
     {
-        $block = Block::where('uuid', $block_uuid)->firstOrFail();
+        $block = Block::where('uuid', $block_uuid)->first();
         $errorPath = ImportProperties::errorFilePath($block->id);
         if (Storage::disk('public')->exists($errorPath)) {
             Storage::disk('public')->delete($errorPath);
@@ -895,7 +989,6 @@ class PropertiesController extends Controller
 
     public function bulkDelete(Request $request)
     {
-
         $request->validate([
             'units' => 'nullable|array',
             'units.*' => 'integer|exists:property_units,id',
@@ -927,5 +1020,69 @@ class PropertiesController extends Controller
             'success' => true,
             'message' => "{$deleted} item(s) deleted successfully.",
         ]);
+    }
+
+    public function destroyProperty($uuid, $user_type = null)
+    {
+        try {
+            $property = Property::where('uuid', $uuid)->first();
+            $block = $property->block;
+
+            $attachmentIds = $property->attachments()->pluck('id')->toArray();
+
+            $property->dimensions()->delete();
+
+            if ($property->listing) {
+                $property->listing->inquiries()->delete();
+                $property->listing->delete();
+            }
+
+            foreach ($property->floors as $floor) {
+
+                foreach ($floor->units as $unit) {
+                    $attachmentIds = array_merge($attachmentIds, $unit->attachments()->pluck('id')->toArray());
+
+                    $unit->dimensions()->delete();
+
+                    if ($unit->listing) {
+                        $unit->listing->inquiries()->delete();
+                        $unit->listing->delete();
+                    }
+
+                    foreach ($unit->rooms as $room) {
+                        $room->dimensions()->delete();
+                        $room->delete();
+                    }
+
+                    $unit->delete();
+                }
+
+                foreach ($floor->rooms as $room) {
+                    $room->dimensions()->delete();
+                    $room->delete();
+                }
+
+                $floor->delete();
+            }
+
+            if (! empty($attachmentIds)) {
+                app(FileServices::class)->deleteByIds($attachmentIds);
+            }
+
+            $property->delete();
+
+            if ($user_type) {
+                return redirect()->route('society.block.view', [$user_type, $block->society->uuid, $block->uuid])
+                    ->with('success', 'Property has been deleted successfully.');
+            } else {
+                return redirect()->route('block.view', $block->uuid)
+                    ->with('success', 'Property has been deleted successfully.');
+            }
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $e->getMessage());
+        }
     }
 }

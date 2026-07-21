@@ -9,6 +9,7 @@
     color: var(--#{$prefix}white);
   }
 }
+
 .swiper#swiper-multiple-slides {
   @include media-breakpoint-down(sm) {
     block-size: 11rem;
@@ -38,6 +39,54 @@
     }
 
   }
+}
+
+/* ---- Property gallery nav arrows: dark overlay tab flush against the
+   left/right edge of the photo, so the arrow icon stays visible against
+   any image regardless of its own colours ---- */
+.gallery-top .swiper-button-prev,
+.gallery-top .swiper-button-next {
+  top: 50% !important;
+  margin-top: 0 !important;
+  transform: translateY(-50%);
+  width: auto !important;
+  height: auto !important;
+  padding: 16px 10px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  background-color: rgb(7 7 10 / 71%) !important;
+  color: #ffffff !important;
+  transition: background-color .15s, color .15s;
+
+  &::after {
+    font-size: 16px;
+  }
+}
+
+.gallery-top .swiper-button-prev {
+  left: 0 !important;
+  right: auto !important;
+  border-radius: 0 8px 8px 0;
+}
+
+.gallery-top .swiper-button-next {
+  right: 0 !important;
+  left: auto !important;
+  border-radius: 8px 0 0 8px;
+}
+
+.gallery-top .swiper-button-prev:hover,
+.gallery-top .swiper-button-next:hover {
+  background-color: #2d2a2b !important;
+  color: #fff !important;
+}
+
+.gallery-top .swiper-button-prev.swiper-button-disabled,
+.gallery-top .swiper-button-next.swiper-button-disabled {
+  background-color: rgb(7 7 10 / 71%) !important;
+  color: #ffffff !important;
 }
 
 .swiper-pagination-bullet.swiper-pagination-bullet-active,

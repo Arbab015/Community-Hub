@@ -14,10 +14,10 @@ class PropertyUnitController extends Controller
 {
     public function unitFromSociety($user_type, $society_uuid, $unit_uuid)
     {
-        return $this->show($unit_uuid, $user_type, $society_uuid);
+        return $this->show($unit_uuid, null, $user_type, $society_uuid);
     }
 
-    public function show($uuid, $user_type = null, $society_uuid = null)
+    public function show($uuid, $isOwner = null, $user_type = null, $society_uuid = null)
     {
         $unit = PropertyUnit::where('uuid', $uuid)
             ->with([
@@ -40,7 +40,7 @@ class PropertyUnitController extends Controller
 
         return view(
             'content.property_management.blocks.properties.unit_details',
-            compact('unit', 'society', 'user_type', 'floor_types', 'unit_types', 'room_types', 'amenities')
+            compact('unit', 'society', 'user_type', 'floor_types', 'isOwner', 'unit_types', 'room_types', 'amenities')
         );
     }
 
@@ -433,14 +433,39 @@ class PropertyUnitController extends Controller
     public function destroy($uuid, $user_type = null)
     {
         try {
-            $unit = PropertyUnit::where('uuid', $uuid)->first();
+            $unit = PropertyUnit::where('uuid', $uuid)->firstOrFail();
             $society = $unit->floor->property->block->society;
+            $propertyUuid = $unit->floor->property->uuid;
+
+            // Unit attachments
+            $attachmentIds = $unit->attachments()->pluck('id')->toArray();
+            if (! empty($attachmentIds)) {
+                app(FileServices::class)->deleteByIds($attachmentIds);
+            }
+
+            // Unit's own dimensions (no-rooms unit specs)
+            $unit->dimensions()->delete();
+
+            // Unit's listing + inquiries
+            if ($unit->listing) {
+                $unit->listing->inquiries()->delete();
+                $unit->listing->delete();
+            }
+
+            // Rooms — no attachments on rooms, just clear their dimensions before deleting
+            foreach ($unit->rooms as $room) {
+                $room->dimensions()->delete();
+                $room->delete();
+            }
+
             $unit->delete();
 
             if ($user_type) {
-                return redirect()->route('society.property.details', [$user_type, $society->uuid, $unit->floor->property->uuid])->with('success', 'Unit has been deleted successfully.');
+                return redirect()->route('society.property.details', [$user_type, $society->uuid, $propertyUuid])
+                    ->with('success', 'Unit has been deleted successfully.');
             } else {
-                return redirect()->route('property.details', [$unit->floor->property->uuid])->with('success', 'Unit has been deleted successfully.');
+                return redirect()->route('property.details', [$propertyUuid])
+                    ->with('success', 'Unit has been deleted successfully.');
             }
 
         } catch (\Exception $e) {

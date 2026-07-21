@@ -28,18 +28,21 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js','resources/assets/js/ui-toasts.js' ])
+  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js' ])
 @endsection
 
 @section('content')
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
-      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1"> @if(isset($society) && $user_type)
-          Society Management
-        @else
-          Property Management
-        @endif</p>
+      @if(!isset($isOwner))
+        <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+          @if(isset($society) && $user_type)
+            Society Management
+          @else
+            Property Management
+          @endif</p>
+      @endif
       <h4 class="mb-1">Property Details</h4>
       @php
         $block = $property->block;
@@ -49,25 +52,32 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           <li class="breadcrumb-item">
             <a href="{{ route('dashboard.analytics') }}" class="text-dark opacity-75 text-decoration-none">Home</a>
           </li>
-          @if(isset($society) && $user_type)
-            <li class="breadcrumb-item">
-              <a href="{{ route('societies.index', $user_type) }}" class="text-dark opacity-75 text-decoration-none">Societies</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
-                 class="text-dark opacity-75 text-decoration-none">Society</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('society.block.view', [$user_type, $society->uuid, $property->block->uuid]) }}"
-                 class="text-dark opacity-75 text-decoration-none">Block details</a>
-            </li>
+          @if(!isset($isOwner))
+            @if(isset($society) && $user_type)
+              <li class="breadcrumb-item">
+                <a href="{{ route('societies.index', $user_type) }}" class="text-dark opacity-75 text-decoration-none">Societies</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
+                   class="text-dark opacity-75 text-decoration-none">Society</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('society.block.view', [$user_type, $society->uuid, $property->block->uuid]) }}"
+                   class="text-dark opacity-75 text-decoration-none">Block details</a>
+              </li>
+            @else
+              <li class="breadcrumb-item">
+                <a href="{{ route('blocks.index') }}" class="text-dark opacity-75 text-decoration-none">Blocks</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('block.view', $property->block->uuid)  }}"
+                   class="text-dark opacity-75 text-decoration-none">Block details</a>
+              </li>
+            @endif
           @else
             <li class="breadcrumb-item">
-              <a href="{{ route('blocks.index') }}" class="text-dark opacity-75 text-decoration-none">Blocks</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('block.view', $property->block->uuid)  }}"
-                 class="text-dark opacity-75 text-decoration-none">Block details</a>
+              <a href="{{ route('owner.properties.show')  }}"
+                 class="text-dark opacity-75 text-decoration-none">Properties</a>
             </li>
           @endif
           <li class="breadcrumb-item active text-dark opacity-50">Property details</li>
@@ -122,7 +132,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
         </span>
       </div>
       @if($property->name)
-        <h6 class="mb-0 fw-semibold">{{ $property->name }}</h6>
+        <h6 class="mb-0 fw-semibold">{{ ucwords($property->name)  }}</h6>
       @else
         <span>{!! $address !!}</span>
       @endif
@@ -148,6 +158,16 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           </button>
         </li>
       @endif
+      <li class="nav-item">
+        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#payments_plannng">
+          <i class="ti tabler-calendar-dollar me-2 d-none d-sm-inline-block"></i> Payments Planning
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#payments">
+          <i class="ti tabler-credit-card me-2 d-none d-sm-inline-block"></i> Payments
+        </button>
+      </li>
     </ul>
   </div>
 
@@ -181,45 +201,77 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                   </form>
                 @endif
               </div>
-              <h5 class="mb-0 fw-semibold">{{ ucfirst($property->name) }}</h5>
+              <h5 class="mb-0 fw-semibold">{{ ucwords($property->name) }}</h5>
               <span class="badge {{ $property->construction_status == 'active' ? 'bg-primary' : 'bg-secondary' }} mt-2">
-                {{ ucfirst($property->construction_status) }}
+                {{ ucfirst($property->owner_id ? "Sold" : 'Un-sold') }}
               </span>
-              <div class="mt-3 pt-3 border-top text-start">
-                <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">Listing Status</h6>
-                <div
-                  class="rounded-3 px-3 py-2 mb-3 border {{ $property->listing ? 'border-success border-opacity-50 bg-success bg-opacity-10' : 'border-dashed' }}">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <div class="d-flex align-items-center gap-2">
+
+
+              @can('listing_property')
+                <div class="mt-3 pt-3 border-top text-start">
+                  <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">Listing Status</h6>
+                  <div
+                    class="rounded-3 px-3 py-2 mb-3 border {{ $property->listing ? 'border-success border-opacity-50 bg-success bg-opacity-10' : 'border-dashed' }}">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <div class="d-flex align-items-center gap-2">
                       <span
                         class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 listing-status-icon {{ $property->listing ? 'bg-success bg-opacity-25' : '' }}">
                         <i
                           class="ti {{ $property->listing ? 'tabler-tag text-success' : 'tabler-tag-off listing-status-icon-i' }}"></i>
                       </span>
-                      <span class="fw-semibold small {{ $property->listing ? 'text-success' : 'text-primary' }}">
+                        <span class="fw-semibold small {{ $property->listing ? 'text-success' : 'text-primary' }}">
                         {{ $property->listing ? 'Listed' : 'Not Listed' }}
                       </span>
+                      </div>
+                      @if($property->listing && Auth()->user()->can('unlist_property'))
+                        <a href="{{ route('listing.destroy', $property->listing->uuid) }}"
+                           onclick="confirmDelete(event)"
+                           class="d-inline-flex align-items-center gap-1 text-decoration-none badge bg-danger">
+                          <i class="ti tabler-tag-off"></i> Unlist
+                        </a>
+                      @endif
                     </div>
-                    @if($property->listing)
-                      <a href="{{ route('listing.destroy', $property->listing->uuid) }}" onclick="confirmDelete(event)"
-                         class="d-inline-flex align-items-center gap-1 text-decoration-none badge bg-danger">
-                        <i class="ti tabler-tag-off"></i> Unlist
-                      </a>
+
+                    @if(auth()->user()->can('see_inquiries') && $property->listing?->inquiries->count())
+                      @if(isset($society) && $user_type)
+                        <a class="btn btn-xs bg-secondary text-white rounded my-1"
+                           href="{{ route('society.property.inquiries.show', [$user_type, $society->uuid, $property->listing->uuid]) }}">
+                          See Inquiries
+                        </a>
+                      @else
+                        <a class="btn btn-xs bg-secondary text-white rounded mb-1"
+                           href="{{ route('property.inquiries.show', ['property', $property->uuid, $property->listing->uuid]) }}">
+                          See Inquiries
+                        </a>
+                      @endif
                     @endif
+                    <p class="mb-0 text-muted listing_description">
+                      {{ $property->listing ? 'This property has listed for ' . ucfirst($property->listing->listing_type) : 'This property has no active listing' }}
+                    </p>
                   </div>
-                  <p class="mb-0 text-muted listing_description">
-                    {{ $property->listing ? 'This property has listed for ' . ucfirst($property->listing->listing_type) : 'This property has no active listing' }}
-                  </p>
+
+                  <button class="btn btn-sm w-100 d-flex align-items-center gap-2 fw-semibold sell_rent_btn"
+                          data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
+                          data-type="property" data-id="{{ $property->id }}"
+                          data-listing='@json($property->listing)'>
+                    <i class="ti tabler-tag sell_rent_icon"></i>
+                    {{ $property->listing ? 'Update Your Listing' : 'List for Sell / Rent' }}
+                    <i class="ti tabler-arrow-right ms-auto listing_icon"></i>
+                  </button>
+
                 </div>
-                <button class="btn btn-sm w-100 d-flex align-items-center gap-2 fw-semibold sell_rent_btn"
-                        data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
-                        data-type="property" data-id="{{ $property->id }}"
-                        data-listing='@json($property->listing)'>
-                  <i class="ti tabler-tag sell_rent_icon"></i>
-                  {{ $property->listing ? 'Update Your Listing' : 'List for Sell / Rent' }}
-                  <i class="ti tabler-arrow-right ms-auto listing_icon"></i>
-                </button>
-              </div>
+              @else
+                <div class="mt-4 pt-4 border-top text-center">
+                  <div class="avatar avatar-sm mb-2 mx-auto">
+                   <span class="avatar-initial rounded bg-label-primary">
+                   <i class="fa-regular fa-calendar"></i>
+                  </span>
+                  </div>
+                  <small class="text-muted d-block">Created</small>
+                  <h6 class="mb-0">{{ $property->created_at->format('M d, Y') }}</h6>
+                </div>
+              @endcan
+
             </div>
           </div>
 
@@ -395,7 +447,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           </div>
 
           {{-- Dimensions Card --}}
-          <div class="card border-0 shadow-sm rounded-3 p-4">
+          <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
                 <span class="d-inline-block bg-primary rounded hr_bar"></span> Property Dimensions
@@ -449,6 +501,33 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
               </div>
             </div>
           </div>
+
+
+          @can('delete_property')
+            <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
+              <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                <span class="d-inline-block bg-primary rounded hr_bar"></span> Delete Property
+              </h5>
+
+              <p class="mb-4">
+                Deleting this property will
+                <strong class="text-danger fst-italic">permanently</strong>
+                remove the society and all associated data.
+                This action cannot be undone.
+              </p>
+              @php
+                $property_destroy_url = route('property.delete', isset($user_type) ? [$property->uuid, $user_type]: [$property->uuid]);
+              @endphp
+
+              <a href="{{ $property_destroy_url }}" class="btn btn-danger"
+                 onclick="confirmDelete(event, null)">
+                <i class="fa-solid fa-trash me-3"></i>
+                Delete Property
+              </a>
+            </div>
+
+          @endcan
+
 
         </div>
       </div>
@@ -610,8 +689,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                placeholder="Search by unit name...">
                         <span class="input-group-text cursor-pointer unit-search-btn" data-floor="{{ $floor->id }}"
                               title="Search">
-              <i class="ti tabler-search"></i>
-            </span>
+                          <i class="ti tabler-search"></i>
+                        </span>
                       </div>
                     </div>
                     <div class="col-12 col-md-4 mt-0">
@@ -649,16 +728,14 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                      ->when($selected_unit_type, function ($q) use ($selected_unit_type) {
                       $q->where('unit_type', $selected_unit_type);
                      })
-                    ->latest()->take(2)->get();
+                    ->latest()->take(4)->get();
                   @endphp
 
                   @foreach($units as $unit)
                     <div class="col-sm-6 col-lg-4 col-xl-3 unit-col">
                       <div class="card h-100 border-0 shadow-sm unit-card" data-id="{{ $unit->id }}">
                         <div class="select-overlay"></div>
-                        {{--                        <div class="select-check bg-label-primary">--}}
-                        {{--                          <i class="ti tabler-check"></i>--}}
-                        {{--                        </div>--}}
+
                         <div class="card-accent-wrap">
                           <div class="card-accent"></div>
                         </div>
@@ -675,10 +752,11 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                             </div>
 
                             <div>
-                              <button class="clone btn btn-xs px-1 rounded-pill bg-label-primary">
-                                <i class="ti tabler-copy"></i>
-                              </button>
-
+                              @can('edit_property')
+                                <button class="clone btn btn-xs px-1 rounded-pill bg-label-primary">
+                                  <i class="ti tabler-copy"></i>
+                                </button>
+                              @endcan
                               @if($unit->unit_type)
                                 <span class="badge rounded-pill unit-type-pill flex-shrink-0">
                              {{ ucfirst($unit_types->first(fn($t) => $t->id == $unit->unit_type)?->title ?? '') }}
@@ -711,27 +789,26 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                           </div>
 
                           <div class="mb-3">
-          <span
-            class="badge rounded-pill {{ $unit->listing ? 'bg-success bg-opacity-10 text-success' : 'bg-label-secondary' }} d-inline-flex align-items-center gap-1">
+                       <span
+                         class="badge rounded-pill {{ $unit->listing ? 'bg-success bg-opacity-10 text-success' : 'bg-label-secondary' }} d-inline-flex align-items-center gap-1">
             <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
             {{ $unit->listing ? 'Listed for '.ucfirst($unit->listing->listing_type) : 'Not listed' }}
-          </span>
+                       </span>
                           </div>
 
                           <div class="d-flex align-items-center gap-2">
+                            @if(isset($society) && $user_type)
+                              <a href="{{ route('society.unit.details', [$user_type, $society->uuid, $unit->uuid]) }}"
+                                 class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
+                                <i class="ti tabler-eye"></i> View
+                              </a>
+                            @else
+                              <a href="{{ route('unit.details', $unit->uuid) }}"
+                                 class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
+                                <i class="ti tabler-eye"></i> View
+                              </a>
+                            @endif
                             @can('edit_property')
-                              @if(isset($society) && $user_type)
-                                <a href="{{ route('society.unit.details', [$user_type, $society->uuid, $unit->uuid]) }}"
-                                   class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
-                                  <i class="ti tabler-eye"></i> View
-                                </a>
-                              @else
-                                <a href="{{ route('unit.details', $unit->uuid) }}"
-                                   class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
-                                  <i class="ti tabler-eye"></i> View
-                                </a>
-                              @endif
-
                               <div class="dropdown unit-actions-dropdown">
                                 <button type="button" class="btn btn-sm btn-icon unit-kebab-btn"
                                         data-bs-toggle="dropdown" data-bs-boundary="viewport"
@@ -739,43 +816,61 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                   <i class="ti tabler-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                  <li>
-                                    <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 edit-unit-btn"
-                                            data-bs-toggle="modal" data-bs-target="#unit_modal"
-                                            data-unit-id="{{ $unit->id }}" data-floor-id="{{ $floor->id }}">
-                                      <i class="ti tabler-pencil"></i> Edit Unit
-                                    </button>
-                                  </li>
-                                  <li>
-                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2"
-                                            data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
-                                            data-type="unit" data-id="{{ $unit->id }}"
-                                            data-listing='@json($unit->listing)'>
-                                      <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
-                                      {{ $unit->listing ? 'Update Listing' : 'List Unit' }}
-                                    </button>
-                                  </li>
-                                  <li>
-                                    <hr class="dropdown-divider">
-                                  </li>
-                                  <li>
-                                    <a href="{{ route('property.destroy', ['section'=>'unit', $unit->uuid]) }}"
-                                       onclick="confirmDelete(event, null)"
-                                       class="dropdown-item d-flex align-items-center gap-2 text-danger">
-                                      <i class="ti tabler-trash"></i> Delete Unit
-                                    </a>
-                                  </li>
+                                  @can('edit_property')
+                                    <li>
+                                      <button type="button"
+                                              class="dropdown-item d-flex align-items-center gap-2 edit-unit-btn"
+                                              data-bs-toggle="modal" data-bs-target="#unit_modal"
+                                              data-unit-id="{{ $unit->id }}" data-floor-id="{{ $floor->id }}">
+                                        <i class="ti tabler-pencil"></i> Edit Unit
+                                      </button>
+                                    </li>
+                                  @endcan
+
+                                  @can('listing_property')
+                                    <li>
+                                      <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                              data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
+                                              data-type="unit" data-id="{{ $unit->id }}"
+                                              data-listing='@json($unit->listing)'>
+                                        <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
+                                        {{ $unit->listing ? 'Update Listing' : 'List Unit' }}
+                                      </button>
+                                    </li>
+                                  @endcan
+                                  @if(auth()->user()->can('property_inquiries') && $unit->listing?->inquiries?->count())
+                                    @if(isset($society) && $user_type)
+                                      <li>
+                                        <a type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                           href="{{ route('society.property.inquiries.show', [$user_type, $society->uuid, $unit->listing->uuid]) }}">
+                                          <i class="ti {{'tabler-tag' }}"></i> See Inquiries
+                                        </a>
+                                      </li>
+                                    @else
+                                      <li>
+                                        <a type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                           href="{{ route('property.inquiries.show', ['unit', $unit->uuid, $unit->listing->uuid]) }}">
+                                          <i class="ti {{'tabler-tag' }}"></i> See Inquiries
+                                        </a>
+                                      </li>
+                                    @endif
+                                  @endif
+
+                                  @can('delete_property')
+                                    <li>
+                                      <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                      <a href="{{ route('property.destroy', ['section'=>'unit', $unit->uuid]) }}"
+                                         onclick="confirmDelete(event, null)"
+                                         class="dropdown-item d-flex align-items-center gap-2 text-danger">
+                                        <i class="ti tabler-trash"></i> Delete Unit
+                                      </a>
+                                    </li>
+
+                                  @endcan
                                 </ul>
                               </div>
-                            @else
-                              <button type="button" class="btn btn-sm btn-outline-secondary"
-                                      data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
-                                      data-type="unit" data-id="{{ $unit->id }}"
-                                      data-listing='@json($unit->listing)'
-                                      title="{{ $unit->listing ? 'Update listing' : 'List unit' }}">
-                                <i class="ti tabler-tag"></i>
-                              </button>
                             @endcan
                           </div>
 
@@ -786,12 +881,12 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                 </div>
 
                 {{-- Per-floor Load More button --}}
-                @if($floor->units->count() > 2)
+                @if($floor->units->count() > 4)
                   <div class="text-center mt-4 floor-load-more-wrap " data-floor-id="{{ $floor->id }}">
                     <button class="btn btn-xs btn-outline-primary floor-load-more-btn"
                             type="button"
                             data-floor-id="{{ $floor->id }}"
-                            data-skip="2"
+                            data-skip="4"
                             data-total="{{ $floor->units->count() }}">
                       <span class="spinner-border spinner-border-sm me-1 d-none floor-spinner"></span>
                       <span class="floor-load-more-text">Load More</span>
@@ -823,22 +918,24 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                               <span
                                 class="unit-name fw-semibold text-truncate">{{ ucfirst($room_types->first(fn($t) => $t->id == $room->room_type)?->title ?? '') }}</span>
                             </div>
-                            @can('edit_property')
-                              <div class="d-flex align-items-center flex-shrink-0 room-card-actions">
+                            <div class="d-flex align-items-center flex-shrink-0 room-card-actions">
+                              @can('edit_property')
                                 <button type="button" class="btn btn-icon room-icon-btn edit-room-btn"
                                         data-bs-toggle="modal" data-bs-target="#room_modal"
                                         data-room-id="{{ $room->id }}" data-floor-id="{{ $floor->id }}"
                                         title="Edit Room">
                                   <i class="ti tabler-pencil"></i>
                                 </button>
+                              @endcan
+                              @can('delete_property')
                                 <a href="{{ route('property.destroy', ['section'=>'room', $room->uuid]) }}"
                                    onclick="confirmDelete(event, null)"
                                    class="btn btn-icon room-icon-btn room-icon-btn-danger text-danger"
                                    title="Delete Room">
                                   <i class="ti tabler-trash"></i>
                                 </a>
-                              </div>
-                            @endcan
+                              @endcan
+                            </div>
                           </div>
 
                           @php
@@ -847,18 +944,18 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                           @endphp
 
                           <div class="d-flex align-items-center gap-3 text-muted small mb-2">
-          <span class="d-flex align-items-center gap-1">
-            <i class="ti tabler-ruler-2"></i> {{ round($roomArea) }} sq ft
-          </span>
+                           <span class="d-flex align-items-center gap-1">
+                             <i class="ti tabler-ruler-2"></i> {{ round($roomArea) }} sq ft
+                           </span>
                           </div>
 
                           @if($room->dimensions->count())
                             <div class="d-flex flex-wrap gap-1 mb-2">
                               @foreach($room->dimensions as $rd)
                                 <span class="dim-side-chip rounded px-2 py-1 d-inline-flex align-items-center gap-1">
-                <span class="dim-side-name">{{ ucfirst($rd->name) }}</span>
-                <span class="dim-side-unit">{{ $rd->size }} {{ $rd->unit }}</span>
-              </span>
+                                <span class="dim-side-name">{{ ucfirst($rd->name) }}</span>
+                                <span class="dim-side-unit">{{ $rd->size }} {{ $rd->unit }}</span>
+                                </span>
                               @endforeach
                             </div>
                           @endif
@@ -870,8 +967,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                 @if($amenityTitle)
                                   <span
                                     class="amenity-chip rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1">
-                  <i class="ti tabler-check fa-xs"></i> {{ ucwords($amenityTitle) }}
-                </span>
+                                   <i class="ti tabler-check fa-xs"></i> {{ ucwords($amenityTitle) }}
+                                  </span>
                                 @endif
                               @endforeach
                             </div>
@@ -912,7 +1009,12 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
     </div>
   </div>
 
-
+  <div class="tab-pane fade" id="payments_plannng" role="tabpanel">
+    Payments plannings here
+  </div>
+  <div class="tab-pane fade" id="payments" role="tabpanel">
+    Payments records
+  </div>
 
   @include('_partials._modals.edit_property')
   @include('_partials._modals.listing_property')
@@ -1349,6 +1451,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 
 @push('scripts')
   <script>
+
     // Floor filter dropdown
     document.querySelectorAll('.floor-option').forEach(item => {
       item.addEventListener('click', function() {
@@ -1421,7 +1524,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
       const utype = document.querySelector(`.unit-type-filter[data-floor="${floorId}"]`)?.value ?? '';
       const wrap = document.querySelector(`.floor-load-more-wrap[data-floor-id="${floorId}"]:not([data-mode])`);
 
-      const params = new URLSearchParams({ skip, take: 2 });
+      const params = new URLSearchParams({ skip, take: 4 });
       if (search) params.set('search', search);
       if (utype) params.set('unit_type', utype);
 
@@ -1449,6 +1552,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           const societyUuid = @json($society->uuid ?? null);
           const userType = @json($user_type ?? null);
           const canEdit = @json(auth()->user()->can('edit_property'));
+          const canListing = @json(auth()->user()->can('listing_property'));
+          const canDelete = @json(auth()->user()->can('delete_property'));
           const unitTypes = @json($unit_types->values());
 
           data.units.forEach(unit => {
@@ -1476,9 +1581,39 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
             const typeTitle = unit.unit_type ? unitTypes.find(t => t.id == unit.unit_type)?.title ?? null : null;
             const typePill = typeTitle ? `<span class="badge rounded-pill unit-type-pill flex-shrink-0">${typeTitle.charAt(0).toUpperCase() + typeTitle.slice(1)}</span>` : '';
             const unitLabel = unit.unit_name ? unit.unit_name.charAt(0).toUpperCase() + unit.unit_name.slice(1) : 'Unit';
-            const viewBtn = canEdit ? `<a href="${viewUrl}" class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1"><i class="ti tabler-eye"></i> View</a>` : '';
+            const viewBtn = `<a href="${viewUrl}" class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1"><i class="ti tabler-eye"></i> View</a>`;
             const listingLabel = listed ? 'Update Listing' : 'List Unit';
             const listingIcon = listed ? 'tabler-tag' : 'tabler-tag-off';
+            const cloneBtn = canEdit ? `<button class="clone btn btn-xs px-1 rounded-pill bg-label-primary">
+                            <i class="ti tabler-copy"></i>
+                        </button>` : '';
+
+            const editUnitItem = canEdit ? `
+                                <li>
+                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2 edit-unit-btn"
+                                            data-bs-toggle="modal" data-bs-target="#unit_modal"
+                                            data-unit-id="${unit.id}" data-floor-id="${floorId}">
+                                        <i class="ti tabler-pencil"></i> Edit Unit
+                                    </button>
+                                </li>` : '';
+
+            const listingItem = canListing ? `
+                                <li>
+                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                            data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
+                                            data-type="unit" data-id="${unit.id}" data-listing='${listingData}'>
+                                        <i class="ti ${listingIcon}"></i> ${listingLabel}
+                                    </button>
+                                </li>` : '';
+
+            const deleteUnitItem = canDelete ? `
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a href="/property/destroy/unit/${unit.uuid}" onclick="confirmDelete(event,null)"
+                                       class="dropdown-item d-flex align-items-center gap-2 text-danger">
+                                        <i class="ti tabler-trash"></i> Delete Unit
+                                    </a>
+                                </li>` : '';
 
             const actionsHtml = canEdit ? `
                         <div class="dropdown unit-actions-dropdown">
@@ -1488,27 +1623,9 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                 <i class="ti tabler-dots-vertical"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                <li>
-                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2 edit-unit-btn"
-                                            data-bs-toggle="modal" data-bs-target="#unit_modal"
-                                            data-unit-id="${unit.id}" data-floor-id="${floorId}">
-                                        <i class="ti tabler-pencil"></i> Edit Unit
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item d-flex align-items-center gap-2"
-                                            data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
-                                            data-type="unit" data-id="${unit.id}" data-listing='${listingData}'>
-                                        <i class="ti ${listingIcon}"></i> ${listingLabel}
-                                    </button>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a href="/property/destroy/unit/${unit.uuid}" onclick="confirmDelete(event,null)"
-                                       class="dropdown-item d-flex align-items-center gap-2 text-danger">
-                                        <i class="ti tabler-trash"></i> Delete Unit
-                                    </a>
-                                </li>
+                                ${editUnitItem}
+                                ${listingItem}
+                                ${deleteUnitItem}
                             </ul>
                         </div>` : `
                         <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -1533,9 +1650,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                         <span class="unit-name fw-semibold text-truncate">${unitLabel}</span>
                                     </div>
                                     <div>
-                                        <button class="clone btn btn-xs px-1 rounded-pill bg-label-primary">
-                                            <i class="ti tabler-copy"></i>
-                                        </button>
+                                        ${cloneBtn}
                                         ${typePill}
                                     </div>
                                 </div>
@@ -1601,6 +1716,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 
     function fetchRooms(floorId, skip, append) {
       const canEditRooms = window.canEditRooms ?? false;
+      const canDeleteRooms = window.canDeleteProperty ?? false;
       const grid = document.querySelector(`.room-list[data-floor-rooms="${floorId}"]`);
       const rtype = document.querySelector(`.room-type-filter[data-floor="${floorId}"]`)?.value ?? '';
       const wrap = document.querySelector(`.floor-load-more-wrap[data-floor-id="${floorId}"][data-mode="rooms"]`);
@@ -1653,17 +1769,23 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                 </span>`;
             }).join('');
 
-            const actionsHtml = canEditRooms ? `
-                        <div class="d-flex align-items-center flex-shrink-0 room-card-actions">
+            const editRoomBtn = canEditRooms ? `
                             <button type="button" class="btn btn-icon room-icon-btn edit-room-btn"
                                     data-bs-toggle="modal" data-bs-target="#room_modal"
                                     data-room-id="${room.id}" data-floor-id="${floorId}" title="Edit Room">
                                 <i class="ti tabler-pencil"></i>
-                            </button>
+                            </button>` : '';
+
+            const deleteRoomBtn = canDeleteRooms ? `
                             <a href="/property/destroy/room/${room.uuid}" onclick="confirmDelete(event,null)"
                                class="btn btn-icon room-icon-btn room-icon-btn-danger text-danger" title="Delete Room">
                                 <i class="ti tabler-trash"></i>
-                            </a>
+                            </a>` : '';
+
+            const actionsHtml = (editRoomBtn || deleteRoomBtn) ? `
+                        <div class="d-flex align-items-center flex-shrink-0 room-card-actions">
+                            ${editRoomBtn}
+                            ${deleteRoomBtn}
                         </div>` : '';
 
             const col = document.createElement('div');
@@ -1738,6 +1860,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
     window.roomTypesJson = @json($room_types->values());
     window.amenitiesJson = @json($amenities->values());
     window.canEditRooms = @json(auth()->user()->can('edit_property'));
+    window.canDeleteProperty = @json(auth()->user()->can('delete_property'));
     window.editIsResidential = {{ $property->category === 'residential' ? 'true' : 'false' }};
     window.unitUpdateRoute = "{{ route('unit.update') }}";
     window.floorRoomRoute = "{{ route('floor.room.store') }}";
@@ -1926,5 +2049,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           spinner.classList.add('d-none');
         });
     });
+
+
   </script>
 @endpush

@@ -1,6 +1,6 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Block details')
+@section('title', 'Properties in ' . ucwords($block?->name ?? 'Block'))
 
 @section('vendor-style')
   @vite(['resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss'])
@@ -9,8 +9,6 @@
 @section('vendor-script')
   @vite(['resources/assets/vendor/libs/notiflix/notiflix.js'])
 @endsection
-
-
 
 @section('content')
 
@@ -23,7 +21,7 @@
         @else
           Property Management
         @endif</p>
-      <h4 class="mb-1">Block/Sector Details</h4>
+      <h4 class="mb-1">Properties in {{ucwords($block->name) }}</h4>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
@@ -254,6 +252,12 @@
     .import_errors {
       max-height: 150px;
       overflow-y: auto;
+    }
+
+    .column-title {
+      font-size: 11px;
+      letter-spacing: .05em;
+      text-transform: uppercase
     }
   </style>
 @endpush
@@ -608,6 +612,7 @@
 
       window._importInterval = setInterval(function() {
         $.get("{{ route('properties.import_properties', $block->uuid) }}", function(res) {
+          console.log(res);
           var p = parseInt(res.progress) || 0;
           bar.style.width = p + '%';
           bar.setAttribute('aria-valuenow', p);

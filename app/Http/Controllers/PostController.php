@@ -107,6 +107,7 @@ class PostController extends Controller
 
     public function createAdminView($user_type, $uuid, $type)
     {
+
         return $this->createView($type, $uuid, $user_type);
     }
 
@@ -120,7 +121,7 @@ class PostController extends Controller
         try {
             $society = null;
             if ($uuid) {
-                $society = Society::where('uuid', $uuid)->firstOrFail();
+                $society = Society::where('uuid', $uuid)->first();
                 $society_id = $society->id;
             } else {
                 $society_id = session('active_society_id');
@@ -131,7 +132,7 @@ class PostController extends Controller
             $counts = $this->getPostCounts($user);
 
             //     $society_id = $user->memberSocieties->pluck('id')->first();
-            return view('content.forum.create_or_edit', compact('society_id', 'type', 'tags', 'counts', 'user_type', 'uuid'));
+            return view('content.forum.create_or_edit', compact('society_id', 'type', 'society', 'tags', 'counts', 'user_type', 'uuid'));
         } catch (Exception $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }

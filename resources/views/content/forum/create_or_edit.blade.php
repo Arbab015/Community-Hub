@@ -40,7 +40,6 @@
           </li>
 
           @if(isset($user_type))
-
             <li class="breadcrumb-item">
               <a href="{{ route('societies.index', $user_type) }}"
                  class="text-dark opacity-75 text-decoration-none">

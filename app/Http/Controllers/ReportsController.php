@@ -17,6 +17,7 @@ class ReportsController extends Controller
 {
     public function index(Request $request)
     {
+        //        dd($request->all());
         $login_user = Auth::user();
         if ($request->ajax()) {
             $query = Report::with([

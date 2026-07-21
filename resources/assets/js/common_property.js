@@ -215,7 +215,8 @@ window.validateConstructionForm = function(form, e) {
   let valid = true;
   const floorItems = form.querySelectorAll('.floor-item');
   if (floorItems.length === 0) {
-    const container = form.querySelector('#floors-container, #edit-floors-container');
+    // Works for create (#floors-container) and Add Floor modal (#add-floor-container)
+    const container = form.querySelector('#floors-container, #add-floor-container, #edit-floors-container');
     const err = document.createElement('div');
     err.className = 'text-danger small mt-2 dim-name-error';
     err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Property must have at least one floor.';
@@ -290,19 +291,6 @@ window.validateConstructionForm = function(form, e) {
     }
   });
 
-  // unit must have at least one room
-  // form.querySelectorAll('.unit-item').forEach(unit => {
-  //   let has_room = unit.querySelector('.no_rooms_check');
-  //   if (unit.querySelectorAll('.unit-rooms-container .room-item').length === 0 && !has_room.checked) {
-  //     const err = document.createElement('div');
-  //     err.className = 'text-danger small mt-2 dim-name-error';
-  //     err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Each unit must have at least one room.';
-  //     unit.querySelector('.btn-add-unit-room').insertAdjacentElement('beforebegin', err);
-  //     valid = false;
-  //   }
-  // });
-
-
   form.querySelectorAll('.unit-item').forEach(unit => {
     const no_rooms_check = unit.querySelector('.no_rooms_check');
     const isSingleRoom = no_rooms_check?.checked;
@@ -327,7 +315,6 @@ window.validateConstructionForm = function(form, e) {
       }
     }
   });
-
 
   if (!valid) {
     notify('Please fix the errors before submitting.', 'error');

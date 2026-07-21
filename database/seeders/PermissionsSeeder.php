@@ -77,6 +77,22 @@ class PermissionsSeeder extends Seeder
             'edit_property',
             'delete_property',
             'view_property',
+
+            'listing_property',
+            'unlist_property',
+
+            'inquiries_listing',
+            'see_inquiries',
+
+            'owner_properties', // show properties to the owner
+
+            'contact_messages',
+
+            'payment_planning_template_listing',
+            'payment_planning_template_create',
+            'payment_planning_template_edit',
+            'payment_planning_template_delete',
+
         ];
 
         foreach ($permissions as $permission) {
@@ -109,6 +125,18 @@ class PermissionsSeeder extends Seeder
             'edit_property',
             'delete_property',
 
+            'listing_property',
+            'unlist_property',
+
+            'inquiries_listing',
+            'see_inquiries',
+
+            'owner_properties',
+
+            'payment_planning_template_listing',
+            'payment_planning_template_create',
+            'payment_planning_template_edit',
+            'payment_planning_template_delete',
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -123,9 +151,7 @@ class PermissionsSeeder extends Seeder
             $user->assignRole(roles: 'Super Admin');
         }
 
-        // ---------------------------------------------------------------
         // Society Owner
-        // ---------------------------------------------------------------
         $societyAdminPermissions = [
             'dashboard',
             'listing_society',
@@ -174,6 +200,16 @@ class PermissionsSeeder extends Seeder
             'delete_property',
             'view_property',
 
+            'listing_property',
+            'unlist_property',
+
+            'inquiries_listing',
+            'see_inquiries',
+
+            'payment_planning_template_listing',
+            'payment_planning_template_create',
+            'payment_planning_template_edit',
+            'payment_planning_template_delete',
         ];
 
         $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);
@@ -183,9 +219,7 @@ class PermissionsSeeder extends Seeder
             $owner->syncPermissions($societyAdminPermissions);
         });
 
-        // ---------------------------------------------------------------
         // Society Member
-        // ---------------------------------------------------------------
         $societyMemberPermissions = Permission::whereIn('name', [
             'dashboard',
             'discussions',
@@ -194,6 +228,14 @@ class PermissionsSeeder extends Seeder
             'complaints',
             'add_reports',
             'un-block_request_post',
+
+            'owner_properties',
+            'edit_property',
+            'view_property',
+            'listing_property',
+            'unlist_property',
+
+            'see_inquiries',
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Society Member']);

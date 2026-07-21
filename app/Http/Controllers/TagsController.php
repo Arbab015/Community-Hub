@@ -30,7 +30,7 @@ class TagsController extends Controller
                     $edit = '';
                     $delete = '';
                     if ($login_user->can('edit_tag')) {
-                        $edit = '<i class="fa-solid fa-pen-to-square text-primary editTagBtn"
+                        $edit = '<i class="fa-solid fa-pen-to-square text-primary editTagBtn me-2"
                          role= "button"
                          title="Edit"
                           data-id="'.($tag->id).'"
@@ -39,7 +39,7 @@ class TagsController extends Controller
                         </i>';
                     }
                     if ($login_user->can('delete_tag')) {
-                        $delete = '<form action="'.route('tags.destroy', $tag->id).'" method="POST" style="display:inline;">'
+                        $delete = '<form action="'.route('tags.destroy', $tag->uuid).'" method="POST" style="display:inline;">'
                           .csrf_field()
                           .method_field('DELETE')
                           .'<i class="fa-solid fa-trash-can text-danger" role="button" title="Delete" onclick="confirmDelete(event)">
@@ -85,11 +85,11 @@ class TagsController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy($uuid)
     {
         try {
-            $jobtype = Tag::findorfail($id);
-            $jobtype->delete();
+            $tag = Tag::where('uuid', $uuid);
+            $tag->delete();
 
             return back()->with('success', 'Tag deleted successfully. ');
         } catch (Exception $e) {

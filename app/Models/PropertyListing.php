@@ -20,4 +20,9 @@ class PropertyListing extends Model
     {
         return $this->morphTo();
     }
+
+    public function inquiries()
+    {
+        return $this->hasMany(PropertyInquiry::class, 'listing_id');
+    }
 }

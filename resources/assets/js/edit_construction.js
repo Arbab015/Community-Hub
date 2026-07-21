@@ -1,10 +1,7 @@
-// edit_construction.js — property details page: add floor, add/edit room, add/edit unit
-
 let editIsResidential = window.editIsResidential ?? false;
 let editFloorCount = 0;
 
-// ─── Helpers
-
+// ─── Utility
 function ucFirst(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
@@ -18,118 +15,34 @@ function parseAmenities(raw) {
   }
 }
 
-// ─── Dim row builder (flat names: dimensions[i][name/size/unit])
-
-
-function makeDimRow(i, d) {
+function cloneUnitCard() {
+  const tpl = document.getElementById('tpl-unit');
+  if (!tpl) return null;
+  const node = tpl.content.cloneNode(true);
   const div = document.createElement('div');
-  div.className = 'dimension-row row g-3 mb-2 align-items-end rounded-3 mx-0';
-  div.innerHTML = `
-    ${d?.id ? `<input type="hidden" name="dimensions[${i}][id]" value="${d.id}">` : ''}
-    <div class="col-md-4">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Side Name</label>
-      <div class="input-group">
-        <span class="input-group-text bg-light border-end-0"><i class="ti tabler-ruler text-muted"></i></span>
-        <input type="text" name="dimensions[${i}][name]" value="${d?.name ?? ''}"
-               required class="form-control border-start-0" placeholder="e.g. Length, Width, Front, Right">
-      </div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Size</label>
-      <div class="input-group">
-        <span class="input-group-text bg-light border-end-0"><i class="ti tabler-number text-muted"></i></span>
-        <input type="number" name="dimensions[${i}][size]" value="${d?.size ?? ''}"
-               step="0.01" required class="form-control border-start-0" placeholder="e.g 40, 12.21">
-      </div>
-    </div>
-    <div class="col-10 col-md-3">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Unit</label>
-      <select name="dimensions[${i}][unit]" class="form-select" required>
-        <option value="" disabled ${!d?.unit ? 'selected' : ''}>Select Unit</option>
-        <option value="inch"  ${d?.unit === 'inch' ? 'selected' : ''}>Inch</option>
-        <option value="feet"  ${d?.unit === 'feet' ? 'selected' : ''}>Feet</option>
-        <option value="meter" ${d?.unit === 'meter' ? 'selected' : ''}>Meter</option>
-        <option value="yard"  ${d?.unit === 'yard' ? 'selected' : ''}>Yard</option>
-      </select>
-    </div>
-    <div class="col-2 col-md-1 ps-0 pt-4 mt-1">
-      <button type="button" class="btn btn-remove-dim ps-3" title="Remove">
-        <i class="ti tabler-x icon-lg text-danger"></i>
-      </button>
-    </div>`;
-  return div;
+  div.appendChild(node);
+
+  let html = div.innerHTML;
+  html = html.replaceAll('__PREFIX__[units][__UNIT__]', 'MODAL__');
+
+  html = html.replace(/MODAL__\[([^\]]+)\]/g, '$1');
+
+  div.innerHTML = html;
+  return div.firstElementChild;
 }
 
-function buildDimRows(dimBlock, dims) {
-  const dimRowsEl = dimBlock.querySelector('.dim-rows');
-  dimRowsEl.innerHTML = '';
-  if (dims && dims.length) {
-    dims.forEach((d, i) => dimRowsEl.appendChild(makeDimRow(i, d)));
-  } else {
-    dimRowsEl.appendChild(makeDimRow(0));
-    dimRowsEl.appendChild(makeDimRow(1));
-  }
+
+function cloneRoomCard(namePrefix) {
+  const tpl = document.getElementById('tpl-room');
+  if (!tpl) return null;
+  const node = tpl.content.cloneNode(true);
+  const div = document.createElement('div');
+  div.appendChild(node);
+  div.innerHTML = div.innerHTML.replaceAll('__PREFIX__[rooms][__ROOM__]', namePrefix);
+  return div.firstElementChild;
 }
 
-// ─── Inline room card builder for Add Unit modal
-
-function makeAddUnitRoomCard(roomIdx) {
-  const roomTypes = window.roomTypesJson ?? [];
-  const amenities = window.amenitiesJson ?? [];
-
-  const card = document.createElement('div');
-  card.className = 'um-room-card border rounded-3 p-3 mb-2';
-  card.dataset.roomIdx = roomIdx;
-  card.innerHTML = `
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <span class="small fw-semibold text-muted text-uppercase">Room ${roomIdx + 1}</span>
-      <button type="button" class="btn btn-sm py-1 px-2 btn-remove-um-room rounded-pill btn-label-danger waves-effect" title="Remove room">
-        <i class="ti tabler-trash me-1"></i> Remove
-      </button>
-    </div>
-    <div class="row g-2 mb-3">
-      <div class="col-md-5">
-        <label class="form-label fw-semibold small text-uppercase text-muted required">Room Type</label>
-        <div class="input-group">
-          <span class="input-group-text bg-light border-end-0"><i class="ti tabler-door text-muted"></i></span>
-          <select name="rooms[${roomIdx}][room_type]" class="form-select border-start-0" required>
-            <option value="" disabled selected>Select type</option>
-            ${roomTypes.map(rt => `<option value="${rt.id}">${ucFirst(rt.title)}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      ${amenities.length ? `
-      <div class="col-12 mt-2">
-        <label class="form-label fw-semibold small text-uppercase text-muted mb-1">Amenities</label>
-        <div class="d-flex flex-wrap gap-2">
-          ${amenities.map(a => `
-            <label class="d-flex align-items-center gap-2 border rounded-3 px-2 py-1 user-select-none cursor-pointer">
-              <input class="form-check-input mt-0" type="checkbox"
-                     name="rooms[${roomIdx}][amenities][]" value="${a.id}">
-              <span class="small">${ucFirst(a.title)}</span>
-            </label>`).join('')}
-        </div>
-      </div>` : ''}
-    </div>
-
-    <label class="form-label fw-semibold small text-uppercase text-muted mb-1">
-      Dimensions <span class="fw-normal">(min 2, max 8)</span>
-    </label>
-    <div class="dim-block" data-room-idx="${roomIdx}">
-      <div class="dim-rows"></div>
-      <button type="button" class="btn btn-outline-secondary btn-sm mt-1 btn-add-room-dim" style="font-size:.72rem;">
-        <i class="ti tabler-plus me-1"></i> Add Dimension
-      </button>
-    </div>`;
-
-  const dimRowsEl = card.querySelector('.dim-rows');
-  dimRowsEl.appendChild(makeRoomDimRow(roomIdx, 0));
-  dimRowsEl.appendChild(makeRoomDimRow(roomIdx, 1));
-
-  return card;
-}
-
-// ─── Dimension validation (min 2, max 8, unique names)
+// ─── Dimension validation for modals (min 2, max 8, unique names)
 
 function validateModalDimensions(form) {
   form.querySelectorAll('.dim-name-error').forEach(el => el.remove());
@@ -137,25 +50,21 @@ function validateModalDimensions(form) {
   let valid = true;
 
   form.querySelectorAll('.dim-block').forEach(block => {
-    // Skip blocks that aren't currently in use (e.g. unit-dimension-section
-    // when the unit has rooms instead of being single-space, or vice versa)
     if (block.closest('.d-none')) return;
-
     const rows = block.querySelectorAll('.dimension-row');
 
     if (rows.length < 2) {
       const err = document.createElement('div');
       err.className = 'text-danger small mt-1 dim-name-error';
       err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>At least 2 dimensions are required.';
-      block.querySelector('.btn-add-dim, .btn-add-room-dim').insertAdjacentElement('beforebegin', err);
+      block.querySelector('.btn-add-dim')?.insertAdjacentElement('beforebegin', err);
       valid = false;
     }
-
     if (rows.length > 8) {
       const err = document.createElement('div');
       err.className = 'text-danger small mt-1 dim-name-error';
       err.innerHTML = '<i class="ti tabler-alert-circle me-1"></i>Maximum 8 dimensions allowed.';
-      block.querySelector('.btn-add-dim, .btn-add-room-dim').insertAdjacentElement('beforebegin', err);
+      block.querySelector('.btn-add-dim')?.insertAdjacentElement('beforebegin', err);
       valid = false;
     }
 
@@ -182,254 +91,11 @@ function validateModalDimensions(form) {
       }
     });
   });
-
   return valid;
 }
 
-// ─── Render room modal body
-
-function renderRoomModal(room) {
-  const amenities = window.amenitiesJson ?? [];
-  const roomTypes = window.roomTypesJson ?? [];
-  const selectedAm = parseAmenities(room?.amenities);
-
-  document.getElementById('room_modal_body').innerHTML = `
-    <div class="row g-3 mb-3">
-      <div class="col-md-5">
-        <label class="form-label fw-semibold small text-uppercase text-muted required">Room Type</label>
-        <div class="input-group">
-          <span class="input-group-text bg-light border-end-0"><i class="ti tabler-door text-muted"></i></span>
-          <select name="room_type" class="form-select border-start-0" required>
-            <option value="" disabled ${!room ? 'selected' : ''}>Select type</option>
-            ${roomTypes.map(rt => `<option value="${rt.id}" ${room?.room_type == rt.id ? 'selected' : ''}>${ucFirst(rt.title)}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-    </div>
-
-    ${amenities.length ? `
-    <label class="form-label fw-semibold small text-uppercase text-muted mb-2">Amenities</label>
-    <div class="d-flex flex-wrap gap-3 mb-3">
-      ${amenities.map(a => `
-        <label class="d-flex align-items-center gap-2 border rounded-3 px-3 py-2 user-select-none cursor-pointer">
-          <input class="form-check-input mt-0" type="checkbox" name="amenities[]" value="${a.id}"
-                 ${selectedAm.includes(Number(a.id)) ? 'checked' : ''}>
-          <span class="small">${ucFirst(a.title)}</span>
-        </label>`).join('')}
-    </div>` : ''}
-
-    <label class="form-label fw-semibold small text-uppercase text-muted mb-2">
-      Room Dimensions <span class="fw-normal">(min 2, max 8)</span>
-    </label>
-    <div class="dim-block">
-      <div class="dim-rows"></div>
-      <button type="button" class="btn btn-outline-secondary btn-sm mt-1 btn-add-dim" style="font-size:.72rem;">
-        <i class="ti tabler-plus me-1"></i> Add Dimension
-      </button>
-    </div>`;
-
-  buildDimRows(
-    document.querySelector('#room_modal_body .dim-block'),
-    room?.dimensions ?? null
-  );
-}
-
-// ─── Render unit modal body
-// ─── Inline room card (used in both add and edit unit modal)
-
-function makeInlineRoomCard(roomIdx, room) {
-  const roomTypes = window.roomTypesJson ?? [];
-  const amenities = window.amenitiesJson ?? [];
-  const selectedAm = parseAmenities(room?.amenities);
-  const p = `rooms[${roomIdx}]`;
-
-  const card = document.createElement('div');
-  card.className = 'um-room-card border rounded-3 p-3 mb-3';
-  card.dataset.roomIdx = roomIdx;
-  card.innerHTML = `
-    ${room?.id ? `<input type="hidden" name="${p}[id]" value="${room.id}">` : ''}
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <span class="small fw-semibold text-uppercase text-muted">Room ${roomIdx + 1}</span>
-      <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-remove-um-room rounded-pill btn-label-danger waves-effect" title="Remove">
-        <i class="ti tabler-trash"></i> Remove
-      </button>
-    </div>
-
-    <div class="row g-2 mb-3">
-      <div class="col-md-5">
-        <label class="form-label fw-semibold small text-uppercase text-muted required">Room Type</label>
-        <div class="input-group">
-          <span class="input-group-text bg-light border-end-0"><i class="ti tabler-door text-muted"></i></span>
-          <select name="${p}[room_type]" class="form-select border-start-0" required>
-            <option value="" disabled ${!room ? 'selected' : ''}>Select type</option>
-            ${roomTypes.map(rt => `<option value="${rt.id}" ${room?.room_type == rt.id ? 'selected' : ''}>${ucFirst(rt.title)}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-    </div>
-
-    ${amenities.length ? `
-    <label class="form-label fw-semibold small text-uppercase text-muted mb-1">Amenities</label>
-    <div class="d-flex flex-wrap gap-2 mb-3">
-      ${amenities.map(a => `
-        <label class="d-flex align-items-center gap-2 border rounded-3 px-2 py-1 user-select-none cursor-pointer">
-          <input class="form-check-input mt-0" type="checkbox" name="${p}[amenities][]" value="${a.id}"
-                 ${selectedAm.includes(Number(a.id)) ? 'checked' : ''}>
-          <span class="small">${ucFirst(a.title)}</span>
-        </label>`).join('')}
-    </div>` : ''}
-
-    <label class="form-label fw-semibold small text-uppercase text-muted mb-1">
-      Dimensions <span class="fw-normal">(min 2, max 8)</span>
-    </label>
-    <div class="dim-block" data-room-idx="${roomIdx}">
-      <div class="dim-rows"></div>
-      <button type="button" class="btn btn-outline-secondary btn-sm mt-1 btn-add-room-dim" style="font-size:.72rem;">
-        <i class="ti tabler-plus me-1"></i> Add Dimension
-      </button>
-    </div>`;
-
-  // Build dimension rows for this room using room-scoped names: rooms[i][dimensions][j][name]
-  const dimRowsEl = card.querySelector('.dim-rows');
-  const dims = room?.dimensions ?? null;
-  if (dims && dims.length) {
-    dims.forEach((d, j) => dimRowsEl.appendChild(makeRoomDimRow(roomIdx, j, d)));
-  } else {
-    dimRowsEl.appendChild(makeRoomDimRow(roomIdx, 0));
-    dimRowsEl.appendChild(makeRoomDimRow(roomIdx, 1));
-  }
-
-  return card;
-}
-
-// Dimension row scoped to a room card: rooms[i][dimensions][j][name/size/unit]
-function makeRoomDimRow(roomIdx, j, d) {
-  const p = `rooms[${roomIdx}][dimensions][${j}]`;
-  const div = document.createElement('div');
-  div.className = 'dimension-row row g-3 mb-2 align-items-end rounded-3 mx-0';
-  div.innerHTML = `
-    ${d?.id ? `<input type="hidden" name="${p}[id]" value="${d.id}">` : ''}
-    <div class="col-md-4">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Side Name</label>
-      <div class="input-group">
-        <span class="input-group-text bg-light border-end-0"><i class="ti tabler-ruler text-muted"></i></span>
-        <input type="text" name="${p}[name]" value="${d?.name ?? ''}"
-               required class="form-control border-start-0" placeholder="e.g. Length, Width">
-      </div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Size</label>
-      <div class="input-group">
-        <span class="input-group-text bg-light border-end-0"><i class="ti tabler-number text-muted"></i></span>
-        <input type="number" name="${p}[size]" value="${d?.size ?? ''}"
-               step="0.01" required class="form-control border-start-0" placeholder="e.g 40">
-      </div>
-    </div>
-    <div class="col-10 col-md-3">
-      <label class="form-label fw-semibold small text-uppercase text-muted required">Unit</label>
-      <select name="${p}[unit]" class="form-select" required>
-        <option value="" disabled ${!d?.unit ? 'selected' : ''}>Select Unit</option>
-        <option value="inch"  ${d?.unit === 'inch' ? 'selected' : ''}>Inch</option>
-        <option value="feet"  ${d?.unit === 'feet' ? 'selected' : ''}>Feet</option>
-        <option value="meter" ${d?.unit === 'meter' ? 'selected' : ''}>Meter</option>
-        <option value="yard"  ${d?.unit === 'yard' ? 'selected' : ''}>Yard</option>
-      </select>
-    </div>
-    <div class="col-2 col-md-1 ps-0 pt-4 mt-1">
-      <button type="button" class="btn btn-remove-room-dim ps-3" title="Remove">
-        <i class="ti tabler-x icon-lg text-danger"></i>
-      </button>
-    </div>`;
-  return div;
-}
-
-function renderUnitModal(unit, floorId, isEdit, unitForm) {
-  const unitTypes = window.unitTypesJson ?? [];
-  const amenities = window.amenitiesJson ?? [];
-  const isSingleRoom = unit
-    ? (!unit.rooms || unit.rooms.length === 0) && unit.dimensions?.length > 0
-    : false;
-  const selectedAm = parseAmenities(unit?.amenities);
-  const rooms = unit?.rooms ?? [];
-
-  // Set section value
-  unitForm.querySelector('[name="section"]').value = isEdit
-    ? (isSingleRoom ? 'specifications' : 'unit_full')
-    : 'unit';
-
-  document.getElementById('unit_modal_body').innerHTML = `
-    <div class="row g-3 mb-3">
-      <div class="col-md-4">
-        <label class="form-label fw-semibold small text-uppercase text-muted required">Unit Name</label>
-        <input type="text" name="unit_name" value="${unit?.unit_name ?? ''}"
-               class="form-control" placeholder="e.g. Suite A" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label fw-semibold small text-uppercase text-muted required">Unit Type</label>
-        <select name="unit_type" class="form-select" required>
-          <option value="" disabled ${!unit ? 'selected' : ''}>Select type</option>
-          ${unitTypes.map(ut => `<option value="${ut.id}" ${unit?.unit_type == ut.id ? 'selected' : ''}>${ucFirst(ut.title)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-
-    <div class="form-check mt-2 mb-3">
-      <input class="form-check-input no_rooms_check" type="checkbox"
-             name="no_rooms" value="1" id="um_no_rooms" ${isSingleRoom ? 'checked' : ''}>
-      <label class="form-check-label fw-semibold" for="um_no_rooms">
-        This unit has no further room divisions (single space).
-      </label>
-    </div>
-
-    ${amenities.length ? `
-    <div class="unit-amenities-section ${isSingleRoom ? '' : 'd-none'}">
-      <label class="form-label fw-semibold small text-uppercase text-muted mb-2">Amenities</label>
-      <div class="d-flex flex-wrap gap-3 mb-3">
-        ${amenities.map(a => `
-          <label class="d-flex align-items-center gap-2 border rounded-3 px-3 py-2 user-select-none cursor-pointer">
-            <input class="form-check-input mt-0" type="checkbox" name="amenities[]" value="${a.id}"
-                   ${selectedAm.includes(Number(a.id)) ? 'checked' : ''}>
-            <span class="small">${ucFirst(a.title)}</span>
-          </label>`).join('')}
-      </div>
-    </div>` : ''}
-
-    <div class="unit-dimension-section ${isSingleRoom ? '' : 'd-none'}">
-      <label class="small form-label fw-semibold text-uppercase text-muted">
-        Unit Dimensions <span class="fw-normal">(min 2, max 8)</span>
-      </label>
-      <div class="mb-3 dim-block">
-        <div class="dim-rows"></div>
-        <button type="button" class="btn btn-outline-secondary btn-sm mt-1 btn-add-dim" style="font-size:.72rem;">
-          <i class="ti tabler-plus me-1"></i> Add Dimension
-        </button>
-      </div>
-    </div>
-
-    <div class="unit-rooms-section ${isSingleRoom ? 'd-none' : ''}">
-      <p class="small fw-semibold text-uppercase text-muted mb-2">Rooms in this unit</p>
-      <div id="um_rooms_container"></div>
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 mt-1 rounded-pill px-3 py-1 btn-add-um-room"
-              data-room-count="${rooms.length}">
-        <i class="ti tabler-plus me-1"></i> Add Room
-      </button>
-    </div>`;
-
-  // Fill unit dimensions (single-space mode)
-  if (isSingleRoom && unit?.dimensions?.length) {
-    buildDimRows(
-      document.querySelector('#unit_modal_body .unit-dimension-section .dim-block'),
-      unit.dimensions
-    );
-  }
-
-  // Fill existing rooms inline
-  const container = document.getElementById('um_rooms_container');
-  rooms.forEach((room, idx) => container.appendChild(makeInlineRoomCard(idx, room)));
-}
-
 // ─── Add Floor Modal
+// Identical to original — uses cloneTpl/addRoom/addUnit/handleDimClicks from common.
 
 document.getElementById('add_floor_modal')?.addEventListener('show.bs.modal', function() {
   editFloorCount = document.querySelectorAll('#edit-floors-container > .floor-item').length;
@@ -437,6 +103,7 @@ document.getElementById('add_floor_modal')?.addEventListener('show.bs.modal', fu
   container.innerHTML = '';
   const fPrefix = 'floors[0]';
   const floorEl = cloneTpl('tpl-floor', { '__PREFIX__': fPrefix });
+  if (!floorEl) return;
   floorEl.dataset.floorPrefix = fPrefix;
   if (!editIsResidential) floorEl.querySelector('.units-section-wrapper')?.classList.remove('d-none');
   floorEl.querySelector('.btn-add-floor-room')?.setAttribute('data-floor-prefix', fPrefix);
@@ -449,7 +116,6 @@ document.getElementById('add_floor_modal')?.addEventListener('show.bs.modal', fu
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#add_floor_modal')) return;
 
-  // dims handled by common (floor/room templates use tpl-dim-row with proper prefix — correct here)
   handleDimClicks(e);
 
   if (e.target.closest('.btn-add-floor-room')) {
@@ -509,16 +175,12 @@ function openRoomModal(btn) {
   document.getElementById('room_modal_unit_id').value = unitId;
 
   const roomForm = document.getElementById('room_form');
-  const unitRoute = window.unitUpdateRoute ?? '/unit/update';
-  const floorRoute = window.floorRoomRoute ?? '/floor-room/store';
-
-  if (unitId) {
-    roomForm.action = unitRoute;
-    roomForm.querySelector('[name="section"]').value = isEdit ? 'edit_room' : 'add_room';
-  } else {
-    roomForm.action = floorRoute;
-    roomForm.querySelector('[name="section"]').value = isEdit ? 'edit' : 'store';
-  }
+  roomForm.action = unitId
+    ? (window.unitUpdateRoute ?? '/unit/update')
+    : (window.floorRoomRoute ?? '/floor-room/store');
+  roomForm.querySelector('[name="section"]').value = unitId
+    ? (isEdit ? 'edit_room' : 'add_room')
+    : (isEdit ? 'edit' : 'store');
 
   if (!isEdit) {
     renderRoomModal(null);
@@ -539,46 +201,101 @@ function openRoomModal(btn) {
   }
 }
 
-// ─── Dim add/remove inside room_modal and unit_modal // Uses makeDimRow — NOT handleDimClicks — to produce flat dimensions[i] names.
+function renderRoomModal(room) {
+  const body = document.getElementById('room_modal_body');
+  body.innerHTML = '';
 
+  // Clone tpl-room with a throwaway prefix, take inner .p-3 content only,
+  const card = cloneRoomCard('FLAT_ROOM');
+  if (!card) return;
+
+  const inner = card.querySelector('.p-3') ?? card;
+  body.appendChild(inner);
+
+  // Rename room_type → flat "room_type"
+  const roomTypeSel = body.querySelector('select[name="FLAT_ROOM[room_type]"]');
+  if (roomTypeSel) roomTypeSel.name = 'room_type';
+
+  // Rename amenities → flat "amenities[]"
+  body.querySelectorAll('input[name="FLAT_ROOM[amenities][]"]').forEach(cb => {
+    cb.name = 'amenities[]';
+  });
+
+  // dim-block: set data-prefix to '' so handleDimClicks / addDimRow
+
+  const dimBlock = body.querySelector('.dim-block');
+  if (dimBlock) dimBlock.dataset.prefix = 'FLAT_ROOM';
+
+  // Pre-fill or seed dim rows
+  const $dimBlock = $(dimBlock);
+  const dims = room?.dimensions ?? [];
+
+  if (room) {
+    if (roomTypeSel && room.room_type) roomTypeSel.value = room.room_type;
+
+    const selAm = parseAmenities(room.amenities);
+    body.querySelectorAll('input[name="amenities[]"]').forEach(cb => {
+      cb.checked = selAm.includes(Number(cb.value));
+    });
+
+    dims.forEach((d, i) => {
+      const row = buildFlatDimRow(i, d);
+      dimBlock.querySelector('.dim-rows').appendChild(row);
+    });
+  } else {
+    dimBlock.querySelector('.dim-rows').appendChild(buildFlatDimRow(0));
+    dimBlock.querySelector('.dim-rows').appendChild(buildFlatDimRow(1));
+  }
+}
+
+// Build a flat dimension row: dimensions[i][name/size/unit]
+function buildFlatDimRow(i, d) {
+  const node = cloneTpl('tpl-dim-row', { '__PREFIX__': 'FLAT_DIM', '__DIM__': i });
+  if (!node) return document.createElement('div');
+  node.querySelector('[name*="[name]"]').name = `dimensions[${i}][name]`;
+  node.querySelector('[name*="[size]"]').name = `dimensions[${i}][size]`;
+  node.querySelector('[name*="[unit]"]').name = `dimensions[${i}][unit]`;
+  if (d) {
+    node.querySelector(`[name="dimensions[${i}][name]"]`).value = d.name ?? '';
+    node.querySelector(`[name="dimensions[${i}][size]"]`).value = d.size ?? '';
+    const unitSel = node.querySelector(`[name="dimensions[${i}][unit]"]`);
+    [...unitSel.options].forEach(o => {
+      o.selected = o.value === (d.unit ?? '');
+    });
+    if (d.id) {
+      const h = Object.assign(document.createElement('input'), {
+        type: 'hidden', name: `dimensions[${i}][id]`, value: d.id
+      });
+      node.prepend(h);
+    }
+  }
+  return node;
+}
+
+// Delegated dim add/remove inside room_modal — uses buildFlatDimRow
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('#room_modal') && !e.target.closest('#unit_modal')) return;
+  if (!e.target.closest('#room_modal')) return;
 
-  // Unit-level dim add/remove (single-space mode)
   if (e.target.closest('.btn-add-dim')) {
     e.stopPropagation();
-    const block = e.target.closest('.btn-add-dim').closest('.dim-block');
-    const count = block.querySelectorAll('.dimension-row').length;
-    block.querySelector('.dim-rows').appendChild(makeDimRow(count));
+    const dimRows = document.querySelector('#room_modal_body .dim-rows');
+    if (!dimRows) return;
+    const i = dimRows.querySelectorAll('.dimension-row').length;
+    dimRows.appendChild(buildFlatDimRow(i));
     return;
   }
   if (e.target.closest('.btn-remove-dim')) {
     e.stopPropagation();
-    const dimRows = e.target.closest('.btn-remove-dim').closest('.dim-rows');
-    if (dimRows.querySelectorAll('.dimension-row').length > 1) {
+    const dimRows = e.target.closest('.dim-rows');
+    if (dimRows && dimRows.querySelectorAll('.dimension-row').length > 1) {
       e.target.closest('.dimension-row').remove();
+      // Re-index
+      dimRows.querySelectorAll('.dimension-row').forEach((row, idx) => {
+        row.querySelectorAll('[name*="dimensions"]').forEach(el => {
+          el.name = el.name.replace(/dimensions\[\d+\]/, `dimensions[${idx}]`);
+        });
+      });
     }
-    return;
-  }
-
-  // Room-card dim add/remove (rooms[i][dimensions][j]) — used by both
-  // Add Unit room cards and Edit Unit room cards.
-  if (e.target.closest('.btn-add-room-dim')) {
-    e.stopPropagation();
-    const card = e.target.closest('.um-room-card');
-    const roomIdx = parseInt(card.dataset.roomIdx);
-    const dimRows = card.querySelector('.dim-rows');
-    const j = dimRows.querySelectorAll('.dimension-row').length;
-    dimRows.appendChild(makeRoomDimRow(roomIdx, j));
-    return;
-  }
-  if (e.target.closest('.btn-remove-room-dim')) {
-    e.stopPropagation();
-    const dimRows = e.target.closest('.btn-remove-room-dim').closest('.dim-rows');
-    if (dimRows.querySelectorAll('.dimension-row').length > 1) {
-      e.target.closest('.dimension-row').remove();
-    }
-    return;
   }
 });
 
@@ -589,7 +306,7 @@ document.getElementById('room_form')?.addEventListener('submit', function(e) {
   }
 });
 
-// ─── Unit Modal (Add / Edit
+// ─── Unit Modal (Add / Edit)
 
 document.getElementById('unit_modal')?.addEventListener('show.bs.modal', function(e) {
   const btn = e.relatedTarget;
@@ -604,7 +321,6 @@ document.getElementById('unit_modal')?.addEventListener('show.bs.modal', functio
 
   const unitForm = document.getElementById('unit_form');
   unitForm.action = window.unitUpdateRoute ?? '/unit/update';
-  unitForm.querySelector('[name="property_id"]')?.remove();
 
   let uf = unitForm.querySelector('[name="unit_id"]');
   if (!uf) {
@@ -634,10 +350,186 @@ document.getElementById('unit_modal')?.addEventListener('show.bs.modal', functio
   }
 });
 
-// ─── Delegated clicks inside unit_modal
+function renderUnitModal(unit, floorId, isEdit, unitForm) {
+  const isSingle = unit
+    ? (!unit.rooms || unit.rooms.length === 0) && (unit.dimensions?.length > 0)
+    : false;
+  const rooms = unit?.rooms ?? [];
+
+  unitForm.querySelector('[name="section"]').value = isEdit
+    ? (isSingle ? 'specifications' : 'unit_full')
+    : 'unit';
+
+  // ── Clone tpl-unit with flat field names
+  const card = cloneUnitCard();
+  if (!card) return;
+
+  // tpl-unit wraps everything in .unit-item with a header (.unit_header + remove btn)
+  // and .p-3 body. For the modal we only need the .p-3 inner content.
+  const inner = card.querySelector('.p-3') ?? card;
+  const body = document.getElementById('unit_modal_body');
+  body.innerHTML = '';
+  body.appendChild(inner);
+
+  // ── Pre-fill unit_name and unit_type
+  const unitNameInput = body.querySelector('[name="unit_name"]');
+  if (unitNameInput && unit?.unit_name) unitNameInput.value = unit.unit_name;
+
+  const unitTypeSel = body.querySelector('[name="unit_type"]');
+  if (unitTypeSel && unit?.unit_type) unitTypeSel.value = unit.unit_type;
+
+  // ── no_rooms checkbox state
+  const noRoomsCheck = body.querySelector('.no_rooms_check');
+  if (noRoomsCheck) noRoomsCheck.checked = isSingle;
+
+  // ── Show/hide sections based on isSingle
+  body.querySelector('.unit-amenities-section')?.classList.toggle('d-none', !isSingle);
+  body.querySelector('.unit-dimension-section')?.classList.toggle('d-none', !isSingle);
+  body.querySelector('.unit-rooms-section')?.classList.toggle('d-none', isSingle);
+
+  // ── Pre-fill amenities (unit-level, single-space mode)
+  if (isSingle) {
+    const selAm = parseAmenities(unit?.amenities);
+    body.querySelectorAll('input[name="amenities[]"]').forEach(cb => {
+      cb.checked = selAm.includes(Number(cb.value));
+    });
+  }
+
+  // ── dim-block: data-prefix is '' after cloneUnitCard regex cleanup,
+  const dimBlock = body.querySelector('.unit-dimension-section .dim-block');
+  if (dimBlock) {
+    const dimRows = dimBlock.querySelector('.dim-rows');
+    dimRows.innerHTML = '';
+    if (isSingle) {
+      const dims = unit?.dimensions ?? [];
+      if (dims.length) {
+        dims.forEach((d, i) => dimRows.appendChild(buildFlatDimRow(i, d)));
+      } else {
+        dimRows.appendChild(buildFlatDimRow(0));
+        dimRows.appendChild(buildFlatDimRow(1));
+      }
+    }
+
+    dimBlock.dataset.prefix = 'UNIT_MODAL_DIM';
+  }
+
+  // ── Rename rooms container + add-room button for unit modal
+  const roomsContainer = body.querySelector('.unit-rooms-container');
+  if (roomsContainer) roomsContainer.id = 'um_rooms_container';
+
+  const addRoomBtn = body.querySelector('.btn-add-unit-room');
+  if (addRoomBtn) {
+    addRoomBtn.dataset.roomCount = rooms.length;
+    addRoomBtn.classList.add('btn-add-um-room');
+    addRoomBtn.classList.remove('btn-add-unit-room');
+  }
+
+  // ── Seed inline room cards (add mode: use tpl-room via cloneRoomCard)
+  const container = body.querySelector('#um_rooms_container');
+  if (container) {
+    rooms.forEach((room, idx) => appendUnitRoomCard(container, idx, room));
+  }
+}
+
+// Append one inline room card using tpl-room.
+// namePrefix='rooms[idx]' → rooms[idx][room_type], rooms[idx][dimensions][j][name] ✓
+function appendUnitRoomCard(container, roomIdx, room) {
+  const namePrefix = `rooms[${roomIdx}]`;
+  const card = cloneRoomCard(namePrefix);
+  if (!card) return;
+
+  card.dataset.roomIdx = roomIdx;
+
+  // Set dim-block data-prefix so handleDimClicks / addDimRow work correctly
+  const dimBlock = card.querySelector('.dim-block');
+  if (dimBlock) dimBlock.dataset.prefix = namePrefix;
+
+  if (room) {
+    const sel = card.querySelector(`select[name="${namePrefix}[room_type]"]`);
+    if (sel && room.room_type) sel.value = room.room_type;
+
+    const selAm = parseAmenities(room.amenities);
+    card.querySelectorAll(`input[name="${namePrefix}[amenities][]"]`).forEach(cb => {
+      cb.checked = selAm.includes(Number(cb.value));
+    });
+
+    if (room.id) {
+      const h = Object.assign(document.createElement('input'), {
+        type: 'hidden', name: `${namePrefix}[id]`, value: room.id
+      });
+      card.prepend(h);
+    }
+
+    const $dimBlock = $(dimBlock);
+    (room.dimensions ?? []).forEach((d, j) => {
+      addDimRow($dimBlock, namePrefix);
+      const rows = dimBlock.querySelectorAll('.dimension-row');
+      const row = rows[rows.length - 1];
+      row.querySelector('[name*="[name]"]').value = d.name ?? '';
+      row.querySelector('[name*="[size]"]').value = d.size ?? '';
+      const unitSel = row.querySelector('[name*="[unit]"]');
+      [...unitSel.options].forEach(o => {
+        o.selected = o.value === (d.unit ?? '');
+      });
+      if (d.id) {
+        const h = Object.assign(document.createElement('input'), {
+          type: 'hidden', name: `${namePrefix}[dimensions][${j}][id]`, value: d.id
+        });
+        row.prepend(h);
+      }
+    });
+  } else {
+    const $dimBlock = $(dimBlock);
+    addDimRow($dimBlock, namePrefix);
+    addDimRow($dimBlock, namePrefix);
+  }
+
+  // Swap remove button: .btn-remove-room → .btn-remove-um-room
+  const removeBtn = card.querySelector('.btn-remove-room');
+  if (removeBtn) {
+    removeBtn.classList.remove('btn-remove-room');
+    removeBtn.classList.add('btn-remove-um-room');
+  }
+
+  container.appendChild(card);
+}
+
+// ─── Delegated clicks inside unit_modal ───────────────────────────────────────
 
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#unit_modal')) return;
+
+  // Room-card dim add/remove — handleDimClicks works because data-prefix=namePrefix is set
+  // Unit-level dim-block has data-prefix='UNIT_MODAL_DIM' so handleDimClicks won't
+  // accidentally use it with a wrong prefix — we intercept it below instead.
+  if (!e.target.closest('.unit-dimension-section')) {
+    handleDimClicks(e);
+  }
+
+  // Unit-level dim add — produces dimensions[i][name/size/unit]
+  if (e.target.closest('.unit-dimension-section .btn-add-dim')) {
+    e.stopPropagation();
+    const dimRows = document.querySelector('#unit_modal_body .unit-dimension-section .dim-rows');
+    if (!dimRows) return;
+    const i = dimRows.querySelectorAll('.dimension-row').length;
+    dimRows.appendChild(buildFlatDimRow(i));
+    return;
+  }
+
+  // Unit-level dim remove
+  if (e.target.closest('.unit-dimension-section .btn-remove-dim')) {
+    e.stopPropagation();
+    const dimRows = e.target.closest('.dim-rows');
+    if (dimRows && dimRows.querySelectorAll('.dimension-row').length > 1) {
+      e.target.closest('.dimension-row').remove();
+      dimRows.querySelectorAll('.dimension-row').forEach((row, idx) => {
+        row.querySelectorAll('[name*="dimensions"]').forEach(el => {
+          el.name = el.name.replace(/dimensions\[\d+\]/, `dimensions[${idx}]`);
+        });
+      });
+    }
+    return;
+  }
 
   // no_rooms toggle
   if (e.target.closest('.no_rooms_check')) {
@@ -654,64 +546,65 @@ document.addEventListener('click', function(e) {
       unitForm.querySelector('[name="section"]').value = checked ? 'specifications' : 'unit_full';
     }
     if (checked) {
-      const dimBlock = modal.querySelector('.unit-dimension-section .dim-block');
-      if (dimBlock && !dimBlock.querySelectorAll('.dimension-row').length) {
-        dimBlock.querySelector('.dim-rows').appendChild(makeDimRow(0));
-        dimBlock.querySelector('.dim-rows').appendChild(makeDimRow(1));
+      const dimRows = modal.querySelector('.unit-dimension-section .dim-rows');
+      if (dimRows && !dimRows.querySelectorAll('.dimension-row').length) {
+        dimRows.appendChild(buildFlatDimRow(0));
+        dimRows.appendChild(buildFlatDimRow(1));
       }
     } else {
-      modal.querySelector('.unit-dimension-section .dim-block .dim-rows').innerHTML = '';
+      const dimRows = modal.querySelector('.unit-dimension-section .dim-rows');
+      if (dimRows) dimRows.innerHTML = '';
     }
     return;
   }
 
-  // Add room card (add-unit mode AND edit-unit "switched back to has rooms" mode)
-  // — uses makeAddUnitRoomCard so the section stays 'unit' / 'unit_full' compatible
+  // Add inline room card
   if (e.target.closest('.btn-add-um-room')) {
     const btn = e.target.closest('.btn-add-um-room');
     const roomIdx = parseInt(btn.dataset.roomCount ?? 0);
     const container = document.getElementById('um_rooms_container');
-    container.appendChild(makeAddUnitRoomCard(roomIdx));
+    appendUnitRoomCard(container, roomIdx, null);
     btn.dataset.roomCount = roomIdx + 1;
     return;
   }
 
-  // Remove inline room card
+  // Remove inline room card — re-index remaining
   if (e.target.closest('.btn-remove-um-room')) {
+    e.target.closest('.room-item').remove();
     const container = document.getElementById('um_rooms_container');
-    e.target.closest('.um-room-card').remove();
-    // Re-number remaining cards so rooms[0], rooms[1]... stay sequential
-    container.querySelectorAll('.um-room-card').forEach((card, idx) => {
+    const addBtn = document.querySelector('#unit_modal .btn-add-um-room');
+
+    container.querySelectorAll('.room-item').forEach((card, idx) => {
+      const oldPrefix = `rooms[${card.dataset.roomIdx}]`;
+      const newPrefix = `rooms[${idx}]`;
       card.dataset.roomIdx = idx;
-      card.querySelector('.small.fw-semibold.text-muted').textContent = `Room ${idx + 1}`;
       card.querySelectorAll('[name]').forEach(el => {
-        el.name = el.name.replace(/rooms\[\d+\]/, `rooms[${idx}]`);
+        el.name = el.name.replace(oldPrefix, newPrefix);
       });
       card.querySelectorAll('.dim-block').forEach(block => {
-        block.dataset.roomIdx = idx;
+        if (block.dataset.prefix === oldPrefix) block.dataset.prefix = newPrefix;
       });
     });
+
+    if (addBtn) addBtn.dataset.roomCount = container.querySelectorAll('.room-item').length;
     return;
   }
 });
 
-
-// ─── Form submit handlers
+// ─── Unit form submit ──────────────────────────────────────────────────────────
 
 document.getElementById('unit_form')?.addEventListener('submit', function(e) {
-  const isSingleSpace = document.getElementById('um_no_rooms')?.checked;
+  const isSingleSpace = document.getElementById('um_no_rooms')?.checked
+    ?? document.querySelector('#unit_modal_body .no_rooms_check')?.checked;
 
-  // Validate ALL dimension blocks present in the form — the unit-level dims
-  // (single-space mode) AND every room card's dimensions (Add Unit + Edit Unit).
   if (!validateModalDimensions(this)) {
     notify('Please fix the errors before submitting.', 'error');
     e.preventDefault();
     return;
   }
 
-  // When rooms are shown, ensure at least one room card exists
   if (!isSingleSpace) {
-    const roomCards = document.querySelectorAll('#um_rooms_container .um-room-card');
+    const roomCards = document.querySelectorAll('#um_rooms_container .room-item');
     if (!roomCards.length) {
       notify('Please add at least one room.', 'error');
       e.preventDefault();

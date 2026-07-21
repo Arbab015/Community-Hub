@@ -110,9 +110,10 @@
 
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
-                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center detail_section">01</span>
+                class="badge bg-primary rounded-circle d-inline-flex align-items-center justify-content-center section_no">01</span>
               <h5 class="mb-0 fw-bold">Society Details</h5>
             </div>
+
 
             <div class="row g-4">
               <div class="col-md-6">
@@ -133,7 +134,7 @@
                         class="form-select select2 @error('country') is-invalid @enderror"
                         data-allow-clear="true">
                   <option value="">Select Society Country</option>
-                  @foreach(['Pakistan','Australia','Bangladesh','Belarus','Brazil','Canada','China','France','Germany','India','Indonesia','Israel','Italy','Japan','Korea','Mexico','Philippines','Russia','South Africa','Thailand','Turkey','Ukraine','United Arab Emirates','United Kingdom','United States'] as $country)
+                  @foreach(['pakistan' => 'Pakistan', 'uae' => 'UAE', 'saudi arabia' => 'Saudi Arabia', 'uk' => 'UK', 'usa' => 'USA'] as $country)
                     <option
                       value="{{ $country }}" {{ old('country', $society->country ?? '') == $country ? 'selected' : '' }}>
                       {{ $country }}
@@ -155,8 +156,11 @@
               </div>
 
               <div class="col-md-6">
-                <label class="form-label fw-semibold small text-uppercase text-muted required"
-                       for="address">Address</label>
+                <label class="form-label fw-semibold small text-uppercase text-muted required" for="address">
+                  Address
+                  <span id="location_status" class="text-muted normal-case fw-normal ms-1"
+                        style="text-transform: none; font-size: 0.7rem;"></span>
+                </label>
                 <input type="text" id="address" name="address" required
                        class="form-control @error('address') is-invalid @enderror"
                        placeholder="Enter complete society address"
@@ -310,5 +314,72 @@
       }
     });
     @endif
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const addressInput = document.getElementById('address');
+      const cityInput = document.getElementById('city');
+      const postalInput = document.getElementById('postal_code');
+      const countrySelect = document.getElementById('country');
+      const statusEl = document.getElementById('location_status');
+
+      // Only auto-fill on a fresh create form, and only if fields are empty
+      const isEditing = @json(isset($society));
+      if (isEditing || !addressInput || addressInput.value.trim() !== '') return;
+
+      if (!navigator.geolocation) return;
+
+      if (statusEl) statusEl.textContent = 'Detecting location...';
+
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          const { latitude, longitude } = position.coords;
+          console.log('Latitude:', latitude, 'Longitude:', longitude);
+          if (statusEl) statusEl.textContent = 'Fetching address...';
+
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`, {
+            headers: { 'Accept': 'application/json' }
+          })
+            .then(res => res.json())
+            .then(data => {
+              const addr = data.address || {};
+
+              if (addressInput) {
+                addressInput.value = data.name || data.road || '';
+              }
+              if (cityInput) {
+                cityInput.value = addr.city || addr.state_district || addr.county || addr.town || addr.village || '';
+              }
+              if (postalInput && addr.postcode) {
+                postalInput.value = addr.postcode.replace(/[^0-9]/g, '');
+              }
+
+              let countryMatched = false;
+              if (countrySelect && addr.country) {
+                const countryName = addr.country.trim().toLowerCase();
+                for (const opt of countrySelect.options) {
+                  if (opt.value.toLowerCase() === countryName) {
+                    countrySelect.value = opt.value;
+                    countryMatched = true;
+                    break;
+                  }
+                }
+                if (window.jQuery && jQuery(countrySelect).data('select2')) {
+                  jQuery(countrySelect).val(countrySelect.value).trigger('change');
+                }
+              }
+
+              if (statusEl) {
+                statusEl.textContent = countryMatched ? '(auto-filled)' : '(auto-filled, pick country manually)';
+              }
+            })
+            .catch(function() {
+              if (statusEl) statusEl.textContent = '';
+            });
+        },
+        function(error) {
+          if (statusEl) statusEl.textContent = '';
+        }
+      );
+    });
   </script>
 @endpush

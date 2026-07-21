@@ -2,19 +2,20 @@
   <div class="card-body p-0">
     @forelse($posts as $post)
       @php
-        $isAuthor = auth()->id() === $post->user_id;
-        $noComments = $post->comments->count() === 0;
-        $reported_post = in_array($post->id, $reportedIds);
-        $roleMember = Auth()->user()->hasRole('Society Member');
-        $showPost = false;
-        $slug = isset($slug) ? $slug : 'my_posts';
-        if($slug === 'my_posts') {
-        $showPost = !$reported_post && (!$post->blocked || $isAuthor);
-        } elseif($slug === 'blocked_posts') {
-        $showPost = !$reported_post && $post->blocked;
-        } elseif($slug === 'requested_posts') {
-        $showPost = !$reported_post && $post->blocked && $post->is_unblock_requested;
-          }
+        //        dd($post);
+                  $isAuthor = auth()->id() === $post->user_id;
+                  $noComments = $post->comments->count() === 0;
+                  $reported_post = in_array($post->id, $reportedIds);
+                  $roleMember = Auth()->user()->hasRole('Society Member');
+                  $showPost = false;
+                  $slug = isset($slug) ? $slug : 'my_posts';
+                  if($slug === 'my_posts') {
+                  $showPost = !$reported_post && (!$post->blocked || $isAuthor);
+                  } elseif($slug === 'blocked_posts') {
+                  $showPost = !$reported_post && $post->blocked;
+                  } elseif($slug === 'requested_posts') {
+                  $showPost = !$reported_post && $post->blocked && $post->is_unblock_requested;
+                    }
       @endphp
       @if($showPost)
         <div class="post-item" data-id="{{ $post->id }}">

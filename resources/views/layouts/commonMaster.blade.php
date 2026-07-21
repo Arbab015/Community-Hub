@@ -95,8 +95,7 @@
     </style>
   @endif
 
-  <link rel="stylesheet" href="{{ asset('backend/css/style.css') }}">
-  <link rel="stylesheet" href="{{ asset('frontend/css/style.css') }}">
+
   <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
 
   <!-- Include Scripts for customizer, helper, analytics, config -->
@@ -106,19 +105,12 @@
 
 
   @stack('styles')
+  <link rel="stylesheet" href="{{ asset('backend/css/style.css') }}">
+  <link rel="stylesheet" href="{{ asset('frontend/css/style.css') }}">
 </head>
 
 <body>
-{{-- <div class="progress fixed-top" style="height:6px; z-index:1055;">
-  <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary " style="width: 100%">
-  </div>
-</div>
 
-<script>
-  window.onload = function() {
-    document.querySelector('.progress').style.display = 'none';
-  };
-</script> --}}
 <!-- Layout Content -->
 @yield('layoutContent')
 <!--/ Layout Content -->

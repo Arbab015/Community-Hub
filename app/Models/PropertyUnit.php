@@ -56,4 +56,9 @@ class PropertyUnit extends Model
     {
         return $this->morphOne(PropertyListing::class, 'listable');
     }
+
+    public function favourites()
+    {
+        return $this->morphMany(VisitorFavourite::class, 'favouritable');
+    }
 }

@@ -405,13 +405,17 @@
               {{-- Street --}}
               <div class="col-md-4">
                 <label for="street"
-                       class="form-label fw-semibold small text-uppercase text-muted required">Street</label>
+                       class="form-label fw-semibold small text-uppercase text-muted required">
+                  Street
+                  <span id="street_location_status" class="text-muted normal-case fw-normal ms-1"
+                        style="text-transform: none; font-size: 0.7rem;"></span>
+                </label>
                 <div class="input-group">
                   <span class="input-group-text bg-light border-end-0"><i class="ti tabler-road text-muted"></i></span>
                   <input type="text" id="street" name="street"
                          value="{{ old('street', $property->street ?? '') }}"
                          class="form-control border-start-0 @error('street') is-invalid @enderror"
-                         required placeholder="Street-7">
+                         required placeholder="Street-7" autocomplete="street-address">
                 </div>
                 @error('street')
                 <div class="text-danger small mt-1"><i class="ti tabler-alert-circle me-1"></i>{{ $message }}</div>
@@ -749,5 +753,84 @@
       @endif
       window.isResidential = {{ isset($property) && $property->category === 'residential' ? 'true' : 'false' }};
     window.initialFloorCount = {{ count(old('floors', [])) }};
+
+
+    const isEditingProperty = @json(isset($property));
+    const streetStatusEl = document.getElementById('street_location_status');
+
+    if (!isEditingProperty && 'geolocation' in navigator) {
+      const streetField = document.getElementById('street');
+
+      if (streetField && streetField.value.trim() === '') {
+        if (streetStatusEl) streetStatusEl.textContent = 'Detecting location...';
+
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            if (streetStatusEl) streetStatusEl.textContent = 'Fetching address...';
+            fillAddressFromLocation(position.coords.latitude, position.coords.longitude);
+          },
+          function(error) {
+            if (streetStatusEl) streetStatusEl.textContent = '';
+          },
+          { enableHighAccuracy: true }
+        );
+      }
+    }
+
+    function fillAddressFromLocation(lat, lng) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`, {
+        headers: { 'Accept': 'application/json' }
+      })
+        .then(res => res.json())
+        .then(data => {
+          const addr = data.address || {};
+          const streetInput = document.getElementById('street');
+          const landmarkInput = document.getElementById('landmark');
+
+          let streetFilled = false;
+          if (streetInput && streetInput.value.trim() === '') {
+            const value = buildStreetString(addr, data.display_name);
+            streetInput.value = value;
+            streetFilled = !!value;
+          }
+
+          if (landmarkInput && landmarkInput.value.trim() === '') {
+            const landmark = addr.neighbourhood || addr.suburb || '';
+            if (landmark) landmarkInput.value = landmark;
+          }
+
+          if (streetStatusEl) {
+            streetStatusEl.textContent = streetFilled ? '(auto-filled)' : '(please enter manually)';
+          }
+        })
+        .catch(function() {
+          if (streetStatusEl) streetStatusEl.textContent = '';
+        });
+    }
+
+    function buildStreetString(addr, fallbackDisplayName) {
+      const road = addr.road || addr.pedestrian || addr.footway || addr.residential;
+
+      if (road && addr.house_number) {
+        return `${addr.house_number} ${road}`;
+      }
+      if (road) {
+        return road;
+      }
+
+      const areaFallback = addr.neighbourhood || addr.suburb || addr.quarter
+        || addr.city_district || addr.town || addr.village;
+      if (areaFallback) {
+        return areaFallback;
+      }
+
+      if (fallbackDisplayName) {
+        const parts = fallbackDisplayName.split(',').map(p => p.trim()).filter(Boolean);
+        return parts.slice(0, 2).join(', ');
+      }
+
+      return '';
+    }
+
   </script>
 @endpush

@@ -55,36 +55,3 @@
   </div>
 @endsection
 
-@push('styles')
-  <style>
-
-    #hero-animation {
-      isolation: isolate;
-      position: relative;
-      z-index: 1;
-    }
-
-    #landingHero {
-      isolation: isolate;
-    }
-
-    /* Keep the hero background image behind everything */
-    #landingHero > img[data-speed] {
-      position: absolute !important;
-      z-index: 0 !important;
-      pointer-events: none !important;
-    }
-
-    /* Prevent theme JS from injecting a pseudo-element overlay */
-    #landingHero::after,
-    #hero-animation::after {
-      display: none !important;
-      pointer-events: none !important;
-    }
-
-    .hero-animation-img {
-      display: none !important;
-      pointer-events: none !important;
-    }
-  </style>
-@endpush

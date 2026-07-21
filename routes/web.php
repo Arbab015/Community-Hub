@@ -21,32 +21,46 @@ use App\Http\Controllers\UnblockRequestsController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
 
-// use App\Http\Controllers\RoleController;
-
-// Main Page Route
-Route::middleware(['guest'])->group(function () {
-
-    Route::controller(LandingPageController::class)->group(function () {
-        Route::get('/', 'index')->name('landing-page');
-        Route::post('property/search', 'findProperty')->name('property.search');
-        Route::post('property/send-email', 'sendPropertyMail')->name('property.send.email');
-    });
-    Route::get('/auth/login', [LoginController::class, 'index'])->name('login');
-    // Forgot Password
-    Route::get('auth/forgot-password', [ForgotPasswordBasic::class, 'index'])->name('password.request');
-    Route::post('auth/forgot-password', [ForgotPasswordBasic::class, 'sendResetLinkEmail'])->name('password.email');
-    // Reset Password
-    Route::get('auth/reset-password/{token}', [ResetPasswordBasic::class, 'index'])->name('password.reset');
-    Route::post('auth/reset-password', [ResetPasswordBasic::class, 'reset'])->name('password.update');
+// Route::middleware(['guest'])->group(function () {
+Route::controller(LandingPageController::class)->group(function () {
+    Route::get('/', 'index')->name('landing-page');
+    Route::match(['get', 'post'], 'property/search', 'findProperty')->name('property.search');
+    Route::get('property/{uuid}/details', 'show')->name('property.show');
+    Route::get('property-unit/{uuid}/details', 'showUnit')->name('property.unit.show');
+    Route::post('/property/favourite', 'toggleFavourite')->name('property.favourite');
+    Route::get('front-page/favourites', 'favourites')->name('favourites.show');
+    Route::get('front-page/contact-us', 'contactUs')->name('contact-us.show');
+    Route::post('/contact/send', 'sendContactMessage')->name('contact.send');
+    Route::get('/geocode', 'geocode')->name('property.geocode');
 });
+Route::get('/auth/login', [LoginController::class, 'index'])->name('login');
+// Forgot Password
+Route::get('auth/forgot-password', [ForgotPasswordBasic::class, 'index'])->name('password.request');
+Route::post('auth/forgot-password', [ForgotPasswordBasic::class, 'sendResetLinkEmail'])->name('password.email');
+// Reset Password
+Route::get('auth/reset-password/{token}', [ResetPasswordBasic::class, 'index'])->name('password.reset');
+Route::post('auth/reset-password', [ResetPasswordBasic::class, 'reset'])->name('password.update');
+// });
 
 Route::post('/auth/login', [LoginController::class, 'login'])->name('user.login');
 Route::post('/auth/logout', [LoginController::class, 'logout'])->name('auth-logout')->middleware('auth');
 
+Route::controller(\App\Http\Controllers\PropertyInquiryController::class)->group(function () {
+    Route::get('inquiries/index', 'index')->name('inquiry.index');
+    Route::post('property-inquiry', 'storeOrUpdate')->name('inquiry.store');
+    Route::get('/inquiries/{listing:uuid}', 'inquiriesWithListing')->name('inquiries.show');
+    Route::get('societies/{user_type}/society/{society_uuid}/inquiries/{listing:uuid}', 'propertyInquiriesFromSociety')->name('society.property.inquiries.show');
+    Route::get('/{type}/details/{property_uuid}/{uuid}', 'propertyInquiries')
+        ->name('property.inquiries.show')
+        ->where([
+            'property_uuid' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+            'uuid' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+        ]);
+    Route::delete('/inquiries/dismiss/{inquiry}', 'dismiss')->name('inquiries.dismiss');
+});
+
 Route::middleware(['auth'])->group(function () {
-    // Main Dashboard Routes
     Route::get('/dashboard', [Analytics::class, 'index'])->name('dashboard.analytics');
-    // users Route
     Route::controller(UsersController::class)->group(function () {
         Route::get('users/index/{slug}', 'index')->where('slug', 'society_managers|society_members|society_owners|system_users')->name('users.index')->middleware('permission:listing_system_user|listing_society_owner|listing_society_manager|listing_society_member');
         Route::get('users/create/{slug}', 'create')->name('user.create');
@@ -124,7 +138,7 @@ Route::middleware(['auth'])->group(function () {
     Route::controller(TagsController::class)->group(function () {
         Route::get('tags/index', 'index')->name('tags.index');
         Route::post('tags/store', 'storeOrUpdate')->name('tags.store');
-        Route::delete('tags/delete/{id}', 'destroy')->name('tags.destroy');
+        Route::delete('tags/delete/{uuid}', 'destroy')->name('tags.destroy');
         Route::post('/tags/bulk_delete', 'bulkDelete')->name('tags.bulk_delete');
     });
 
@@ -174,6 +188,9 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('societies/{user_type}/{society_uuid}/properties/block/{uuid}/view', 'propertiesFromSocietyShow')->name('society.block.view')->middleware('permission:view_block');
 
+        //        to show properties to properties owner
+        Route::get('owner_properties/view', 'ownerProperties')->name('owner.properties.show')->middleware('permission:owner_properties');
+
         Route::get('properties_import_template/{type}/download', 'download')->name('properties_import_template.download')->middleware('permission:create_property');
         Route::post('properties/import', 'import')->name('properties.import')->middleware('permission:create_property');
         Route::get('/blocks/{block_uuid}/import-progress', 'importProgress')
@@ -187,11 +204,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('property/create/{block_uuid}/{uuid?}', 'createProperty')->name('property.create')->middleware('permission:create_property');
         Route::post('property/store', 'storeOrUpdate')->name('property.store')->middleware('permission:create_property');
         Route::get('property/details/{uuid}', 'propertyDetails')->name('property.details');
+
+        Route::get('owner-property/details/{uuid}', 'ownerPropertyDetails')->name('owner.property.details');
+
         Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'propertyDetailsFromSociety')->name('society.property.details');
 
         Route::get('{section}/destroy/{uuid}', 'destroy')
             ->name('property.destroy')
-            ->where('section', 'property|floor|unit|room') // list only valid sections
+            ->where('section', 'property|floor|unit|room')
             ->middleware('permission:delete_property');
 
         Route::delete('blocks/{block_uuid}/import-errors', 'deleteImportErrors')
@@ -203,13 +223,21 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/floor/{floor_id}/units', 'unitsByFloor')->name('floor.units');
         Route::get('/floor/{floor_id}/rooms', 'roomsByFloor');
+
+        Route::get('property/{uuid}/{user_type?}', 'destroyProperty')
+            ->name('property.delete')
+            ->middleware('permission:delete_property');
+
     });
 
     Route::controller(\App\Http\Controllers\PropertyUnitController::class)->group(function () {
 
-        Route::get('unit/details/{uuid}', 'show')->name('unit.details');
+        Route::get('unit/details/{uuid}/{isOwner?}', 'show')->name('unit.details');
         Route::get('societies/{user_type}/society/{society_uuid}/unit/{uuid}', 'unitFromSociety')
             ->name('society.unit.details');
+
+        //        Route::get('unit/details/{uuid}/', 'ownerUnitDetails')->name('owner.unit.details');
+
         Route::post('unit/store', 'update')->name('unit.store')->middleware('permission:edit_property');
         Route::get('unit/{uuid}/{user_type?}', 'destroy')
             ->name('unit.destroy')
@@ -240,11 +268,29 @@ Route::middleware(['auth'])->group(function () {
 
     });
 
+    Route::controller(\App\Http\Controllers\PaymentPlanningTemplateController::class)->group(function () {
+        Route::get('payment-planning-templates/index', 'index')->name('payment-planning-templates.index')->middleware('permission:payment_planning_template_listing');
+        Route::post('/payment-planning-templates', 'store')
+            ->name('payment-planning-templates.store');
+
+        Route::delete('/payment-planning-templates/{paymentPlanningTemplate}', 'destroy')
+            ->name('payment-planning-templates.destroy')->middleware('permission:payment_planning_template_delete');
+
+        Route::post('/payment-planning-templates/bulkdetele', 'bulkDelete')->name('payment-planning-templates.bulk_delete')->middleware('permission:payment_planning_template_delete');
+    });
+
     // Attachment controller
     Route::controller(AttachmentController::class)->group(function () {
         Route::post('/attachments/bulk_delete', 'bulkDelete')->name('attachments.bulk_delete');
         Route::get('/attachments/progress', 'fileUploadProgress');
 
+    });
+
+    Route::controller(\App\Http\Controllers\MessageController::class)->group(function () {
+        Route::get('/messages/index', 'index')->middleware('permission:contact_messages');
+        Route::delete('/messages/delete/{uuid}', 'destroy')->name('message.destroy')->middleware('permission:contact_messages');
+        Route::post('/messages/bulk_delete', 'bulkDelete')->name('messages.bulk_delete')->middleware('permission:contact_messages');
+        Route::post('/messages/reply', 'reply')->name('messages.reply');
     });
 
 });

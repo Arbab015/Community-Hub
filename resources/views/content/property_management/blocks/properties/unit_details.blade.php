@@ -5,7 +5,7 @@
   use App\Helpers\GetArea;
   $hasRooms = $unit->rooms->count() > 0;
   $hasDimensions = $unit->dimensions->count() > 0;
-$unit_amenities = is_array($unit->amenities)
+  $unit_amenities = is_array($unit->amenities)
     ? $unit->amenities
     : json_decode($unit->amenities ?? '[]', true);
 @endphp
@@ -19,54 +19,63 @@ $unit_amenities = is_array($unit->amenities)
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/ui-toasts.js'])
+  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/common_property.js', 'resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js'])
 @endsection
 
 @section('content')
 
-  {{-- Breadcrumb --}}
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
-      <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
-        {{ isset($society) && $user_type ? 'Society Management' : 'Property Management' }}
-      </p>
+      @if(!isset($isOwner))
+        <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">
+          {{ isset($society) && $user_type ? 'Society Management' : 'Property Management' }}
+        </p>
+      @endif
       <h4 class="mb-1">Unit Details</h4>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
             <a href="{{ route('dashboard.analytics') }}" class="text-dark opacity-75 text-decoration-none">Home</a>
           </li>
-          @if(isset($society) && $user_type)
-            <li class="breadcrumb-item">
-              <a href="{{ route('societies.index', $user_type) }}"
-                 class="text-dark opacity-75 text-decoration-none">Societies</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
-                 class="text-dark opacity-75 text-decoration-none">Society</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a
-                href="{{ route('society.block.view', [$user_type, $society->uuid, $unit->floor->property->block->uuid]) }}"
-                class="text-dark opacity-75 text-decoration-none">Block</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a
-                href="{{ route('society.property.details', [$user_type, $society->uuid, $unit->floor->property->uuid]) }}"
-                class="text-dark opacity-75 text-decoration-none">Property</a>
-            </li>
+          @if(!isset($isOwner))
+            @if(isset($society) && $user_type)
+              <li class="breadcrumb-item">
+                <a href="{{ route('societies.index', $user_type) }}"
+                   class="text-dark opacity-75 text-decoration-none">Societies</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
+                   class="text-dark opacity-75 text-decoration-none">Society</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a
+                  href="{{ route('society.block.view', [$user_type, $society->uuid, $unit->floor->property->block->uuid]) }}"
+                  class="text-dark opacity-75 text-decoration-none">Block</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a
+                  href="{{ route('society.property.details', [$user_type, $society->uuid, $unit->floor->property->uuid]) }}"
+                  class="text-dark opacity-75 text-decoration-none">Property</a>
+              </li>
+            @else
+              <li class="breadcrumb-item">
+                <a href="{{ route('blocks.index') }}" class="text-dark opacity-75 text-decoration-none">Blocks</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('block.view', $unit->floor->property->block->uuid) }}"
+                   class="text-dark opacity-75 text-decoration-none">Block</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{{ route('property.details', $unit->floor->property->uuid) }}"
+                   class="text-dark opacity-75 text-decoration-none">Property</a>
+              </li>
+            @endif
+
           @else
             <li class="breadcrumb-item">
-              <a href="{{ route('blocks.index') }}" class="text-dark opacity-75 text-decoration-none">Blocks</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('block.view', $unit->floor->property->block->uuid) }}"
-                 class="text-dark opacity-75 text-decoration-none">Block</a>
-            </li>
-            <li class="breadcrumb-item">
-              <a href="{{ route('property.details', $unit->floor->property->uuid) }}"
-                 class="text-dark opacity-75 text-decoration-none">Property</a>
+              <a href="{{ route('owner.properties.show')  }}"
+                 class="text-dark opacity-75 text-decoration-none">Properties</a>
             </li>
           @endif
           <li class="breadcrumb-item active text-dark opacity-50">Unit Details</li>
@@ -181,41 +190,69 @@ $unit_amenities = is_array($unit->amenities)
               <span class="badge {{ $unit->owner_id  ? 'bg-primary' : 'bg-secondary' }} mt-2">
                 {{ ucfirst($unit->owner_id ? 'Sold-out' : 'Un-Sold') }}
               </span>
-              <div class="mt-3 pt-3 border-top text-start">
-                <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">Listing Status</h6>
-                <div
-                  class="rounded-3 px-3 py-2 mb-3 border {{ $unit->listing ? 'border-success border-opacity-50 bg-success bg-opacity-10' : 'border-dashed' }}">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <div class="d-flex align-items-center gap-2">
+
+              @can('listing_property')
+                <div class="mt-3 pt-3 border-top text-start">
+                  <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">Listing Status</h6>
+                  <div
+                    class="rounded-3 px-3 py-2 mb-3 border {{ $unit->listing ? 'border-success border-opacity-50 bg-success bg-opacity-10' : 'border-dashed' }}">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <div class="d-flex align-items-center gap-2">
                       <span
                         class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 listing-status-icon {{ $unit->listing ? 'bg-success bg-opacity-25' : '' }}">
                         <i
                           class="ti {{ $unit->listing ? 'tabler-tag text-success' : 'tabler-tag-off listing-status-icon-i' }}"></i>
                       </span>
-                      <span class="fw-semibold small {{ $unit->listing ? 'text-success' : 'text-primary' }}">
+                        <span class="fw-semibold small {{ $unit->listing ? 'text-success' : 'text-primary' }}">
                         {{ $unit->listing ? 'Listed' : 'Not Listed' }}
                       </span>
+                      </div>
+                      @if($unit->listing)
+                        <a href="{{ route('listing.destroy', $unit->listing->uuid) }}" onclick="confirmDelete(event)"
+                           class="d-inline-flex align-items-center gap-1 text-decoration-none badge bg-danger">
+                          <i class="ti tabler-tag-off"></i> Unlist
+                        </a>
+                      @endif
                     </div>
-                    @if($unit->listing)
-                      <a href="{{ route('listing.destroy', $unit->listing->uuid) }}" onclick="confirmDelete(event)"
-                         class="d-inline-flex align-items-center gap-1 text-decoration-none badge bg-danger">
-                        <i class="ti tabler-tag-off"></i> Unlist
-                      </a>
+
+                    @if(auth()->user()->can('see_inquiries') && $unit->listing?->inquiries?->count())
+                      @if(isset($society) && $user_type)
+                        <a class="btn btn-xs bg-secondary text-white rounded mb-1"
+                           href="{{ route('society.property.inquiries.show', [$user_type, $society->uuid, $unit->listing->uuid]) }}">
+                          See Inquiries
+                        </a>
+                      @else
+                        <a class="btn btn-xs bg-secondary text-white rounded mb-1"
+                           href="{{ route('property.inquiries.show', ['unit', $unit->uuid, $unit->listing?->uuid]) }}">
+                          See Inquiries
+                        </a>
+                      @endif
                     @endif
+                    <p class="mb-0 text-muted listing_description">
+                      {{ $unit->listing ? 'This property has listed for ' . ucfirst($unit->listing?->listing_type) : 'This property has no active listing' }}
+                    </p>
                   </div>
-                  <p class="mb-0 text-muted listing_description">
-                    {{ $unit->listing ? 'This property has listed for ' . ucfirst($unit->listing->listing_type) : 'This property has no active listing' }}
-                  </p>
+                  <button class="btn btn-sm w-100 d-flex align-items-center gap-2 fw-semibold sell_rent_btn"
+                          data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
+                          data-type="unit" data-id="{{ $unit->id }}"
+                          data-listing='@json($unit->listing)'>
+                    <i class="ti tabler-tag sell_rent_icon"></i>
+                    {{ $unit->listing ? 'Update Your Listing' : 'List for Sell / Rent' }}
+                    <i class="ti tabler-arrow-right ms-auto listing_icon"></i>
+                  </button>
                 </div>
-                <button class="btn btn-sm w-100 d-flex align-items-center gap-2 fw-semibold sell_rent_btn"
-                        data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
-                        data-type="property" data-id="{{ $unit->id }}"
-                        data-listing='@json($unit->listing)'>
-                  <i class="ti tabler-tag sell_rent_icon"></i>
-                  {{ $unit->listing ? 'Update Your Listing' : 'List for Sell / Rent' }}
-                  <i class="ti tabler-arrow-right ms-auto listing_icon"></i>
-                </button>
-              </div>
+              @else
+                <div class="mt-4 pt-4 border-top text-center">
+                  <div class="avatar avatar-sm mb-2 mx-auto">
+                   <span class="avatar-initial rounded bg-label-primary">
+                   <i class="fa-regular fa-calendar"></i>
+                  </span>
+                  </div>
+                  <small class="text-muted d-block">Created</small>
+                  <h6 class="mb-0">{{ $unit->created_at->format('M d, Y') }}</h6>
+                </div>
+              @endcan
+
             </div>
           </div>
 
@@ -387,29 +424,59 @@ $unit_amenities = is_array($unit->amenities)
             </div>
           </div>
 
-          {{-- Listing Status Card --}}
-          <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
+          @can('delete_property')
+            <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
 
-            <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
-              <span class="d-inline-block bg-primary rounded hr_bar"></span> Delete Unit
-            </h5>
+              <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                <span class="d-inline-block bg-primary rounded hr_bar"></span> Delete Unit
+              </h5>
 
-            <p class="mb-4">
-              Deleting this property unit will
-              <strong class="text-danger fst-italic">permanently</strong>
-              remove the society and all associated data.
-              This action cannot be undone.
-            </p>
-            @php
-              $unit_destroy_url = route('unit.destroy',isset($user_type)? [$unit->uuid, $user_type]: [$unit->uuid]);
-            @endphp
+              <p class="mb-4">
+                Deleting this property unit will
+                <strong class="text-danger fst-italic">permanently</strong>
+                remove the society and all associated data.
+                This action cannot be undone.
+              </p>
+              @php
+                $unit_destroy_url = route('unit.destroy',isset($user_type)? [$unit->uuid, $user_type]: [$unit->uuid]);
+              @endphp
 
-            <a href="{{ $unit_destroy_url }}" class="btn btn-danger"
-               onclick="confirmDelete(event, null)">
-              <i class="fa-solid fa-trash me-3"></i>
-              Delete Unit
-            </a>
-          </div>
+              <a href="{{ $unit_destroy_url }}" class="btn btn-danger"
+                 onclick="confirmDelete(event, null)">
+                <i class="fa-solid fa-trash me-3"></i>
+                Delete Unit
+              </a>
+            </div>
+          @else
+            <div class="card shadow-sm rounded-3">
+              <div class="card-header">
+                <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+                  <span class="d-inline-block bg-primary rounded hr_bar"></span> Timeline Information
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="row g-4">
+                  <div class="col-md-6">
+                    <div class="info-container">
+                      <small class="text-muted text-uppercase d-block mb-1">Created At</small>
+                      <h6 class="mb-0">{{ $unit->created_at->format('F d, Y h:i A') }}</h6>
+                      <small class="text-muted">{{ $unit->created_at->diffForHumans() }}</small>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="info-container">
+                      <small class="text-muted text-uppercase d-block mb-1">Last Updated</small>
+                      <h6 class="mb-0">{{ $unit->updated_at->format('F d, Y h:i A') }}</h6>
+                      <small class="text-muted">{{ $unit->updated_at->diffForHumans() }}</small>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          @endcan
+
         </div>
       </div>
     </div>
@@ -432,10 +499,14 @@ $unit_amenities = is_array($unit->amenities)
             {{ $unit->rooms->count() }} {{ \Illuminate\Support\Str::plural('room', $unit->rooms->count()) }}
           </span>
             </h5>
-            <span class="cursor-pointer btn btn-primary btn-sm"
-                  data-bs-toggle="modal" data-bs-target="#room_modal" data-mode="add">
-          <i class="ti tabler-plus me-1"></i> Add Room
-        </span>
+            @can('edit_property')
+              <span class="cursor-pointer btn btn-primary btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#room_modal"
+                    data-floor-id="{{ $unit->floor_id }}" data-unit-id="{{ $unit->id }}">
+                    <i class="ti tabler-plus me-1"></i> Add Room
+              </span>
+            @endcan
+
           </div>
           <div class="room-grid">
             @foreach($unit->rooms as $room)
@@ -723,7 +794,9 @@ $unit_amenities = is_array($unit->amenities)
     </div>
   @endcan
 
-  @include('_partials._modals.unit_room')
+  @include('_partials._modals.room')
+  @include('components.property.templates.dimension')
+  @include('components.property.templates.room')
   @include('_partials._modals.listing_property')
 
 @endsection
@@ -774,6 +847,8 @@ $unit_amenities = is_array($unit->amenities)
 
 @push('scripts')
   <script>
+    window.unitUpdateRoute = "{{ route('unit.update') }}";
+
     // Listing modal
     var sellRentModal = document.getElementById('sell_rent_modal');
     if (sellRentModal) {
@@ -795,103 +870,6 @@ $unit_amenities = is_array($unit->amenities)
       });
     }
 
-    // Prevent deleting below minimum 2 dimensions in room modal
-    document.getElementById('room_modal')?.addEventListener('click', function(e) {
-      if (!e.target.closest('[data-repeater-delete]')) return;
-      var items = document.querySelectorAll('#room_modal_form [data-repeater-item]');
-      if (items.length <= 2) {
-        e.stopImmediatePropagation();
-        window.notyf?.error('Minimum 2 dimensions required.');
-      }
-    }, true);
-
-    var _roomModalPending = null;
-
-    document.getElementById('room_modal')?.addEventListener('show.bs.modal', function(e) {
-      var btn = e.relatedTarget;
-      var mode = btn ? btn.dataset.mode : 'add';
-
-      document.getElementById('room_modal_title').innerHTML =
-        '<span class="d-inline-block bg-primary rounded" style="width:3px;height:18px;"></span> ' +
-        (mode === 'edit' ? 'Edit Room' : 'Add Room');
-      document.getElementById('room_modal_section').value = mode === 'edit' ? 'edit_room' : 'add_room';
-      document.getElementById('room_modal_submit_label').textContent = mode === 'edit' ? 'Save Changes' : 'Save Room';
-
-      // Reset fields
-      document.getElementById('room_modal_room_id').value = '';
-      document.getElementById('room_modal_room_type').value = '';
-      document.querySelectorAll('.room-amenity-check').forEach(function(c) {
-        c.checked = false;
-      });
-
-      if (mode === 'edit' && btn) {
-        var amenities = JSON.parse(btn.dataset.amenities || '[]');
-        var dimensions = JSON.parse(btn.dataset.dimensions || '[]');
-
-        document.getElementById('room_modal_room_id').value = btn.dataset.roomId;
-        document.getElementById('room_modal_room_type').value = String(btn.dataset.roomType);
-
-        amenities.forEach(function(id) {
-          var el = document.getElementById('rm_amenity_' + id);
-          if (el) el.checked = true;
-        });
-
-        // Ensure at least 2 rows
-        while (dimensions.length < 2) {
-          dimensions.push({ id: '', name: '', size: '', unit: 'feet' });
-        }
-
-        // setList only maps name/size/unit — strip id so repeater doesn't choke,
-        // store ids separately to inject after shown
-        _roomModalPending = {
-          listData: dimensions.map(function(d) {
-            return { name: d.name, size: d.size, unit: d.unit };
-          }),
-          ids: dimensions.map(function(d) {
-            return d.id || '';
-          })
-        };
-
-      } else {
-        _roomModalPending = {
-          listData: [
-            { name: '', size: '', unit: 'feet' },
-            { name: '', size: '', unit: 'feet' }
-          ],
-          ids: ['', '']
-        };
-      }
-    });
-
-    document.getElementById('room_modal')?.addEventListener('shown.bs.modal', function() {
-      if (!_roomModalPending) return;
-
-      $('#room_modal_form').repeater('setList', _roomModalPending.listData);
-
-      // After setList renders rows, inject the hidden dimension IDs
-      var ids = _roomModalPending.ids;
-      var rows = document.querySelectorAll('#room_modal_form [data-repeater-item]');
-      rows.forEach(function(row, i) {
-        var hiddenId = row.querySelector('input[name="id"], input[name$="[id]"]');
-        if (hiddenId && ids[i] !== undefined) {
-          hiddenId.value = ids[i];
-        }
-      });
-
-      _roomModalPending = null;
-    });
-
-    document.getElementById('room_modal')?.addEventListener('hidden.bs.modal', function() {
-      document.getElementById('room_modal_form').reset();
-      document.querySelectorAll('.room-amenity-check').forEach(function(c) {
-        c.checked = false;
-      });
-      $('#room_modal_form').repeater('setList', [
-        { name: '', size: '', unit: 'feet' },
-        { name: '', size: '', unit: 'feet' }
-      ]);
-      _roomModalPending = null;
-    });
 
     // Specs tab — unit-type choice
     document.getElementById('btn_unit_is_room')?.addEventListener('click', function() {

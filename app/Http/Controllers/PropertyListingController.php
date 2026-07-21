@@ -60,6 +60,7 @@ class PropertyListingController extends Controller
 
         try {
             $listed_property = PropertyListing::where('uuid', $uuid)->firstOrFail();
+            $listed_property->inquiries()->delete();
             $listed_property->delete();
 
             return redirect()->back()->with('success', 'Property Un-listed successfully.');

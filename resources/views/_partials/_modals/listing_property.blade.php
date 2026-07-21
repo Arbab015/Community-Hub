@@ -35,7 +35,7 @@
               <label class="btn btn-outline-primary flex-fill text-center py-2" for="type_rent"
                      {{ optional($property ?? null)?->listing?->listing_type === 'rent' ? 'checked' : '' }}
                      style="border-radius:10px;">
-                <i class="ti tabler-home-dollar d-block fs-5 mb-1"></i>
+                <i class="ti tabler-home-dollar d-block fs-5 mb-1 me-1"></i>
                 <span style="font-size:.8rem;">Rent</span>
               </label>
             </div>
@@ -48,13 +48,13 @@
               <span class="input-group-text"><i class="ti tabler-currency-dollar"></i></span>
               {{-- Price --}}
               <input type="number" name="price" id="listing_price" class="form-control" placeholder="e.g. 5000000"
-                     required min="0"
-              >
+                     required min="0">
 
-              <select name="unit" class="form-select" style="max-width:90px;">
-                <option value="PKR">PKR</option>
-                <option value="USD">USD</option>
-                <option value="AED">AED</option>
+              <select name="unit" class="form-select" style="max-width:110px;">
+                <option value="PKR">PKR - Pakistani Rupees</option>
+                <option value="USD">USD - US Dollar</option>
+                <option value="AED">AED - UAE Dirham</option>
+                <option value="(SAR)">SAR - Saudi Riyal</option>
               </select>
             </div>
             <div class="form-check form-switch mt-2">

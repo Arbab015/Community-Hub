@@ -16,11 +16,9 @@
           class="text-primary "
           data-bs-toggle="modal"
           data-bs-target="#room_modal"
-          data-mode="edit"
           data-room-id="{{ $room->id }}"
-          data-room-type="{{ $room->room_type }}"
-          data-amenities='{{ json_encode($room_amenities_data ?? []) }}'
-          data-dimensions='{{ json_encode($room_dimensions_data ?? []) }}'
+          data-floor-id="{{ $room->floor_id }}"
+          + data-unit-id="{{ $room->unit_id }}"
           title="Edit Room">
           <i class="fa-solid fa-pen-to-square"></i>
         </a>

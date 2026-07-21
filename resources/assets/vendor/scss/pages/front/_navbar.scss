@@ -2,6 +2,7 @@ nav.layout-navbar {
   backdrop-filter: unset;
   background-color: transparent;
   block-size: auto;
+
   &::before {
     position: absolute;
     display: block;
@@ -19,7 +20,7 @@ nav.layout-navbar {
       border: 2px solid var(--#{$prefix}front-navbar-border-color);
       background-color: var(--#{$prefix}front-navbar-bg);
       margin-block-start: 1rem;
-      padding-block: .614rem;
+      padding-block: .414rem;
       transform: unset;
       transition: $btn-transition;
       @include border-radius($border-radius);
@@ -42,6 +43,7 @@ nav.layout-navbar {
               margin-inline-end: 0;
             }
           }
+
           &.mega-dropdown {
             > .dropdown-menu {
               @include media-breakpoint-up(lg) {
@@ -64,6 +66,7 @@ nav.layout-navbar {
                 margin: 0;
                 font-weight: $font-weight-normal;
                 padding-inline: 0;
+
                 .icon-base {
                   block-size: 1rem;
                   color: var(--#{$prefix}body-color);
@@ -71,6 +74,7 @@ nav.layout-navbar {
                   inline-size: 1rem;
                   margin-block-start: -.125rem;
                 }
+
                 &:hover {
                   color: var(--#{$prefix}primary);
                 }
@@ -143,11 +147,13 @@ nav.layout-navbar {
     &::before {
       backdrop-filter: saturate(100%) blur(6px);
     }
-    .landing-navbar{
+
+    .landing-navbar {
       background-color: var(--#{$prefix}paper-bg);
       box-shadow: var(--#{$prefix}box-shadow-sm);
     }
   }
+
   .menu-text {
     color: var(--#{$prefix}heading-color);
   }

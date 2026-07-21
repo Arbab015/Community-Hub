@@ -82,7 +82,7 @@ $(document).on('click', '.bulk_btn', function() {
 });
 
 function toggleBulkDelete() {
-  let checked = $('.checkbox:checked').length > 1;
+  let checked = $('.checkbox:checked').length > 0;
   $('.bulk_btn').toggleClass('d-none', !checked);
 }
 

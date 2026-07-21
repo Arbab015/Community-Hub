@@ -1,24 +1,20 @@
 {{-- Import Errors File Modal --}}
 <div class="modal fade" id="importErrorsModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
-    <div class="modal-content border-0 rounded-4 overflow-hidden">
+    <div class="modal-content">
 
-
-      <div class="modal-header border-bottom px-4 py-3">
-        <div class="d-flex align-items-center gap-3">
-          <div class="d-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-3 p-2">
+      <div class="modal-header">
+        <h5 class="modal-title fw-semibold mb-0 d-flex align-items-center gap-2">
+          <span class="d-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-3 p-2">
             <i class="ti tabler-alert-triangle text-warning fs-5"></i>
-          </div>
-          <div>
-            <h5 class="modal-title fw-semibold mb-0">Import error reports</h5>
-            <p class="text-muted small mb-0">Download or remove error files from previous imports</p>
-          </div>
-        </div>
-
+          </span>
+          Import error reports
+        </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body p-0">
+        <p class="text-muted small px-4 pt-3 mb-2">Download or remove error files from previous imports</p>
 
         <div id="error_files_loading" class="text-center py-5">
           <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
@@ -37,17 +33,14 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light border-bottom">
             <tr>
-              <th class="ps-4 py-3 text-muted fw-semibold"
-                  style="width:150px;font-size:11px;letter-spacing:.05em;text-transform:uppercase">Date &amp; time
+              <th class="ps-4 py-3 text-muted fw-semibold column-title"
+                  style="width:150px;">Date &amp; time
               </th>
-              <th class="py-3 text-muted fw-semibold"
-                  style="font-size:11px;letter-spacing:.05em;text-transform:uppercase">Import file
+              <th class="py-3 text-muted fw-semibold column-title">Import file
               </th>
-              <th class="py-3 text-muted fw-semibold"
-                  style="font-size:11px;letter-spacing:.05em;text-transform:uppercase">Error file
+              <th class="py-3 text-muted fw-semibold column-title">Error file
               </th>
-              <th class="pe-4 py-3 text-end text-muted fw-semibold"
-                  style="width:90px;font-size:11px;letter-spacing:.05em;text-transform:uppercase">Actions
+              <th class="pe-4 py-3 text-end text-muted fw-semibold column-title">Actions
               </th>
             </tr>
             </thead>
@@ -60,7 +53,7 @@
       </div>
 
       {{-- Footer --}}
-      <div class="modal-footer border-top bg-light px-4 py-3 d-flex justify-content-between align-items-center">
+      <div class="modal-footer bg-light d-flex justify-content-between align-items-center pt-3">
         <span class="text-muted small d-flex align-items-center gap-2">
           <i class="ti tabler-info-circle"></i>
           Error files are stored per block

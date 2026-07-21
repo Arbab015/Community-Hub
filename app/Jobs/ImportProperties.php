@@ -47,7 +47,9 @@ class ImportProperties implements ShouldQueue
         if (Storage::disk('public')->exists('imports/'.$import->file_name)) {
             Storage::disk('public')->delete('imports/'.$import->file_name);
         }
-        $import->delete();
+        if ($import->error_file_path === null) {
+            $import->delete();
+        }
 
     }
 

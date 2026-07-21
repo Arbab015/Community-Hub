@@ -49,7 +49,7 @@
     "files": [
       "app/Helpers/Helpers.php",
       "app/Helpers/MenuHelper.php",
-          "app/Helpers/FileHelper.php"
+      "app/Helpers/FileHelper.php"
     ]
   },
   "scripts": {

@@ -21,7 +21,7 @@
       ? $_COOKIE[$primaryColorCookieName]
       : $configData['color'] ?? null;
 @endphp
-<!-- laravel style -->
+  <!-- laravel style -->
 @vite(['resources/assets/vendor/js/helpers.js'])
 <!-- beautify ignore:start -->
 {{-- @if ($configData['hasCustomizer'])
@@ -30,42 +30,7 @@
   @vite(['resources/assets/vendor/js/template-customizer.js'])
 @endif --}}
 
-  <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
-  @vite(['resources/assets/js/config.js'])
+<!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
+@vite(['resources/assets/js/config.js'])
 
-@if ($configData['hasCustomizer'])
-<script type="module">
-  document.addEventListener('DOMContentLoaded', function() {
-    // Initialize template customizer after DOM is loaded
-    if (window.TemplateCustomizer) {
-      try {
-        // Get the skin currently applied to the document
-        const appliedSkin = document.documentElement.getAttribute('data-skin') || "{{ $defaultSkin }}";
 
-        window.templateCustomizer = new TemplateCustomizer({
-          defaultTextDir: "{{ $configData['textDirection'] }}",
-          @if ($primaryColor)
-            defaultPrimaryColor: "{{ $primaryColor }}",
-          @endif
-          defaultTheme: "{{ $configData['themeOpt'] }}",
-          defaultSkin: appliedSkin,
-          defaultSemiDark: {{ $configData['semiDark'] ? 'true' : 'false' }},
-          defaultShowDropdownOnHover: "{{ $configData['showDropdownOnHover'] }}",
-          displayCustomizer: "{{ $configData['displayCustomizer'] }}",
-          lang: '{{ app()->getLocale() }}',
-          'controls': <?php echo json_encode($configData['customizerControls']); ?>,
-        });
-
-        // Ensure color is applied on page load
-        @if ($primaryColor)
-          if (window.Helpers && typeof window.Helpers.setColor === 'function') {
-            window.Helpers.setColor("{{ $primaryColor }}", true);
-          }
-        @endif
-      } catch (error) {
-        console.warn('Template customizer initialization error:', error);
-      }
-    }
-  });
-</script>
-@endif
