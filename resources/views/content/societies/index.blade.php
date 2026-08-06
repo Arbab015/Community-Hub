@@ -1,16 +1,16 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'User Management')
+@section('title', 'Societies')
 {{-- Vendor Styles --}}
 @section('vendor-style')
-  @vite(['resources/assets/vendor/libs/datatables-bs5/datatables.bootstrap5.scss', 'resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss', 'resources/assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.scss', 'resources/assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.scss'])
+  @vite(['resources/assets/vendor/libs/datatables-bs5/datatables.bootstrap5.scss', 'resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss', 'resources/assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.scss', 'resources/assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.scss', 'resources/assets/vendor/libs/select2/select2.scss'])
 @endsection
 {{-- Vendor Scripts --}}
 @section('vendor-script')
-  @vite(['resources/assets/vendor/libs/jquery/jquery.js', 'resources/assets/vendor/libs/notiflix/notiflix.js', 'resources/assets/vendor/libs/sortablejs/sortable.js', 'resources/assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js',  ])
+  @vite(['resources/assets/vendor/libs/jquery/jquery.js', 'resources/assets/vendor/libs/notiflix/notiflix.js', 'resources/assets/vendor/libs/sortablejs/sortable.js', 'resources/assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js', 'resources/assets/vendor/libs/select2/select2.js'  ])
 @endsection
 @section('page-script')
-  @vite(['resources/assets/js/cards-actions.js'])
+  @vite(['resources/assets/js/cards-actions.js', 'resources/assets/js/forms-selects.js'])
 @endsection
 @section('content')
   @php
@@ -38,8 +38,18 @@
   </div>
 
   @if (session('success'))
-    <div class="alert alert-success">
-      {{ session('success') }}
+    <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+  @if (session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+  @endif
+  @if ($errors->any())
+    <div class="alert alert-danger">
+      <ul>
+        @foreach ($errors->all() as $error)
+          <li>{{ $error }}</li>
+        @endforeach
+      </ul>
     </div>
   @endif
 
@@ -50,13 +60,25 @@
         Societies
       </h5>
 
-      @can('add_society')
-        <a href="{{ route('society.create', $user_type) }}"
-           class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
-          <i class="ti tabler-plus"></i>
-          Create Society
-        </a>
-      @endcan
+      <div class="d-flex align-items-center gap-3">
+        <button type="button" id="select_all_societies_btn" class="btn btn-sm btn-outline-secondary"
+                onclick="toggleSelectAllSocieties()">
+          <i class="ti tabler-checkbox me-1"></i> Select All
+        </button>
+
+        <button type="button" id="apply_payment_template_btn" class="btn btn-sm btn-primary d-none"
+                onclick="applyPaymentTemplateToSocieties()">
+          <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
+        </button>
+
+        @can('add_society')
+          <a href="{{ route('society.create', $user_type) }}"
+             class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
+            <i class="ti tabler-plus"></i>
+            Create Society
+          </a>
+        @endcan
+      </div>
 
     </div>
 
@@ -138,9 +160,13 @@
     @foreach ($societies as $society)
       <div class="col-md-6 col-xl-4">
         <div class="card h-100">
-          <img class="card-img-top"
-               src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
-               alt="{{ $society->name }}" height="170px" style="object-fit: cover;" />
+          <div class="position-relative">
+            <input type="checkbox" class="form-check-input society-checkbox position-absolute top-0 start-0 m-2"
+                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="{{ $society->uuid }}">
+            <img class="card-img-top"
+                 src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
+                 alt="{{ $society->name }}" height="170px" style="object-fit: cover;" />
+          </div>
           <div class="card-body py-2 px-4 d-flex flex-column">
             <h5 class="card-title fs-6 mb-0 text-truncate " data-bs-toggle="tooltip" data-bs-placement="bottom"
                 data-bs-custom-class="tooltip-secondary"
@@ -177,6 +203,8 @@
     @endforeach
   </div>
 
+
+
   @if ($total_societies > $total_skip)
     <div id="load_more" class="text-center">
       <button class="btn btn-primary btn-sm" type="button" id="load_more_btn">
@@ -185,6 +213,7 @@
       </button>
     </div>
   @endif
+  @include('_partials._modals.apply_payment_plan')
 @endsection
 
 @push('scripts')
@@ -243,7 +272,11 @@
             $('.societies_cards').append(`
       <div class="col-md-6 col-xl-4">
         <div class="card h-100">
-          <img class="card-img-top" src="${imageSrc}" alt="${society.name}" height="170px" style="object-fit: cover;" />
+          <div class="position-relative">
+            <input type="checkbox" class="form-check-input society-checkbox position-absolute top-0 start-0 m-2"
+                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="${society.uuid}">
+            <img class="card-img-top" src="${imageSrc}" alt="${society.name}" height="170px" style="object-fit: cover;" />
+          </div>
           <div class="card-body py-2 px-4 d-flex flex-column">
             <h5 class="card-title fs-6 mb-0 text-truncate">${society.name}, ${society.city}</h5>
             ${ownerInfo}
@@ -278,5 +311,94 @@
         }
       });
     });
+
+    // ---- Society multi-select for payment template application ----
+    let selectedSocieties = new Set();
+    let allSocietiesSelected = false;
+
+    document.addEventListener('change', function(e) {
+      if (e.target.classList.contains('society-checkbox')) {
+        if (e.target.checked) {
+          selectedSocieties.add(e.target.value);
+        } else {
+          selectedSocieties.delete(e.target.value);
+          if (allSocietiesSelected) {
+            allSocietiesSelected = false;
+            setSelectAllSocietiesBtn(false);
+          }
+        }
+        updateSocietySelectionBar();
+      }
+    });
+
+    function setSelectAllSocietiesBtn(active) {
+      const btn = document.getElementById('select_all_societies_btn');
+      btn.innerHTML = active
+        ? '<i class="ti tabler-square-off me-1"></i> Deselect All'
+        : '<i class="ti tabler-checkbox me-1"></i> Select All';
+    }
+
+    function toggleSelectAllSocieties() {
+      const btn = document.getElementById('select_all_societies_btn');
+
+      if (allSocietiesSelected) {
+        selectedSocieties.clear();
+        document.querySelectorAll('.society-checkbox').forEach(cb => cb.checked = false);
+        allSocietiesSelected = false;
+        setSelectAllSocietiesBtn(false);
+        updateSocietySelectionBar();
+        return;
+      }
+
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Selecting...';
+
+      var data = {
+        name: $('input[name="name"]').val(),
+        city: $('select[name="city"]').val(),
+        status: $('select[name="status"]').val(),
+        @if ($user_type != 'owner_societies')
+        owner: $('select[name="owner"]').val(),
+        @endif
+      };
+
+      let url = "{{ route('societies.all_ids', $user_type) }}";
+
+      $.ajax({
+        url: url,
+        type: 'GET',
+        data: data,
+        success: function(response) {
+          selectedSocieties = new Set(response.ids);
+          document.querySelectorAll('.society-checkbox').forEach(cb => cb.checked = true);
+          allSocietiesSelected = true;
+          setSelectAllSocietiesBtn(true);
+          updateSocietySelectionBar();
+        },
+        error: function() {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire('Error', 'Failed to select all societies', 'error');
+          }
+        },
+        complete: function() {
+          btn.disabled = false;
+          if (!allSocietiesSelected) btn.innerHTML = originalHtml;
+        }
+      });
+    }
+
+    function updateSocietySelectionBar() {
+      const applyBtn = document.getElementById('apply_payment_template_btn');
+      applyBtn.classList.toggle('d-none', selectedSocieties.size === 0);
+    }
+
+    function applyPaymentTemplateToSocieties() {
+      if (!selectedSocieties.size) return;
+      document.getElementById('apply_plan_selected_count').textContent = selectedSocieties.size;
+      document.getElementById('apply_plan_ids').value = Array.from(selectedSocieties).join(',');
+      document.getElementById('apply_plan_type').value = 'society';
+      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
+    }
   </script>
 @endpush

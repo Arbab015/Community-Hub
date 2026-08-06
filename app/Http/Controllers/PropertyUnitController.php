@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Floor;
+use App\Models\InstallmentTemplate;
+use App\Models\PaymentTemplate;
 use App\Models\PropertyAttribute;
 use App\Models\PropertyUnit;
 use App\Models\Room;
@@ -27,6 +29,8 @@ class PropertyUnitController extends Controller
                 'attachments',
                 'rooms.dimensions',
                 'listing',
+                'plan.paymentTemplate',
+                'plan.installmentAttachments.installmentTemplate',
             ])
             ->firstOrFail();
         $society = $unit->floor->property->block->society ?? null;
@@ -38,9 +42,12 @@ class PropertyUnitController extends Controller
         $room_types = $property_attributes->where('type', 'room_type');
         $amenities = $property_attributes->where('type', 'amenity');
 
+        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->get();
+        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->get();
+
         return view(
             'content.property_management.blocks.properties.unit_details',
-            compact('unit', 'society', 'user_type', 'floor_types', 'isOwner', 'unit_types', 'room_types', 'amenities')
+            compact('unit', 'society', 'user_type', 'floor_types', 'isOwner', 'unit_types', 'paymentsPlans', 'installmentTemplates', 'room_types', 'amenities')
         );
     }
 

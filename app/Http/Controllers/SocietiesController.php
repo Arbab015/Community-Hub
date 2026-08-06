@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Mail\SocietyBlockedMail;
 use App\Mail\SocietyUnBlockMail;
 use App\Models\Attachment;
+use App\Models\InstallmentTemplate;
+use App\Models\PaymentTemplate;
 use App\Models\Post;
 use App\Models\Report;
 use App\Models\Rule;
@@ -67,6 +69,8 @@ class SocietiesController extends Controller
                 'total_skip' => $total_skip,
             ]);
         }
+        $payment_templates = PaymentTemplate::where('owner_id', auth()->id())->get();
+        $installment_templates = InstallmentTemplate::where('owner_id', auth()->id())->get();
 
         return view('content.societies.index', compact(
             'societies',
@@ -74,6 +78,8 @@ class SocietiesController extends Controller
             'total_skip',
             'user_type',
             'cities',
+            'payment_templates',
+            'installment_templates',
             'owners'
         ));
     }
@@ -348,5 +354,23 @@ class SocietiesController extends Controller
         return view('content.societies.me', compact(
             'user_type', 'uuid', 'type', 'posts', 'society', 'counts', 'rules', 'reportedIds', 'slug'
         ));
+    }
+
+    public function allIds(Request $request, $user_type)
+    {
+
+        $query = Society::query();
+        if ($user_type === 'owner_societies') {
+            $query->where('owner_id', auth()->id());
+        }
+
+        $query->when($request->name, fn ($q) => $q->where('name', 'like', '%'.$request->name.'%'))
+            ->when($request->city, fn ($q) => $q->where('city', $request->city))
+            ->when($request->status, fn ($q) => $q->where('status', $request->status))
+            ->when($request->owner, fn ($q) => $q->where('owner_id', $request->owner));
+
+        $ids = $query->pluck('uuid');
+
+        return response()->json(['ids' => $ids]);
     }
 }

@@ -15,8 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('owner_id')->constrained('users')->nullable()->restrictOnDelete();
             $table->foreignId('floor_id')->constrained('floors')->restrictOnDelete();
-            $table->integer('no');
+            //            $table->integer('no');
             $table->string('unit_name');
+            $table->string('name');
             $table->string('unit_type');
             $table->timestamps();
         });

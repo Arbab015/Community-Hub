@@ -51,34 +51,34 @@
           <!-- Content -->
           @if ($isFlex)
             <div class="container-fluid d-flex align-items-stretch flex-grow-1 p-0">
-            @else
-              <div class="container-fluid flex-grow-1 container-p-y">
-          @endif
+              @else
+                <div class="container-fluid flex-grow-1 container-p-y">
+                  @endif
 
-          @yield('content')
+                  @yield('content')
 
+                </div>
+                <!-- / Content -->
+
+                <!-- Footer -->
+                {{--        @if ($isFooter)--}}
+                {{--          @include('layouts/sections/footer/footer')--}}
+                {{--        @endif--}}
+                <!-- / Footer -->
+                <div class="content-backdrop fade"></div>
+            </div>
+            <!--/ Content wrapper -->
         </div>
-        <!-- / Content -->
-
-        <!-- Footer -->
-{{--        @if ($isFooter)--}}
-{{--          @include('layouts/sections/footer/footer')--}}
-{{--        @endif--}}
-        <!-- / Footer -->
-        <div class="content-backdrop fade"></div>
+        <!-- / Layout page -->
       </div>
-      <!--/ Content wrapper -->
-    </div>
-    <!-- / Layout page -->
-  </div>
-  <!-- / Layout Container -->
+      <!-- / Layout Container -->
 
-  @if ($isMenu)
-    <!-- Overlay -->
-    <div class="layout-overlay layout-menu-toggle"></div>
-  @endif
-  <!-- Drag Target Area To SlideIn Menu On Small Screens -->
-  <div class="drag-target"></div>
-  </div>
-  <!-- / Layout wrapper -->
+      @if ($isMenu)
+        <!-- Overlay -->
+        <div class="layout-overlay layout-menu-toggle"></div>
+      @endif
+      <!-- Drag Target Area To SlideIn Menu On Small Screens -->
+      <div class="drag-target"></div>
+    </div>
+    <!-- / Layout wrapper -->
 @endsection

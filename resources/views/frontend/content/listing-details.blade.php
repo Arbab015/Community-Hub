@@ -313,7 +313,7 @@ $isVideo = fn($img) => in_array(strtolower($img->extension ?? ''), $videoExtensi
 
                       @if ($floor['units']->count())
                         <p class="fw-semibold small text-muted mb-2">Units on this floor</p>
-                        <div class="ld-unit-card-single">
+                        <div class="ld-unit-card-single overflow-y-auto">
                           @foreach ($floor['units'] as $unitGroup)
                             <div class="ld-unit-row">
                               <div class="ld-unit-row-head">
@@ -1054,6 +1054,7 @@ $isVideo = fn($img) => in_array(strtolower($img->extension ?? ''), $videoExtensi
 
     /* ---- Units on this floor: one consolidated card ---- */
     .ld-unit-card-single {
+      max-height: 170vh;
       background: #f8f9fc;
       border: 1px solid #eee;
       border-radius: 10px;

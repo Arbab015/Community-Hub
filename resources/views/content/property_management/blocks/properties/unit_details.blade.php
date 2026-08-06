@@ -11,15 +11,15 @@
 @endphp
 
 @section('vendor-style')
-  @vite(['resources/assets/vendor/libs/notyf/notyf.scss','resources/assets/vendor/libs/dropzone/dropzone.scss'])
+  @vite(['resources/assets/vendor/libs/notyf/notyf.scss','resources/assets/vendor/libs/dropzone/dropzone.scss','resources/assets/vendor/libs/select2/select2.scss'])
 @endsection
 
 @section('vendor-script')
-  @vite(['resources/assets/vendor/libs/dropzone/dropzone.js', 'resources/assets/vendor/libs/jquery-repeater/jquery-repeater.js' ,'resources/assets/vendor/libs/notyf/notyf.js'])
+  @vite(['resources/assets/vendor/libs/dropzone/dropzone.js', 'resources/assets/vendor/libs/jquery-repeater/jquery-repeater.js' ,'resources/assets/vendor/libs/notyf/notyf.js','resources/assets/vendor/libs/select2/select2.js'])
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/common_property.js', 'resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js'])
+  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/common_property.js', 'resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js', 'resources/assets/js/forms-selects.js'])
 @endsection
 
 @section('content')
@@ -153,6 +153,18 @@
           {{ $hasRooms ? 'Room Details' : 'Specifications' }}
         </button>
       </li>
+      @if($unit->listing)
+        <li class="nav-item">
+          <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#unit_payment_planning">
+            <i class="ti tabler-photo me-2 d-none d-sm-inline-block"></i> Payments Planning
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#unit_payments">
+            <i class="ti tabler-photo me-2 d-none d-sm-inline-block"></i> Payments
+          </button>
+        </li>
+      @endif
     </ul>
   </div>
 
@@ -689,62 +701,69 @@
             </div>
           @endif
         </div>
-
-        {{-- Edit Specifications Modal --}}
-        @can('edit_property')
-          <div class="modal fade" id="edit_specs_modal" tabindex="-1" aria-labelledby="editSpecsModalLabel"
-               aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-              <div class="modal-content border-0 shadow">
-                <div class="modal-header border-0 pb-0">
-                  <h5 class="modal-title fw-bold d-flex align-items-center gap-2"
-                      id="editSpecsModalLabel">
-                    <span class="d-inline-block bg-primary rounded hr_bar"></span>
-                    Edit Specifications
-                  </h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal"
-                          aria-label="Close"></button>
-                </div>
-                <form method="POST" action="{{ route('unit.store') }}">
-                  @csrf
-                  <input type="hidden" name="unit_id" value="{{ $unit->id }}">
-                  <input type="hidden" name="section" value="specifications">
-                  <div class="modal-body pt-3">
-                    <p class="text-muted text-uppercase fw-semibold mb-0 specs_labels">
-                      Dimensions</p>
-                    @include('components.property.dimensions', ['isUnitDetailsPage' => true])
-                    <p class="text-muted text-uppercase fw-semibold mb-3 mt-4 specs_labels">
-                      Amenities</p>
-                    <div class="row g-2">
-                      @foreach($amenities as $a)
-                        <div class="col-sm-6 col-lg-4">
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox"
-                                   name="amenities[]"
-                                   value="{{ $a->id }}" id="amenity_{{ $a->id }}"
-                              {{ in_array($a->id, $unit_amenities) ? 'checked' : '' }}>
-                            <label class="form-check-label small"
-                                   for="amenity_{{ $a->id }}">{{ ucwords($a->title) }}</label>
-                          </div>
-                        </div>
-                      @endforeach
-                    </div>
-                  </div>
-                  <div class="modal-footer border-0 d-flex flex-column pt-0 gap-1">
-                    <button type="button" class="btn btn-outline-secondary w-100 me-0"
-                            data-bs-dismiss="modal">Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary w-100 ms-0">
-                      <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
-                    </button>
-                  </div>
-                </form>
-              </div>
+    </div>
+    {{-- Edit Specifications Modal --}}
+    @can('edit_property')
+      <div class="modal fade" id="edit_specs_modal" tabindex="-1" aria-labelledby="editSpecsModalLabel"
+           aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+              <h5 class="modal-title fw-bold d-flex align-items-center gap-2"
+                  id="editSpecsModalLabel">
+                <span class="d-inline-block bg-primary rounded hr_bar"></span>
+                Edit Specifications
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"
+                      aria-label="Close"></button>
             </div>
+            <form method="POST" action="{{ route('unit.store') }}">
+              @csrf
+              <input type="hidden" name="unit_id" value="{{ $unit->id }}">
+              <input type="hidden" name="section" value="specifications">
+              <div class="modal-body pt-3">
+                <p class="text-muted text-uppercase fw-semibold mb-0 specs_labels">
+                  Dimensions</p>
+                @include('components.property.dimensions', ['isUnitDetailsPage' => true])
+                <p class="text-muted text-uppercase fw-semibold mb-3 mt-4 specs_labels">
+                  Amenities</p>
+                <div class="row g-2">
+                  @foreach($amenities as $a)
+                    <div class="col-sm-6 col-lg-4">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               name="amenities[]"
+                               value="{{ $a->id }}" id="amenity_{{ $a->id }}"
+                          {{ in_array($a->id, $unit_amenities) ? 'checked' : '' }}>
+                        <label class="form-check-label small"
+                               for="amenity_{{ $a->id }}">{{ ucwords($a->title) }}</label>
+                      </div>
+                    </div>
+                  @endforeach
+                </div>
+              </div>
+              <div class="modal-footer border-0 d-flex flex-column pt-0 gap-1">
+                <button type="button" class="btn btn-outline-secondary w-100 me-0"
+                        data-bs-dismiss="modal">Cancel
+                </button>
+                <button type="submit" class="btn btn-primary w-100 ms-0">
+                  <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
+                </button>
+              </div>
+            </form>
           </div>
-        @endcan
-      @endif
+        </div>
+      </div>
+    @endcan
+    @endif
 
+
+    <div class="tab-pane fade" id="unit_payment_planning" role="tabpanel">
+      @include('components.property.payments-planning' , ['property' => $unit])
+    </div>
+    {{-- TAB 3: Payments --}}
+    <div class="tab-pane fade" id="unit_payments" role="tabpanel">
+      @include('components.property.payments')
     </div>
   </div>
 
@@ -856,17 +875,18 @@
         var btn = e.relatedTarget;
         if (!btn) return;
         var listing = btn.dataset.listing ? JSON.parse(btn.dataset.listing) : null;
-        document.querySelector('#sell_rent_form input[name="type"]').value = btn.dataset.type;
-        document.querySelector('#sell_rent_form input[name="id"]').value = btn.dataset.id;
-        var listingType = listing?.listing_type ?? 'sell';
-        document.getElementById(listingType === 'rent' ? 'type_rent' : 'type_sell').checked = true;
-        document.getElementById('listing_price').value = listing?.price ?? '';
-        document.querySelector('#sell_rent_form select[name="unit"]').value = listing?.unit ?? 'PKR';
+        var form = document.getElementById('listing_form');
+        form.querySelector('[name="type"]').value = btn.dataset.type;
+        form.querySelector('[name="id"]').value = btn.dataset.id;
+        form.querySelector('[name="ids"]').value = '';
+        document.getElementById(listing?.listing_type === 'rent' ? 'type_rent' : 'type_sell').checked = true;
+        document.getElementById('price').value = listing?.price ?? '';
+        form.querySelector('[name="unit"]').value = listing?.unit ?? 'PKR';
         document.getElementById('show_price').checked = listing ? !!listing.show_price : true;
-        document.getElementById('listing_contact').value = listing?.contact_no ?? '';
+        document.getElementById('contact').value = listing?.contact_no ?? '';
         document.getElementById('show_contact').checked = listing ? !!listing.show_contact_no : true;
-        document.getElementById('listing_email').value = listing?.email ?? '';
-        document.getElementById('listing_description').value = listing?.description ?? '';
+        document.getElementById('email').value = listing?.email ?? '';
+        document.getElementById('description').value = listing?.description ?? '';
       });
     }
 

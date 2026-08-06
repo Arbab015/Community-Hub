@@ -84,11 +84,15 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/societies/{slug}', 'index')->name('societies.index')->middleware('permission:listing_society');
         Route::post('society/store/{slug}/{uuid?}', 'storeOrUpdate')->name('society.store')->middleware('permission:add_society');
 
+        Route::get('societies/{user_type}/all-ids', 'allIds')
+            ->name('societies.all_ids');
+
         Route::get('/societies/{user_type}/{uuid}', 'show')->name('societies.show');
         Route::get('/societies/{user_type}/{uuid}/{type}/{slug}', 'renderPosts')->name('society.render_posts');
         Route::get('attachment/delete/{id}', 'destroy')->name('attachment.delete');
         Route::get('society/delete/{slug}/{uuid}', 'deleteSociety')->name('society.delete');
         Route::get('society/block/{slug}/{uuid}', 'blockSociety')->name('society.block');
+
     });
 
     Route::post('/society/switch', [\App\Http\Controllers\SocietySwitcherController::class, 'switch'])
@@ -181,6 +185,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('blocks/store', 'store')->name('blocks.store')->middleware('permission:add_block');
         Route::delete('blocks/destroy/{uuid}', 'destroy')->name('blocks.destroy')->middleware('permission:delete_block');
         Route::post('/blocks/bulk_delete', 'bulkDelete')->name('blocks.bulk_delete')->middleware('permission:delete_block');
+
+        Route::get('blocks/{block:uuid}/properties/all-ids', 'allIds')
+            ->name('block.properties.all_ids');
+
+        Route::get('{user_type}/societies/{society:uuid}/blocks/{block:uuid}/properties/all-ids', 'allIds')->name('society.block.properties.all_ids');
     });
 
     Route::controller(PropertiesController::class)->group(function () {
@@ -257,7 +266,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('property-listing', 'store')->name('listing.store');
         // web.php
         Route::get('property_listing/destroy/{uuid}', 'destroy')->name('listing.destroy');
-
+        Route::post('listing/bulk-store', 'bulkStore')->name('listing.bulk_store');
     });
 
     Route::controller(\App\Http\Controllers\PropertyAttributeController::class)->group(function () {
@@ -268,15 +277,51 @@ Route::middleware(['auth'])->group(function () {
 
     });
 
-    Route::controller(\App\Http\Controllers\PaymentPlanningTemplateController::class)->group(function () {
-        Route::get('payment-planning-templates/index', 'index')->name('payment-planning-templates.index')->middleware('permission:payment_planning_template_listing');
-        Route::post('/payment-planning-templates', 'store')
-            ->name('payment-planning-templates.store');
+    Route::controller(\App\Http\Controllers\PaymentTemplateController::class)->group(function () {
+        Route::get('payment-templates/index', 'index')->name('payment-templates.index')->middleware('permission:payment_template_listing');
+        Route::post('/payment-templates', 'store')
+            ->name('payment-templates.store');
 
-        Route::delete('/payment-planning-templates/{paymentPlanningTemplate}', 'destroy')
-            ->name('payment-planning-templates.destroy')->middleware('permission:payment_planning_template_delete');
+        Route::delete('/payment-templates/{paymentPlanningTemplate}', 'destroy')
+            ->name('payment-templates.destroy')->middleware('permission:payment_template_delete');
 
-        Route::post('/payment-planning-templates/bulkdetele', 'bulkDelete')->name('payment-planning-templates.bulk_delete')->middleware('permission:payment_planning_template_delete');
+        Route::post('/payment-templates/bulkdetele', 'bulkDelete')->name('payment-templates.bulk_delete')->middleware('permission:payment_template_delete');
+    });
+
+    Route::controller(\App\Http\Controllers\InstallmentTemplateController::class)->group(function () {
+        Route::get('installment-templates/index', 'index')->name('installment-templates.index')->middleware('permission:installment_template_listing');
+        Route::post('/installment-templates', 'store')
+            ->name('installment-templates.store');
+
+        Route::delete('/installment-templates/{paymentPlanningTemplate}', 'destroy')
+            ->name('installment-templates.destroy')->middleware('permission:installment_template_delete');
+
+        Route::post('/installment-templates/bulkdetele', 'bulkDelete')->name('installment-templates.bulk_delete')->middleware('permission:installment_template_delete');
+    });
+
+    Route::controller(\App\Http\Controllers\PropertyPaymentPlanController::class)->group(function () {
+        Route::post('payment_plan/apply', 'store')->name('payment_plan.apply')->middleware('permission:installment_template_listing');  // need to create new permission
+
+        Route::post('payment_plan/apply-single', 'applySingle')->name('payment_plan.apply_single')->middleware('permission:installment_template_listing');
+
+        Route::post('payment_plan/{paymentPlan}/update', 'update')->name('payment_plan.update')->middleware('permission:installment_template_listing');
+
+        Route::post('payment_plan/{paymentPlan}/installment/{installmentAttachment}/update', 'updateInstallment')
+            ->name('payment_plan.update-installment')
+            ->middleware('permission:installment_template_listing');
+
+        Route::delete('payment_plan/{paymentPlan}/installment/{installmentAttachment}', 'detachInstallment')
+            ->name('payment_plan.detach-installment')
+            ->middleware('permission:installment_template_listing');
+
+        Route::post('payment_plan/{paymentPlan}/installment/attach', 'attachInstallment')
+            ->name('payment_plan.attach-installment')
+            ->middleware('permission:installment_template_listing');
+
+        Route::delete('payment_plan/{paymentPlan}', 'destroy')->name('payment_plan.destroy')->middleware('permission:installment_template_listing');
+
+        Route::get('payment_plan/print/{uuid}', 'printPlan')->name('payment_plan.print')->middleware('permission:installment_template_listing');
+
     });
 
     // Attachment controller

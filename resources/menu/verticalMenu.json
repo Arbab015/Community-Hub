@@ -9,9 +9,6 @@
     },
     {
       "name": "Users Management",
-      "slug": [
-        "users.index"
-      ],
       "icon": "menu-icon icon-base ti tabler-users",
       "submenu": [
         {
@@ -125,9 +122,14 @@
           "permission": "inquiries_listing"
         },
         {
-          "name": "Payment Planning Templates",
-          "route": "payment-planning-templates.index",
-          "permission": "payment_planning_template_listing"
+          "name": "Payment Templates",
+          "route": "payment-templates.index",
+          "permission": "payment_template_listing"
+        },
+        {
+          "name": "Installment Templates",
+          "route": "installment-templates.index",
+          "permission": "installment_template_listing"
         }
       ]
     },

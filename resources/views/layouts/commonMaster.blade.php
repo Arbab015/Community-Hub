@@ -105,8 +105,14 @@
 
 
   @stack('styles')
-  <link rel="stylesheet" href="{{ asset('backend/css/style.css') }}">
-  <link rel="stylesheet" href="{{ asset('frontend/css/style.css') }}">
+
+
+  @if(!$isFront)
+    <link rel="stylesheet" href="{{ asset('backend/css/style.css') }}">
+  @else
+    <link rel="stylesheet" href="{{ asset('frontend/css/style.css') }}">
+  @endif
+
 </head>
 
 <body>

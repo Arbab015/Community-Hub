@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payment_planning_templates', function (Blueprint $table) {
+        Schema::create('payment_templates', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
             $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
@@ -37,6 +37,16 @@ return new class extends Migration
             $table->boolean('possession_fee_in_per')->nullable()->default(false);
             $table->boolean('possession_fee_surplus')->nullable()->default(false);
 
+            // Property feature premiums — optional, always percentage-based
+            $table->double('corner_premium')->nullable();
+            $table->boolean('corner_premium_in_per')->nullable()->default(true);
+
+            $table->double('park_facing_premium')->nullable();
+            $table->boolean('park_facing_premium_in_per')->nullable()->default(true);
+
+            $table->double('main_boulevard_premium')->nullable();
+            $table->boolean('main_boulevard_premium_in_per')->nullable()->default(true);
+
             $table->timestamps();
         });
     }
@@ -46,6 +56,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payment_planning_templates');
+        Schema::dropIfExists('payment_templates');
     }
 };

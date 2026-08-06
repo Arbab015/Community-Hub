@@ -114,7 +114,7 @@ class PropertyInquiryController extends Controller
                 ->make(true);
         }
 
-        $can_see = $login_user->can('property_inquiries');
+        $can_see = $login_user->can('see_inquiries');
         $show_actions = $can_see;
 
         return view('content.property_management.inquiries.index', compact('show_actions'));

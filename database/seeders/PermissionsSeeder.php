@@ -88,11 +88,15 @@ class PermissionsSeeder extends Seeder
 
             'contact_messages',
 
-            'payment_planning_template_listing',
-            'payment_planning_template_create',
-            'payment_planning_template_edit',
-            'payment_planning_template_delete',
+            'payment_template_listing',
+            'payment_template_create',
+            'payment_template_edit',
+            'payment_template_delete',
 
+            'installment_template_listing',
+            'installment_template_create',
+            'installment_template_edit',
+            'installment_template_delete',
         ];
 
         foreach ($permissions as $permission) {
@@ -133,10 +137,15 @@ class PermissionsSeeder extends Seeder
 
             'owner_properties',
 
-            'payment_planning_template_listing',
-            'payment_planning_template_create',
-            'payment_planning_template_edit',
-            'payment_planning_template_delete',
+            'payment_template_listing',
+            'payment_template_create',
+            'payment_template_edit',
+            'payment_template_delete',
+
+            'installment_template_listing',
+            'installment_template_create',
+            'installment_template_edit',
+            'installment_template_delete',
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -146,9 +155,18 @@ class PermissionsSeeder extends Seeder
             $admin->syncPermissions($superAdminPermissions);
         });
 
-        $user = User::where('email', 'arbabr904@gmail.com')->first();
-        if ($user) {
-            $user->assignRole(roles: 'Super Admin');
+        $user = User::firstOrCreate(
+            ['email' => 'arbabr904@gmail.com'],
+            [
+                'first_name' => 'Arbab',
+                'last_name' => 'khalid',
+                'cnic_passport' => '13403-377377893-1',
+                'permanent_address' => 'Dara saleem khan',
+                'password' => bcrypt('12345678'),
+            ]
+        );
+        if (! $user->hasRole('Super Admin')) {
+            $user->assignRole('Super Admin');
         }
 
         // Society Owner
@@ -206,10 +224,15 @@ class PermissionsSeeder extends Seeder
             'inquiries_listing',
             'see_inquiries',
 
-            'payment_planning_template_listing',
-            'payment_planning_template_create',
-            'payment_planning_template_edit',
-            'payment_planning_template_delete',
+            'payment_template_listing',
+            'payment_template_create',
+            'payment_template_edit',
+            'payment_template_delete',
+
+            'installment_template_listing',
+            'installment_template_create',
+            'installment_template_edit',
+            'installment_template_delete',
         ];
 
         $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);

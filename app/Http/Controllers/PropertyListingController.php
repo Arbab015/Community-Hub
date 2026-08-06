@@ -2,72 +2,122 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\GetArea;
 use App\Models\Property;
 use App\Models\PropertyListing;
 use App\Models\PropertyUnit;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 
 class PropertyListingController extends Controller
 {
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate([
             'type' => 'required|in:property,unit',
-            'id' => 'required|integer',
+            'id' => 'required',
             'listing_type' => 'required|in:sell,rent',
             'price' => 'required|numeric|min:0',
-            'unit' => 'required|in:PKR,USD,AED',
-            'show_price' => 'nullable|boolean',
-            'contact_no' => 'required|string|max:20',
-            'show_contact_no' => 'nullable|boolean',
-            'email' => 'required|email|max:255',
-            'description' => 'required|string|max:2000',
+            'unit' => 'required|in:PKR,USD,AED,SAR',
+            'contact_no' => 'required',
+            'email' => 'required|email',
+            'description' => 'required',
         ]);
 
-        try {
-            $listable = match ($validated['type']) {
-                'property' => Property::findOrFail($validated['id']),
-                'unit' => PropertyUnit::findOrFail($validated['id']),
-            };
+        $model = $request->type === 'property'
+          ? Property::findOrFail($request->id)
+          : PropertyUnit::findOrFail($request->id);
 
-            $listable->listing()->updateOrCreate(
-                [],
-                [
-                    'listing_type' => $validated['listing_type'],
-                    'price' => $validated['price'],
-                    'unit' => $validated['unit'],
-                    'show_price' => $request->boolean('show_price'),
-                    'contact_no' => $validated['contact_no'],
-                    'show_contact_no' => $request->boolean('show_contact_no'),
-                    'email' => $validated['email'] ?? null,
-                    'description' => $validated['description'],
-                ]
-            );
+        $model->listing()->updateOrCreate([], [
+            'listing_type' => $request->listing_type,
+            'price' => $request->price,
+            'unit' => $request->unit,
+            'show_price' => $request->boolean('show_price'),
+            'contact_no' => $request->contact_no,
+            'show_contact_no' => $request->boolean('show_contact_no'),
+            'email' => $request->email,
+            'description' => $request->description,
+        ]);
 
-            return back()->with('success', 'Property listed successfully.');
+        return back()->with('success', 'Listed successfully.');
+    }
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return back()->with('error', 'Property not found.')->withInput();
+    public function bulkStore(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|string',
+            'listing_type' => 'required|in:sell,rent',
+            'rate' => 'required|numeric|min:0',
+            'unit' => 'required|in:PKR,USD,AED,SAR',
+            'rate_unit' => 'required|in:marla,square_yard',
+            'contact_no' => 'required',
+            'email' => 'required|email',
+            'description' => 'required',
+        ]);
 
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage())->withInput();
+        $propertyUuids = array_filter(array_map('trim', explode(',', $request->ids)));
+        if (empty($propertyUuids)) {
+            return back()->with('error', 'No properties selected.');
         }
+
+        $properties = Property::with(['dimensions', 'block.society'])
+            ->whereIn('uuid', $propertyUuids)
+            ->whereNull('owner_id')
+            ->get();
+
+        $total = 0;
+        $skipped = [];
+
+        foreach ($properties as $property) {
+            $price = $this->calcPrice($property, $request);
+            if ($price) {
+                $this->createListing($property, $price, $request);
+                $total++;
+            } else {
+                $skipped[] = $property->property_no;
+            }
+        }
+
+        $msg = "{$total} item".($total === 1 ? '' : 's').' listed.';
+        if ($skipped) {
+            $msg .= ' Skipped: '.implode(', ', $skipped);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    private function calcPrice($item, $request)
+    {
+        $area = GetArea::calculate($item->dimensions);
+        if ($area <= 0) {
+            return null;
+        }
+
+        $marlaSize = optional(optional($item->block)->society)->marla_size ?? 272.25;
+        $unitArea = $request->rate_unit === 'marla' ? $area / $marlaSize : $area / 9;
+
+        return round($request->rate * $unitArea, 2);
+    }
+
+    private function createListing($item, $price, $request)
+    {
+        $item->listing()->updateOrCreate([], [
+            'listing_type' => $request->listing_type,
+            'price' => $price,
+            'unit' => $request->unit,
+            'show_price' => $request->boolean('show_price'),
+            'contact_no' => $request->contact_no,
+            'show_contact_no' => $request->boolean('show_contact_no'),
+            'email' => $request->email,
+            'description' => $request->description,
+        ]);
     }
 
     public function destroy($uuid)
     {
+        $listing = PropertyListing::where('uuid', $uuid)->firstOrFail();
+        $listing->inquiries()->delete();
+        $listing->delete();
 
-        try {
-            $listed_property = PropertyListing::where('uuid', $uuid)->firstOrFail();
-            $listed_property->inquiries()->delete();
-            $listed_property->delete();
-
-            return redirect()->back()->with('success', 'Property Un-listed successfully.');
-        } catch (ModelNotFoundException $e) {
-            return redirect()->back()->with('error', 'Listing record not found.');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
-        }
+        return back()->with('success', 'Unlisted successfully.');
     }
 }

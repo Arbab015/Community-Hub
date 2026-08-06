@@ -97,6 +97,44 @@
               <input type="text" name="street" class="form-control" required
                      value="{{ old('street', $property->street) }}" placeholder="Enter street">
             </div>
+
+
+            <div class="col-12 border-top pt-3 mt-3">
+              <label class="form-label fw-semibold small text-uppercase text-muted mb-3">Property Features</label>
+              <div class="d-flex flex-wrap gap-2">
+
+                <label
+                  class="feature-chip feature-chip-corner {{ old('is_corner', $property->is_corner) ? 'active' : '' }}">
+                  <input type="checkbox" class="feature-chip-input" id="modal_is_corner" name="is_corner" value="1"
+                         hidden
+                    {{ old('is_corner', $property->is_corner) ? 'checked' : '' }}>
+                  <span class="feature-chip-icon"><i class="ti tabler-corner-down-right-double"></i></span>
+                  <span class="feature-chip-text">Corner Property</span>
+                  <i class="ti tabler-circle-check-filled feature-chip-check"></i>
+                </label>
+
+                <label
+                  class="feature-chip feature-chip-boulevard {{ old('is_main_boulevard_facing', $property->is_main_boulevard_facing) ? 'active' : '' }}">
+                  <input type="checkbox" class="feature-chip-input" id="modal_is_main_boulevard_facing"
+                         name="is_main_boulevard_facing" value="1" hidden
+                    {{ old('is_main_boulevard_facing', $property->is_main_boulevard_facing) ? 'checked' : '' }}>
+                  <span class="feature-chip-icon"><i class="ti tabler-road-2"></i></span>
+                  <span class="feature-chip-text">Main Boulevard Facing</span>
+                  <i class="ti tabler-circle-check-filled feature-chip-check"></i>
+                </label>
+
+                <label
+                  class="feature-chip feature-chip-park {{ old('is_park_facing', $property->is_park_facing) ? 'active' : '' }}">
+                  <input type="checkbox" class="feature-chip-input" id="modal_is_park_facing" name="is_park_facing"
+                         value="1" hidden
+                    {{ old('is_park_facing', $property->is_park_facing) ? 'checked' : '' }}>
+                  <span class="feature-chip-icon"><i class="ti tabler-trees"></i></span>
+                  <span class="feature-chip-text">Park Facing</span>
+                  <i class="ti tabler-circle-check-filled feature-chip-check"></i>
+                </label>
+
+              </div>
+            </div>
           </div>
         </div>
 

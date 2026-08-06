@@ -5,7 +5,7 @@
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
       <p class="text-dark opacity-75 small text-uppercase fw-bold mb-1">Property Management</p>
-      <h4 class="mb-1">Payments Planning Templates</h4>
+      <h4 class="mb-1">Installment Templates</h4>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
@@ -23,7 +23,7 @@
       <div class="card-header pb-1">
         <div class="dt-scroll-wrapper">
           <div class="dt-actions-bar">
-            @can('payment_planning_template_create')
+            @can('installment_template_create')
               <div id="dt-right-actions" class="d-none">
                 <div class="d-flex gap-2">
                   <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#templateModal">
@@ -51,17 +51,16 @@
           @endif
 
           <div class="card-datatable">
-            <table id="payment_templates_table" class="table table_to_reload datatables-users">
+            <table id="installment_templates_table" class="table table_to_reload datatables-users">
               <thead class="bg-label-primary">
               <tr>
                 <th><input type="checkbox" class="form-check-input" id="select_all"></th>
                 <th>Name</th>
-                <th>Booking Fee</th>
-                <th>Development Fee</th>
-                <th>Down Payment</th>
-                <th>Transfer Fee</th>
-                <th>Confirmation Fee</th>
-                <th>Possession Fee</th>
+                <th>Number of Installments</th>
+                <th>Additional Amount</th>
+                <th>Installment frequency</th>
+                <th>Balloon Payment</th>
+                <th>Balloon frequency</th>
                 @if ($show_actions)
                   <th>Actions</th>
                 @endif
@@ -75,16 +74,16 @@
     </div>
   </div>
 
-  @include('_partials._modals.payment_planning_template')
+  @include('_partials._modals.installment_template')
 @endsection
 
 @push('scripts')
   <script>
     $(function() {
-      let table = $('#payment_templates_table').DataTable({
+      let table = $('#installment_templates_table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: `{{ route('payment-planning-templates.index') }}`,
+        ajax: `{{ route('installment-templates.index') }}`,
         dom: '<\'row align-items-center\'' +
           '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
           '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
@@ -97,12 +96,11 @@
         columns: [
           { data: 'checkbox', orderable: false, searchable: true },
           { data: 'name' },
-          { data: 'booking_fee', orderable: false },
-          { data: 'development_fee', orderable: false },
-          { data: 'down_payment', orderable: false },
-          { data: 'transfer_fee', orderable: false },
-          { data: 'confirmation_fee', orderable: false },
-          { data: 'possession_fee', orderable: false },
+          { data: 'number_of_installments', orderable: false },
+          { data: 'additional_amount', orderable: false },
+          { data: 'installment_frequency', orderable: false },
+          { data: 'balloon_payment', orderable: false },
+          { data: 'balloon_payment_frequency', orderable: false },
             @if ($show_actions)
           {
             data: 'actions', orderable: false, searchable: false
@@ -112,7 +110,7 @@
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
           $('#bulk-delete-wrap').html(`
-            <button class="btn btn-danger btn-sm d-none bulk_btn" data-url="{{ route('payment-planning-templates.bulk_delete') }}">
+            <button class="btn btn-danger btn-sm d-none bulk_btn" data-url="{{ route('installment-templates.bulk_delete') }}">
               Bulk Delete
             </button>
           `);
@@ -136,21 +134,96 @@
       border-bottom: 2px solid #cdcdcf !important;
     }
 
-    @media (max-width: 575px) {
+    .dt-scroll-wrapper {
+      position: relative;
+    }
+
+    .card-header {
+      overflow: visible !important;
+    }
+
+    .dataTables_wrapper .row.align-items-center {
+      flex-wrap: wrap;
+    }
+
+    .dataTables_wrapper .col-sm-6 {
+      flex-basis: 50%;
+      min-width: 0;
+    }
+
+    /* Tablet and smaller screens */
+    @media (max-width: 768px) {
       .dataTables_wrapper .row.align-items-center {
         flex-direction: column !important;
-        align-items: flex-start !important;
+        align-items: stretch !important;
+      }
+
+      .dataTables_wrapper .col-sm-6 {
+        flex-basis: 100% !important;
+        min-width: auto !important;
+      }
+
+      .dataTables_wrapper .col-sm-6.d-flex {
+        margin-bottom: 10px !important;
       }
 
       .dataTables_wrapper .dt-actions {
         width: 100% !important;
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 10px !important;
-        margin-top: 10px !important;
+        gap: 8px !important;
+        margin-top: 0 !important;
+        justify-content: flex-start !important;
+      }
+
+      .dataTables_wrapper .dt-actions .btn {
+        flex: 1 1 auto;
+        min-width: 120px;
+      }
+
+      #bulk-delete-wrap {
+        width: 100%;
+      }
+
+      #bulk-delete-wrap .btn {
+        width: 100%;
       }
     }
 
+    /* Mobile screens */
+    @media (max-width: 575px) {
+      .dataTables_wrapper .row.align-items-center {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+      }
+
+      .dataTables_wrapper .col-sm-6 {
+        width: 100% !important;
+      }
+
+      .dataTables_wrapper .dt-actions {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        margin-top: 8px !important;
+      }
+
+      .dataTables_wrapper .dt-actions .btn {
+        width: 100%;
+      }
+
+      #bulk-delete-wrap {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+
+      #bulk-delete-wrap .btn {
+        width: 100%;
+      }
+    }
+
+    /* Large screens with horizontal scroll for table */
     @media (max-width: 1250px) {
       .dt-scroll-wrapper {
         overflow-x: auto;
@@ -159,7 +232,7 @@
       }
 
       .dt-scroll-wrapper > * {
-        min-width: 1100px;
+        min-width: 1000px;
       }
 
       table.dataTable {

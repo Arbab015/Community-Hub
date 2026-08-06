@@ -61,4 +61,9 @@ class PropertyUnit extends Model
     {
         return $this->morphMany(VisitorFavourite::class, 'favouritable');
     }
+
+    public function plan()
+    {
+        return $this->morphOne(PropertyPaymentPlan::class, 'planable');
+    }
 }

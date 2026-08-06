@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\SocietyAccessResolver;
 use App\Models\Block;
+use App\Models\Property;
 use App\Models\Society;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -112,6 +113,22 @@ class BlocksController extends Controller
         } catch (Exception $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
+    }
+
+    public function allIds(Request $request, $uuid)
+    {
+        $block = Block::where('uuid', $uuid)->firstOrFail();
+
+        $ids = Property::where('block_id', $block->id)
+            ->when($request->search_content, fn ($q) => $q->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search_content.'%')
+                    ->orWhere('property_no', 'like', '%'.$request->search_content.'%');
+            }))
+            ->when($request->category, fn ($q) => $q->where('category', $request->category))
+            ->when($request->type, fn ($q) => $q->where('type', $request->type))
+            ->pluck('uuid');
+
+        return response()->json(['ids' => $ids]);
     }
 
     public function bulkDelete(Request $request)

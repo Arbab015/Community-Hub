@@ -1,1 +1,1 @@
-category, name, property_no, type,construction_status,landmark, street,dimension_1_name, dimension_1_size,dimension_1_unit,dimension_2_name, dimension_2_size,dimension_2_unit
+category, name, property_no, type,is_corner,is_main_boulevard_facing,is_park_facing,construction_status,landmark, street,dimension_1_name, dimension_1_size,dimension_1_unit,dimension_2_name, dimension_2_size,dimension_2_unit

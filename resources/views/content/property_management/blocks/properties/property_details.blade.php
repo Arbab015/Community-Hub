@@ -20,16 +20,17 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 @endphp
 
 @section('vendor-style')
-  @vite(['resources/assets/vendor/libs/notyf/notyf.scss','resources/assets/vendor/libs/dropzone/dropzone.scss'])
+  @vite(['resources/assets/vendor/libs/notyf/notyf.scss','resources/assets/vendor/libs/dropzone/dropzone.scss', 'resources/assets/vendor/libs/select2/select2.scss'])
 @endsection
 
 @section('vendor-script')
-  @vite(['resources/assets/vendor/libs/dropzone/dropzone.js', 'resources/assets/vendor/libs/notyf/notyf.js','resources/assets/vendor/libs/jquery-repeater/jquery-repeater.js'])
+  @vite(['resources/assets/vendor/libs/dropzone/dropzone.js', 'resources/assets/vendor/libs/notyf/notyf.js','resources/assets/vendor/libs/jquery-repeater/jquery-repeater.js','resources/assets/vendor/libs/select2/select2.js'])
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js' ])
+  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js','resources/assets/js/forms-selects.js' ])
 @endsection
+
 
 @section('content')
   <div
@@ -159,7 +160,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
         </li>
       @endif
       <li class="nav-item">
-        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#payments_plannng">
+        <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#payments_planning">
           <i class="ti tabler-calendar-dollar me-2 d-none d-sm-inline-block"></i> Payments Planning
         </button>
       </li>
@@ -176,7 +177,6 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
     {{-- TAB 1: PROPERTY DETAILS --}}
     <div class="tab-pane fade show active" id="info" role="tabpanel">
       <div class="row g-4">
-
         <div class="col-xl-4 col-lg-4 col-md-5">
           <div class="card mb-4 shadow-sm rounded-3">
             <div class="card-body text-center p-4">
@@ -436,6 +436,55 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                 </div>
               </div>
             </div>
+            <hr>
+            {{-- Add in property_details.blade.php after Basic Information card --}}
+
+            <div class="mb-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+                  <span class="d-inline-block bg-primary rounded hr_bar"></span> Features
+                </h5>
+              </div>
+              <div class="row g-2">
+                @if($property->is_corner)
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 bg-light rounded">
+                      <i class="ti tabler-corner-down-right-double text-primary fs-5"></i>
+                      <div>
+                        <small class="text-muted d-block">Corner</small>
+                        <span class="fw-semibold">Yes</span>
+                      </div>
+                    </div>
+                  </div>
+                @endif
+                @if($property->is_main_boulevard_facing)
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 bg-light rounded">
+                      <i class="ti tabler-road text-success fs-5"></i>
+                      <div>
+                        <small class="text-muted d-block">Main Boulevard</small>
+                        <span class="fw-semibold">Facing</span>
+                      </div>
+                    </div>
+                  </div>
+                @endif
+                @if($property->is_park_facing)
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 bg-light rounded">
+                      <i class="ti tabler-trees text-success fs-5"></i>
+                      <div>
+                        <small class="text-muted d-block">Park</small>
+                        <span class="fw-semibold">Facing</span>
+                      </div>
+                    </div>
+                  </div>
+                @endif
+              </div>
+              @if(!$property->is_corner && !$property->is_main_boulevard_facing && !$property->is_park_facing)
+                <p class="text-muted small mb-0 fst-italic">No special features selected</p>
+              @endif
+            </div>
+
             <hr>
             <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
               <span class="d-inline-block bg-primary rounded hr_bar"></span> Address
@@ -912,9 +961,10 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                         <div class="card-body p-3">
                           <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                             <div class="d-flex align-items-center gap-2 min-w-0">
-            <span class="unit-icon-wrap d-flex align-items-center justify-content-center rounded-circle flex-shrink-0">
-              <i class="ti tabler-door"></i>
-            </span>
+                        <span
+                          class="unit-icon-wrap d-flex align-items-center justify-content-center rounded-circle flex-shrink-0">
+                            <i class="ti tabler-door"></i>
+                        </span>
                               <span
                                 class="unit-name fw-semibold text-truncate">{{ ucfirst($room_types->first(fn($t) => $t->id == $room->room_type)?->title ?? '') }}</span>
                             </div>
@@ -1007,15 +1057,17 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
       @endif
 
     </div>
-  </div>
 
-  <div class="tab-pane fade" id="payments_plannng" role="tabpanel">
-    Payments plannings here
-  </div>
-  <div class="tab-pane fade" id="payments" role="tabpanel">
-    Payments records
-  </div>
 
+    {{-- TAB 3: Payments planning DETAILS --}}
+    <div class="tab-pane fade" id="payments_planning" role="tabpanel">
+      @include('components.property.payments-planning' , ['property' => $property])
+    </div>
+    {{-- TAB 3: Payments --}}
+    <div class="tab-pane fade" id="payments" role="tabpanel">
+      @include('components.property.payments')
+    </div>
+  </div>
   @include('_partials._modals.edit_property')
   @include('_partials._modals.listing_property')
 
@@ -1477,24 +1529,55 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
       fillTypes(edit_type, edit_cat.value, edit_type.dataset.old)
     );
 
-    // ── Sell/Rent modal prefill
+    // listing
+
     const sellRentModal = document.getElementById('sell_rent_modal');
+
     sellRentModal.addEventListener('show.bs.modal', function(e) {
       const btn = e.relatedTarget;
       if (!btn) return;
+
+      const itemType = btn.dataset.type || 'property';
+      const itemId = btn.dataset.id || '';
       const listing = btn.dataset.listing ? JSON.parse(btn.dataset.listing) : null;
-      document.querySelector('#sell_rent_form input[name="type"]').value = btn.dataset.type;
-      document.querySelector('#sell_rent_form input[name="id"]').value = btn.dataset.id;
-      const listingType = listing?.listing_type ?? 'sell';
-      document.getElementById(listingType === 'rent' ? 'type_rent' : 'type_sell').checked = true;
-      document.getElementById('listing_price').value = listing?.price ?? '';
-      document.querySelector('#sell_rent_form select[name="unit"]').value = listing?.unit ?? 'PKR';
-      document.getElementById('show_price').checked = listing ? !!listing.show_price : true;
-      document.getElementById('listing_contact').value = listing?.contact_no ?? '';
-      document.getElementById('show_contact').checked = listing ? !!listing.show_contact_no : true;
-      document.getElementById('listing_email').value = listing?.email ?? '';
-      document.getElementById('listing_description').value = listing?.description ?? '';
+      const form = document.getElementById('listing_form');
+
+      // Set form for SINGLE mode
+      form.querySelector('[name="type"]').value = itemType;
+      form.querySelector('[name="id"]').value = itemId;
+      form.querySelector('[name="ids"]').value = '';
+      form.action = "{{ route('listing.store') }}";
+
+      // Show single UI
+      document.getElementById('modal_title').textContent = listing ? 'Update Listing' : 'List Property';
+      document.getElementById('bulk_notice').classList.add('d-none');
+      document.getElementById('single_price').classList.remove('d-none');
+      document.getElementById('bulk_rate').classList.add('d-none');
+      document.getElementById('btn_text').textContent = 'Submit Listing';
+
+      // Prefill if listing exists
+      if (listing) {
+        document.getElementById('type_' + listing.listing_type).checked = true;
+        document.getElementById('price').value = listing.price || '';
+        document.getElementById('unit').value = listing.unit || 'PKR';
+        document.getElementById('show_price').checked = listing.show_price ? true : false;
+        document.getElementById('contact').value = listing.contact_no || '';
+        document.getElementById('show_contact').checked = listing.show_contact_no ? true : false;
+        document.getElementById('email').value = listing.email || '';
+        document.getElementById('description').value = listing.description || '';
+      } else {
+        // Reset to defaults
+        document.getElementById('type_sell').checked = true;
+        document.getElementById('price').value = '';
+        document.getElementById('unit').value = 'PKR';
+        document.getElementById('show_price').checked = true;
+        document.getElementById('contact').value = '';
+        document.getElementById('show_contact').checked = true;
+        document.getElementById('email').value = '';
+        document.getElementById('description').value = '';
+      }
     });
+
 
     function initKebabDropdowns(container = document) {
       container.querySelectorAll('.unit-kebab-btn').forEach(btn => {
@@ -2050,6 +2133,10 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
         });
     });
 
-
+    document.querySelectorAll('.feature-chip-input').forEach(function(input) {
+      input.addEventListener('change', function() {
+        this.closest('.feature-chip').classList.toggle('active', this.checked);
+      });
+    });
   </script>
 @endpush

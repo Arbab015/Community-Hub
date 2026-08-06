@@ -156,7 +156,7 @@
         <form id="property_form" method="post" action="{{ route('property.store') }}">
           @csrf
           @if(isset($user_type))
-            <input type="hidden" name="user_type" value="{{$user_type}}">
+            <input type="hidden" name="user_type" value="{{ $user_type }}">
           @endif
           @if(isset($property))
             <input type="hidden" name="property_id" value="{{ $property->id }}">
@@ -164,7 +164,7 @@
           <input type="hidden" name="block_id" value="{{ $block->id }}">
           <input type="hidden" name="section" value="property">
 
-          {{-- STEP 01 CATEGORY --}}
+          {{-- STEP 01 — CATEGORY --}}
           <div class="card-body border-bottom p-4">
             <div class="d-flex align-items-center gap-2 mb-4">
               <span
@@ -238,10 +238,8 @@
 
             <div class="row g-4">
 
-              {{-- CREATE MODE--}}
               @if(!isset($property))
-
-                {{-- Mode toggle --}}
+                {{-- Property Scope --}}
                 <div class="col-12">
                   <label class="form-label fw-semibold small text-uppercase text-muted">Property Scope</label>
                   <div class="d-flex gap-2">
@@ -250,26 +248,28 @@
                            value="single" {{ old('property_count_mode', 'single') === 'single' ? 'checked' : '' }}>
                     <label for="mode_single"
                            class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
-      <span class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
-        <i class="ti tabler-building"></i>
-      </span>
+                      <span
+                        class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+                        <i class="ti tabler-building"></i>
+                      </span>
                       <span class="text-start">
-        <span class="d-block fw-semibold prop-mode-title">Single</span>
-        <span class="d-block text-muted prop-mode-sub">One property</span>
-      </span>
+                        <span class="d-block fw-semibold prop-mode-title">Single</span>
+                        <span class="d-block text-muted prop-mode-sub">One property</span>
+                      </span>
                     </label>
 
                     <input type="radio" class="btn-check" name="property_count_mode" id="mode_multiple"
                            value="multiple" {{ old('property_count_mode', 'single') === 'multiple' ? 'checked' : '' }}>
                     <label for="mode_multiple"
                            class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
-      <span class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
-        <i class="ti tabler-building-community"></i>
-      </span>
+                      <span
+                        class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+                        <i class="ti tabler-building-community"></i>
+                      </span>
                       <span class="text-start">
-        <span class="d-block fw-semibold prop-mode-title">Multiple</span>
-        <span class="d-block text-muted prop-mode-sub">Range of properties</span>
-      </span>
+                        <span class="d-block fw-semibold prop-mode-title">Multiple</span>
+                        <span class="d-block text-muted prop-mode-sub">Range of properties</span>
+                      </span>
                     </label>
 
                   </div>
@@ -293,7 +293,7 @@
                   @enderror
                 </div>
 
-                {{-- Multiple: 3 separate fields --}}
+                {{-- Multiple: Range fields --}}
                 <div class="col-12" id="multiple_no_wrapper"
                      @if(old('property_count_mode', 'single') !== 'multiple') style="display:none" @endif>
                   <label class="form-label fw-semibold small text-uppercase text-muted required">Property No
@@ -404,8 +404,7 @@
 
               {{-- Street --}}
               <div class="col-md-4">
-                <label for="street"
-                       class="form-label fw-semibold small text-uppercase text-muted required">
+                <label for="street" class="form-label fw-semibold small text-uppercase text-muted required">
                   Street
                   <span id="street_location_status" class="text-muted normal-case fw-normal ms-1"
                         style="text-transform: none; font-size: 0.7rem;"></span>
@@ -440,32 +439,29 @@
               </div>
 
               {{-- Construction Status --}}
-              <div class="col-md-6 @if(!isset($property))d-none @else property_exist @endif" id="constructed_wrapper">
+              <div class="col-md-6 @if(!isset($property)) d-none @else property_exist @endif" id="constructed_wrapper">
                 <label class="form-label fw-semibold small text-uppercase text-muted required">Construction
                   Status</label>
                 <div class="d-flex flex-nowrap overflow-auto gap-2">
                   <label for="cons_constructed" id="label_constructed" class="const_labels flex-shrink-0">
-                    <input type="radio" id="cons_constructed" name="construction_status"
-                           {{ old('construction_status', $property->construction_status ?? '') == "constructed" ? 'checked' : '' }} value="constructed"
-                           hidden>
+                    <input type="radio" id="cons_constructed" name="construction_status" value="constructed"
+                           {{ old('construction_status', $property->construction_status ?? '') == "constructed" ? 'checked' : '' }} hidden>
                     <div class="const-inner d-flex align-items-center justify-content-center gap-2">
                       <i class="ti tabler-check fs-4 text-success const-icon"></i>
                       <span class="small fw-semibold">Constructed</span>
                     </div>
                   </label>
                   <label for="cons_in_progress" id="label_progress" class="const_labels flex-shrink-0">
-                    <input type="radio" id="cons_in_progress" name="construction_status"
-                           {{ old('construction_status', $property->construction_status ?? '') == "in_progress" ? 'checked' : '' }} value="in_progress"
-                           hidden>
+                    <input type="radio" id="cons_in_progress" name="construction_status" value="in_progress"
+                           {{ old('construction_status', $property->construction_status ?? '') == "in_progress" ? 'checked' : '' }} hidden>
                     <div class="const-inner d-flex align-items-center justify-content-center gap-2">
                       <i class="ti tabler-clock fs-4 text-primary const-icon"></i>
                       <span class="small fw-semibold text-primary">In Progress</span>
                     </div>
                   </label>
                   <label for="cons_pending" id="label_pending" class="const_labels flex-shrink-0">
-                    <input type="radio" id="cons_pending" name="construction_status"
-                           {{ old('construction_status', $property->construction_status ?? '') == "pending" ? 'checked' : '' }} value="pending"
-                           hidden>
+                    <input type="radio" id="cons_pending" name="construction_status" value="pending"
+                           {{ old('construction_status', $property->construction_status ?? '') == "pending" ? 'checked' : '' }} hidden>
                     <div class="const-inner d-flex align-items-center justify-content-center gap-2">
                       <i class="ti tabler-loader fs-4 text-warning const-icon"></i>
                       <span class="small fw-semibold text-primary">Pending</span>
@@ -477,6 +473,48 @@
                 @enderror
               </div>
 
+              {{-- Property Features --}}
+              <div class="col-12">
+                <label class="form-label fw-semibold small text-uppercase text-muted">Property Features</label>
+                <div class="d-flex flex-wrap gap-2">
+
+                  <input type="checkbox" class="btn-check" id="is_corner" name="is_corner" value="1"
+                    {{ old('is_corner', $property->is_corner ?? false) ? 'checked' : '' }}>
+                  <label for="is_corner"
+                         class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
+                    <span
+                      class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+                      <i class="ti tabler-corner-down-right-double"></i>
+                    </span>
+                    <span class="fw-semibold prop-mode-title">Corner Property</span>
+                  </label>
+
+                  <input type="checkbox" class="btn-check" id="is_main_boulevard_facing" name="is_main_boulevard_facing"
+                         value="1"
+                    {{ old('is_main_boulevard_facing', $property->is_main_boulevard_facing ?? false) ? 'checked' : '' }}>
+                  <label for="is_main_boulevard_facing"
+                         class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
+                    <span
+                      class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+                      <i class="ti tabler-road"></i>
+                    </span>
+                    <span class="fw-semibold prop-mode-title">Main Boulevard Facing</span>
+                  </label>
+
+                  <input type="checkbox" class="btn-check" id="is_park_facing" name="is_park_facing" value="1"
+                    {{ old('is_park_facing', $property->is_park_facing ?? false) ? 'checked' : '' }}>
+                  <label for="is_park_facing"
+                         class="btn btn-outline-secondary prop-mode-label d-flex align-items-center gap-2 rounded-3">
+                    <span
+                      class="prop-mode-icon d-flex align-items-center justify-content-center rounded-circle bg-body-secondary">
+                      <i class="ti tabler-trees"></i>
+                    </span>
+                    <span class="fw-semibold prop-mode-title">Park Facing</span>
+                  </label>
+
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -484,11 +522,10 @@
           @include('components.property.dimensions')
 
           <div class="card-body p-4 float-end">
-            <button type="submit" id="save_property_btn" class="btn btn- btn-primary px-4 fw-bold">
+            <button type="submit" id="save_property_btn" class="btn btn-primary px-4 fw-bold">
               <i class="ti tabler-arrow-right me-1"></i>Save & Continue
             </button>
           </div>
-
 
         </form>
       </div>
@@ -691,8 +728,6 @@
         text-align: center;
       }
     }
-
-
   </style>
 @endpush
 
@@ -832,5 +867,10 @@
       return '';
     }
 
+    document.querySelectorAll('.feature-chip-input').forEach(function(input) {
+      input.addEventListener('change', function() {
+        this.closest('.feature-chip').classList.toggle('active', this.checked);
+      });
+    });
   </script>
 @endpush

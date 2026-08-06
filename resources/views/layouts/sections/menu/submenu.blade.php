@@ -17,9 +17,9 @@
       $activeParent = 'active open';
 
       if (
-          isset($submenu->route, $submenu->slug) &&
+          isset($submenu->route) &&
           $currentRouteName === $submenu->route &&
-          $currentSlug === $submenu->slug
+          (!isset($submenu->slug) || $currentSlug === $submenu->slug)
       ) {
           $activeClass = 'active';
       }
@@ -32,9 +32,9 @@
       if (isset($submenu->submenu)) {
           foreach ($submenu->submenu as $child) {
               if (
-                  isset($child->route, $child->slug) &&
+                  isset($child->route) &&
                   $currentRouteName === $child->route &&
-                  $currentSlug === $child->slug
+                  (!isset($child->slug) || $currentSlug === $child->slug)
               ) {
                   $activeClass = $activeParent;
                   break;

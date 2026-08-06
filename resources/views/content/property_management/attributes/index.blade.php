@@ -47,7 +47,7 @@
             <div id="dt-right-actions" class="d-none">
               <div class="d-flex gap-2">
                 @can('create_attribute')
-                  <button class="btn btn-primary" onclick="addAttributeModel(event)">
+                  <button class="btn btn-sm btn-primary" onclick="addAttributeModel(event)">
                     Add Property Attribute
                   </button>
                 @endcan

@@ -3,13 +3,15 @@
 @section('title', 'Properties in ' . ucwords($block?->name ?? 'Block'))
 
 @section('vendor-style')
-  @vite(['resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss'])
+  @vite(['resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss', 'resources/assets/vendor/libs/select2/select2.scss'])
 @endsection
 
 @section('vendor-script')
-  @vite(['resources/assets/vendor/libs/notiflix/notiflix.js'])
+  @vite(['resources/assets/vendor/libs/notiflix/notiflix.js', 'resources/assets/vendor/libs/select2/select2.js'])
 @endsection
-
+@section('page-script')
+  @vite(['resources/assets/js/forms-selects.js'])
+@endsection
 @section('content')
 
   <div
@@ -59,6 +61,15 @@
     </div>
   @endif
 
+  @if ($errors->any())
+    <div class="alert alert-danger">
+      <ul>
+        @foreach ($errors->all() as $error)
+          <i class="ti tabler-alert-circle me-1"></i>{{ $error }}</li>
+        @endforeach
+      </ul>
+    </div>
+  @endif
 
   {{-- IMPORT PROGRESS BAR (hidden by default) --}}
   <div id="import_progress_wrapper" class="card mb-4 d-none">
@@ -95,6 +106,20 @@
       @can('create_property')
         <div class="d-flex gap-2 align-items-center">
 
+          <button type="button" id="select_all_properties_btn" class="btn btn-sm btn-outline-secondary"
+                  onclick="toggleSelectAllProperties()">
+            <i class="ti tabler-checkbox me-1"></i> Select All
+          </button>
+
+          <button type="button" id="apply_payment_plan_btn" class="btn btn-sm btn-primary d-none"
+                  onclick="applyPaymentPlanToProperties()">
+            <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
+          </button>
+
+          <button type="button" id="apply_listing_btn" class="btn btn-sm btn-outline-primary d-none"
+                  onclick="applyListingToProperties()">
+            <i class="ti tabler-tag me-1"></i> Apply Listing
+          </button>
           <button id="view_errors_btn" class="btn btn-sm btn-outline-warning d-none" onclick="openErrorModal()">
             <i class="ti tabler-alert-triangle me-1"></i> View Errors
           </button>
@@ -165,16 +190,16 @@
                       : asset('assets/img/my_images/dummy_property_image.png')
           @endphp
           <div class="position-relative">
+            <input type="checkbox" class="form-check-input property-checkbox position-absolute top-0 start-0 m-2"
+                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;"
+                   value="{{ $property->uuid }}">
             <img src="{{ $url }}" class="card-img-top property-img cursor-pointer" alt="Property Image"
                  title="Click to Preview image..."
                  onclick="showImage('{{$url}}')">
-            <span class="badge bg-primary opacity-75 position-absolute top-0 start-0 m-2">
+            <span class="badge bg-primary opacity-75 position-absolute top-0 end-0 m-2">
               {{ ucfirst($property->type) }}
             </span>
 
-            <span class="badge bg-secondary opacity-75 position-absolute top-0 end-0 m-2">
-              {{ ucfirst($property->category) }}
-            </span>
           </div>
 
           <div class="card-body p-4">
@@ -185,6 +210,9 @@
             </h6>
             <p class="text-muted small mb-1">
               Property No: <span class="fw-semibold"> #{{ ucfirst($property->property_no) }}</span>
+            </p>
+            <p class="text-muted small mb-1">
+              Category: <span class="fw-semibold"> {{ ucfirst($property->category) }}</span>
             </p>
             <p class="small text-secondary mb-0">
               Last update: {{ $property->updated_at->format('F d, Y h:i A') }}
@@ -217,6 +245,8 @@
     @endforelse
   </div>
 
+
+
   @if ($total_properties > $total_skip)
     <div id="load_more" class="text-center">
       <button class="btn btn-sm btn-primary" type="button" onclick="loadMore(event)">
@@ -229,6 +259,9 @@
   @include('_partials._modals.lightbox_model')
   @include('_partials._modals.import_properties')
   @include('_partials._modals.import_errors')
+  @include('_partials._modals.apply_payment_plan')
+  @include('_partials._modals.listing_property')
+
 @endsection
 
 @push('styles')
@@ -318,13 +351,15 @@
             prop_details_url = prop_details_url.replace('__UUID__', property.uuid);
 
             $('#property_cards').append(`
-            <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
-              <div class="card h-100 border-0 shadow-sm property-card">
-                <div class="position-relative">
+  <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
+    <div class="card h-100 border-0 shadow-sm property-card">
+      <div class="position-relative">
+        <input type="checkbox" class="form-check-input property-checkbox position-absolute top-0 start-0 m-2"
+               style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="${property.uuid}"
+               ${selectedProperties.has(property.uuid) ? 'checked' : ''}>
                   <img src="${image_url}" class="card-img-top property-img cursor-pointer" alt="Property Image"
                        title="Click to Preview image..." onclick="showImage('${image_url}')">
-                  <span class="badge bg-primary opacity-75 position-absolute top-0 start-0 m-2">${property.type}</span>
-                  <span class="badge bg-secondary opacity-75 position-absolute top-0 end-0 m-2">${property.category}</span>
+                  <span class="badge bg-primary opacity-75 position-absolute top-0 end-0 m-2">${property.type}</span>
                 </div>
                 <div class="card-body p-4">
                   <h6 class="fw-bold mb-1 text-truncate text-uppercase cursor-pointer"
@@ -333,6 +368,9 @@
                     ${property.name ? property.name : property.type}
                   </h6>
                   <p class="text-muted small mb-1">Property No: <span class="fw-semibold">#${property.property_no}</span></p>
+ <p class="text-muted small mb-1">
+    Category: <span class="fw-semibold">${property.category.charAt(0).toUpperCase() + property.category.slice(1)}</span>
+</p>
                   <p class="small text-secondary mb-0">Last update: ${formatted}</p>
                 </div>
                 <div class="card-footer bg-white border-0 d-flex justify-content-between">
@@ -509,21 +547,6 @@
       });
     }
 
-    {{--function downloadErrorFile(btn) {--}}
-    {{--  btn.disabled = true;--}}
-    {{--  $.ajax({--}}
-    {{--    url: "{{ route('properties.import_errors_download', $block->uuid) }}",--}}
-    {{--    type: 'GET',--}}
-    {{--    data: { _token: '{{ csrf_token() }}' },--}}
-    {{--    success: function() {--}}
-    {{--      // btn.closest('tr').remove();--}}
-    {{--    },--}}
-    {{--    error: function() {--}}
-    {{--      btn.disabled = false;--}}
-    {{--      alert('Could not download the error file. Please try again.');--}}
-    {{--    }--}}
-    {{--  });--}}
-    {{--}--}}
 
     document.querySelector('#importPropertiesModal form').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -653,5 +676,138 @@
         }
       });
     });
+
+    // ---- Property multi-select for payment plan application ----
+    let selectedProperties = new Set();
+    let allPropertiesSelected = false;
+
+    document.addEventListener('change', function(e) {
+      if (e.target.classList.contains('property-checkbox')) {
+        if (e.target.checked) {
+          selectedProperties.add(e.target.value);
+        } else {
+          selectedProperties.delete(e.target.value);
+          if (allPropertiesSelected) {
+            allPropertiesSelected = false;
+            setSelectAllPropertiesBtn(false);
+          }
+        }
+        updatePropertySelectionBar();
+      }
+    });
+
+    function setSelectAllPropertiesBtn(active) {
+      const btn = document.getElementById('select_all_properties_btn');
+      btn.innerHTML = active
+        ? '<i class="ti tabler-square-off me-1"></i> Deselect All'
+        : '<i class="ti tabler-checkbox me-1"></i> Select All';
+    }
+
+    function toggleSelectAllProperties() {
+      const btn = document.getElementById('select_all_properties_btn');
+
+      if (allPropertiesSelected) {
+        selectedProperties.clear();
+        document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = false);
+        allPropertiesSelected = false;
+        setSelectAllPropertiesBtn(false);
+        updatePropertySelectionBar();
+        return;
+      }
+
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Selecting...';
+
+      var data = {
+        search_content: document.getElementById('search_content').value,
+        category: document.getElementById('category').value,
+        type: document.getElementById('type').value
+      };
+
+
+      let url = "{{ isset($society) && $user_type
+    ? route('society.block.properties.all_ids', [$user_type, $society->uuid, $block->uuid])
+    : route('block.properties.all_ids', $block->uuid) }}";
+
+      $.ajax({
+        url: url,
+        type: 'GET',
+        data: data,
+        success: function(response) {
+          selectedProperties = new Set(response.ids);
+          document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = true);
+          allPropertiesSelected = true;
+          setSelectAllPropertiesBtn(true);
+          updatePropertySelectionBar();
+        },
+        error: function() {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire('Error', 'Failed to select all properties', 'error');
+          }
+        },
+        complete: function() {
+          btn.disabled = false;
+          if (!allPropertiesSelected) btn.innerHTML = originalHtml;
+        }
+      });
+    }
+
+    function updatePropertySelectionBar() {
+      const hasSelection = selectedProperties.size > 0;
+      document.getElementById('apply_payment_plan_btn').classList.toggle('d-none', !hasSelection);
+      document.getElementById('apply_listing_btn').classList.toggle('d-none', !hasSelection);
+    }
+
+    function applyPaymentPlanToProperties() {
+      if (!selectedProperties.size) return;
+      document.getElementById('apply_plan_selected_count').textContent = selectedProperties.size;
+      document.getElementById('apply_plan_ids').value = Array.from(selectedProperties).join(',');
+      document.getElementById('apply_plan_type').value = 'property';
+      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
+
+    }
+
+    // ============================================
+    // FOR BLOCK VIEW (Multiple Properties Page)
+    // ============================================
+
+    function applyListingToProperties() {
+      if (!selectedProperties.size) return;
+
+      const form = document.getElementById('listing_form');
+
+      // Set form for BULK mode
+      form.querySelector('[name="type"]').value = 'property';
+      form.querySelector('[name="id"]').value = '';
+      form.querySelector('[name="ids"]').value = Array.from(selectedProperties).join(',');
+      form.action = "{{ route('listing.bulk_store') }}";
+
+      // Show bulk UI
+      document.getElementById('modal_title').textContent = 'Apply Listing';
+      document.getElementById('bulk_notice').classList.remove('d-none');
+      document.getElementById('count').textContent = selectedProperties.size;
+      document.getElementById('single_price').classList.add('d-none');
+      document.getElementById('bulk_rate').classList.remove('d-none');
+      document.getElementById('btn_text').textContent = `Apply to ${selectedProperties.size} Properties`;
+
+      // Set defaults
+      document.getElementById('type_sell').checked = true;
+
+      new bootstrap.Modal(document.getElementById('sell_rent_modal')).show();
+    }
+
+    function updateSocietySelectionBar() {
+      const applyBtn = document.getElementById('apply_payment_template_btn');
+      applyBtn.classList.toggle('d-none', selectedSocieties.size === 0);
+    }
+
+    function applyPaymentTemplateToSocieties() {
+      if (!selectedSocieties.size) return;
+      document.getElementById('apply_plan_selected_count').textContent = selectedSocieties.size;
+      document.getElementById('apply_plan_ids').value = Array.from(selectedSocieties).join(',');
+      document.getElementById('apply_plan_type').value = 'society';
+      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
+    }
   </script>
 @endpush

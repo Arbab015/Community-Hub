@@ -86,8 +86,8 @@ class UsersController extends Controller
                     $delete = '';
                     if ($login_user->can('edit_user')) {
                         $edit = '<a href="'.route('user.edit', [$user->uuid, $slug]).'" class="me-2">
-                  <i class="fa-solid fa-pen-to-square text-primary"></i>
-                 </a>';
+                       <i class="fa-solid fa-pen-to-square text-primary"></i>
+                     </a>';
                     }
 
                     if ($login_user->can('delete_user')) {

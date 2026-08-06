@@ -7,6 +7,8 @@ use App\Models\Attachment;
 use App\Models\Block;
 use App\Models\Floor;
 use App\Models\Import;
+use App\Models\InstallmentTemplate;
+use App\Models\PaymentTemplate;
 use App\Models\Property;
 use App\Models\PropertyAttribute;
 use App\Models\PropertyUnit;
@@ -108,12 +110,17 @@ class PropertiesController extends Controller
             session()->flash('success', 'Property created successfully.');
         }
 
+        $payment_templates = PaymentTemplate::where('owner_id', auth()->id())->get();
+        $installment_templates = InstallmentTemplate::where('owner_id', auth()->id())->get();
+
         return view(
             'content.property_management.blocks.show',
             compact(
                 'society',
                 'user_type',
                 'block',
+                'payment_templates',
+                'installment_templates',
                 'properties',
                 'total_skip',
                 'property_categories',
@@ -272,6 +279,9 @@ class PropertiesController extends Controller
                     'street' => 'required|string|max:50',
                     'landmark' => 'nullable|string|max:50',
                     'construction_status' => 'nullable|string|in:constructed,in_progress,pending',
+                    'is_corner' => 'nullable|boolean',
+                    'is_main_boulevard_facing' => 'nullable|boolean',
+                    'is_park_facing' => 'nullable|boolean',
                 ];
 
                 if ($isMultiple) {
@@ -460,6 +470,9 @@ class PropertiesController extends Controller
                         'street' => $request->street,
                         'landmark' => $request->landmark,
                         'construction_status' => $request->construction_status,
+                        'is_corner' => (bool) $request->input('is_corner'),
+                        'is_main_boulevard_facing' => (bool) $request->input('is_main_boulevard_facing'),
+                        'is_park_facing' => (bool) $request->input('is_park_facing'),
                     ]);
 
                     if ($isNotPending && $request->construction_status === 'pending') {
@@ -479,6 +492,9 @@ class PropertiesController extends Controller
                         'street' => $request->street,
                         'landmark' => $request->landmark,
                         'construction_status' => $request->construction_status,
+                        'is_corner' => (bool) $request->input('is_corner'),
+                        'is_main_boulevard_facing' => (bool) $request->input('is_main_boulevard_facing'),
+                        'is_park_facing' => (bool) $request->input('is_park_facing'),
                     ];
 
                     if ($isMultiple) {
@@ -750,7 +766,9 @@ class PropertiesController extends Controller
 
     public function details($request, $user_type, $society_uuid, $uuid, $isOwner = null)
     {
-        $property = Property::where('uuid', $uuid)->with('block')->first();
+        $property = Property::where('uuid', $uuid)
+            ->with('block', 'plan.paymentTemplate', 'plan.installmentAttachments.installmentTemplate')
+            ->first();
         $society = $property->block->society ?? null;
 
         $property_attributes = PropertyAttribute::orderBy('created_at', 'asc')->get();
@@ -759,9 +777,12 @@ class PropertiesController extends Controller
         $room_types = $property_attributes->where('type', 'room_type');
         $amenities = $property_attributes->where('type', 'amenity');
 
+        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->get();
+        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->get();
+
         return view(
             'content.property_management.blocks.properties.property_details',
-            compact('property', 'floor_types', 'unit_types', 'isOwner', 'room_types', 'amenities', 'society', 'user_type')
+            compact('property', 'floor_types', 'unit_types', 'isOwner', 'paymentsPlans', 'installmentTemplates', 'room_types', 'amenities', 'society', 'user_type')
         );
     }
 
@@ -884,6 +905,7 @@ class PropertiesController extends Controller
         logger('result', $result);
         if (! $result['success']) {
             Storage::disk('public')->delete($path);
+            $import->delete();
 
             return response()->json(['errors' => $result['errors']]);
         }
@@ -962,12 +984,7 @@ class PropertiesController extends Controller
         $import = Import::where('user_id', auth()->id())
             ->where('error_file_path', $errorPath)
             ->latest()
-            ->first();
-        if ($import) {
-
-            return $this->deleteImportErrors($import->id);
-
-        }
+            ->delete();
 
         return response()->json(['success' => true]);
     }
