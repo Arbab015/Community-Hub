@@ -19,7 +19,7 @@
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/common_property.js', 'resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js', 'resources/assets/js/forms-selects.js'])
+  @vite(['resources/assets/js/forms-file-upload.js', 'resources/assets/js/repeater.js', 'resources/assets/js/common_property.js', 'resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js', 'resources/assets/js/forms-selects.js', 'resources/assets/js/installment-plan-calculator.js', 'resources/assets/js/installment-template-preview.js'])
 @endsection
 
 @section('content')
@@ -878,7 +878,6 @@
         var form = document.getElementById('listing_form');
         form.querySelector('[name="type"]').value = btn.dataset.type;
         form.querySelector('[name="id"]').value = btn.dataset.id;
-        form.querySelector('[name="ids"]').value = '';
         document.getElementById(listing?.listing_type === 'rent' ? 'type_rent' : 'type_sell').checked = true;
         document.getElementById('price').value = listing?.price ?? '';
         form.querySelector('[name="unit"]').value = listing?.unit ?? 'PKR';

@@ -28,7 +28,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 @endsection
 
 @section('page-script')
-  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js','resources/assets/js/forms-selects.js' ])
+  @vite(['resources/assets/js/forms-file-upload.js','resources/assets/js/repeater.js', 'resources/assets/js/common_property.js','resources/assets/js/edit_construction.js', 'resources/assets/js/ui-toasts.js','resources/assets/js/forms-selects.js','resources/assets/js/installment-plan-calculator.js','resources/assets/js/installment-template-preview.js' ])
 @endsection
 
 
@@ -313,6 +313,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                     <label class="form-check-label fw-semibold mb-0 cursor-pointer" for="select_all">Select All</label>
                   </div>
                 </div>
+                
                 <span data-url="{{ route('attachments.bulk_delete') }}" id="bulk_btn"
                       class="btn btn-xs btn-outline-danger waves-effect d-none bulk_delete_btn d-flex align-items-center gap-1 bulk_btn">
                   <i class="fa-solid fa-trash fa-sm"></i> Delete
@@ -797,7 +798,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                 <i class="ti tabler-home"></i>
                               </span>
                               <span
-                                class="unit-name fw-semibold text-truncate">{{ $unit->unit_name ? ucfirst($unit->unit_name) : 'Unit' }}</span>
+                                class="unit-name fw-semibold ">{{ $unit->unit_name ? ucfirst($unit->unit_name) : 'Unit' }}</span>
                             </div>
 
                             <div>
@@ -966,7 +967,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                             <i class="ti tabler-door"></i>
                         </span>
                               <span
-                                class="unit-name fw-semibold text-truncate">{{ ucfirst($room_types->first(fn($t) => $t->id == $room->room_type)?->title ?? '') }}</span>
+                                class="unit-name fw-semibold">{{ ucfirst($room_types->first(fn($t) => $t->id == $room->room_type)?->title ?? '') }}</span>
                             </div>
                             <div class="d-flex align-items-center flex-shrink-0 room-card-actions">
                               @can('edit_property')
@@ -1545,14 +1546,11 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
       // Set form for SINGLE mode
       form.querySelector('[name="type"]').value = itemType;
       form.querySelector('[name="id"]').value = itemId;
-      form.querySelector('[name="ids"]').value = '';
       form.action = "{{ route('listing.store') }}";
 
       // Show single UI
       document.getElementById('modal_title').textContent = listing ? 'Update Listing' : 'List Property';
-      document.getElementById('bulk_notice').classList.add('d-none');
       document.getElementById('single_price').classList.remove('d-none');
-      document.getElementById('bulk_rate').classList.add('d-none');
       document.getElementById('btn_text').textContent = 'Submit Listing';
 
       // Prefill if listing exists
@@ -1730,7 +1728,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                         <span class="unit-icon-wrap d-flex align-items-center justify-content-center rounded-circle flex-shrink-0">
                                             <i class="ti tabler-home"></i>
                                         </span>
-                                        <span class="unit-name fw-semibold text-truncate">${unitLabel}</span>
+                                        <span class="unit-name fw-semibold ">${unitLabel}</span>
                                     </div>
                                     <div>
                                         ${cloneBtn}
@@ -1883,7 +1881,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                         <span class="unit-icon-wrap d-flex align-items-center justify-content-center rounded-circle flex-shrink-0">
                                             <i class="ti tabler-door"></i>
                                         </span>
-                                        <span class="unit-name fw-semibold text-truncate">${label}</span>
+                                        <span class="unit-name fw-semibold ">${label}</span>
                                     </div>
                                     ${actionsHtml}
                                 </div>

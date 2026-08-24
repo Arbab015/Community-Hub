@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\GetArea;
+use App\Models\Block;
 use App\Models\InstallmentTemplate;
 use App\Models\PaymentTemplate;
 use App\Models\Property;
-use App\Models\PropertyListing;
 use App\Models\PropertyPaymentPlan;
 use App\Models\PropertyPaymentPlanInstallmentTemplate;
 use App\Models\PropertyUnit;
+use App\Support\InstallmentPlanCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -35,33 +36,57 @@ class PropertyPaymentPlanController extends Controller
 
     public function store(Request $request)
     {
+        dd($request->all());
         $request->validate([
-            'ids' => 'required|string',
-            'planable_type' => 'required|in:society,property',
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'string',
+            'planable_type' => 'required|in:society,block,property',
             'payment_template_id' => 'nullable|exists:payment_templates,id',
             'installment_template_ids' => 'nullable|array',
             'installment_template_ids.*' => 'exists:installment_templates,id',
             'size_range' => 'nullable|string',
             'apply_to_units' => 'nullable|boolean',
+            'is_commercial' => 'nullable|boolean',
         ]);
 
         if (! $request->payment_template_id && empty($request->installment_template_ids)) {
             return back()->with('error', 'Please select at least one payment or installment template.');
         }
 
+        // Ids may arrive as separate entries or comma-joined strings
+        // (e.g. societies page sends "uuid1,uuid2" in a single input).
+        $ids = collect($request->ids)
+            ->flatMap(fn ($id) => explode(',', $id))
+            ->map(fn ($id) => trim($id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         try {
-            $propertyIds = $this->getEligiblePropertyIds(
-                explode(',', $request->ids),
+            $result = $this->getEligibleProperties(
+                $ids,
                 $request->planable_type,
-                $request->size_range
+                $request->size_range,
+                $request->boolean('is_commercial')
             );
 
-            if (empty($propertyIds)) {
-                return back()->with('error', 'No matching properties found.');
+            if (empty($result['applied'])) {
+                $parts = [];
+                if (count($result['category_skipped'])) {
+                    $parts[] = count($result['category_skipped']).' category mismatch';
+                }
+                if (count($result['size_skipped'])) {
+                    $parts[] = count($result['size_skipped']).' size mismatch';
+                }
+                $reason = $parts ? ' ('.implode(', ', $parts).')' : '';
+
+                return back()->with('error', 'No matching properties found'.$reason.'.');
             }
 
             DB::beginTransaction();
 
+            $propertyIds = collect($result['applied'])->pluck('id')->toArray();
             $count = $this->applyPlan(
                 $propertyIds,
                 $request->boolean('apply_to_units'),
@@ -71,7 +96,22 @@ class PropertyPaymentPlanController extends Controller
 
             DB::commit();
 
-            return back()->with('success', "Payment plan applied successfully to {$count} record(s).");
+            $appliedNames = collect($result['applied'])->pluck('property_no')->filter()->implode(', ');
+            $appliedCount = count($result['applied']);
+            $msg = "Payment plan applied to {$count} record(s) ({$appliedCount} properties: {$appliedNames}).";
+
+            if (count($result['category_skipped'])) {
+                $skippedNames = collect($result['category_skipped'])->pluck('property_no')->filter()->implode(', ');
+                $skippedCats = collect($result['category_skipped'])->pluck('category')->unique()->implode('/');
+                $msg .= ' Skipped '.count($result['category_skipped'])." ({$skippedCats}): {$skippedNames}.";
+            }
+
+            if (count($result['size_skipped'])) {
+                $sizeNames = collect($result['size_skipped'])->pluck('property_no')->filter()->implode(', ');
+                $msg .= ' Skipped '.count($result['size_skipped'])." (size mismatch): {$sizeNames}.";
+            }
+
+            return back()->with('success', $msg);
         } catch (\Exception $e) {
             if (DB::transactionLevel() > 0) {
                 DB::rollBack();
@@ -129,7 +169,7 @@ class PropertyPaymentPlanController extends Controller
     private function upsertPaymentPlan($model, string $modelClass, ?int $paymentTemplateId, array $installmentTemplateIds, array $values = []): int
     {
         // Check if plan already exists
-        $existingPlan = $model->plan()->first();
+        $existingPlan = $model->paymentPlan()->first();
 
         if ($existingPlan) {
             // Update existing plan
@@ -139,7 +179,7 @@ class PropertyPaymentPlanController extends Controller
             $plan = $existingPlan;
         } else {
             // Create new plan
-            $plan = $model->plan()->create(array_merge([
+            $plan = $model->paymentPlan()->create(array_merge([
                 'uuid' => Str::uuid(),
                 'payment_template_id' => $paymentTemplateId,
             ], $values));
@@ -191,6 +231,7 @@ class PropertyPaymentPlanController extends Controller
     public function update(Request $request, PropertyPaymentPlan $paymentPlan)
     {
         $request->validate([
+            'payment_template_id' => 'nullable|exists:payment_templates,id',
             'booking_fee' => ['nullable', 'numeric', 'min:0', $request->boolean('booking_fee_in_per') ? 'max:100' : ''],
             'booking_fee_in_per' => 'nullable|boolean',
             'development_fee' => ['nullable', 'numeric', 'min:0', $request->boolean('development_fee_in_per') ? 'max:100' : ''],
@@ -219,30 +260,26 @@ class PropertyPaymentPlanController extends Controller
         ]);
 
         try {
-            $paymentPlan->update([
-                'payment_template_id' => null,
-                'booking_fee' => $this->nullableNumber($request->input('booking_fee')),
-                'booking_fee_in_per' => $request->boolean('booking_fee_in_per'),
-                'development_fee' => $this->nullableNumber($request->input('development_fee')),
-                'development_fee_in_per' => $request->boolean('development_fee_in_per'),
-                'development_fee_surplus' => $request->boolean('development_fee_surplus'),
-                'down_payment' => $this->nullableNumber($request->input('down_payment')),
-                'down_payment_in_per' => $request->boolean('down_payment_in_per'),
-                'transfer_fee' => $this->nullableNumber($request->input('transfer_fee')),
-                'transfer_fee_in_per' => $request->boolean('transfer_fee_in_per'),
-                'transfer_fee_surplus' => $request->boolean('transfer_fee_surplus'),
-                'confirmation_fee' => $this->nullableNumber($request->input('confirmation_fee')),
-                'confirmation_fee_in_per' => $request->boolean('confirmation_fee_in_per'),
-                'possession_fee' => $this->nullableNumber($request->input('possession_fee')),
-                'possession_fee_in_per' => $request->boolean('possession_fee_in_per'),
-                'possession_fee_surplus' => $request->boolean('possession_fee_surplus'),
-                'corner_premium' => $this->nullableNumber($request->input('corner_premium')),
-                'corner_premium_in_per' => true,
-                'park_facing_premium' => $this->nullableNumber($request->input('park_facing_premium')),
-                'park_facing_premium_in_per' => true,
-                'main_boulevard_premium' => $this->nullableNumber($request->input('main_boulevard_premium')),
-                'main_boulevard_premium_in_per' => true,
-            ]);
+            $paymentTemplateId = $this->nullableId($request->payment_template_id);
+            $chargeValues = $this->chargeValuesFromRequest($request);
+
+            if ($paymentTemplateId) {
+                $template = PaymentTemplate::find($paymentTemplateId);
+
+                if ($template && ! $this->chargesMatchTemplate($request, $template)) {
+                    // A single value was changed → snapshot the submitted values
+                    // onto the plan and drop the template link.
+                    $paymentTemplateId = null;
+                } else {
+                    // The template is applied as-is → keep the template link so
+                    // the template keeps supplying the values.
+                    $chargeValues = $this->emptyChargeValues();
+                }
+            }
+
+            $paymentPlan->update(array_merge([
+                'payment_template_id' => $paymentTemplateId,
+            ], $chargeValues));
 
             return back()->with('success', 'Payment plan values updated.');
         } catch (\Exception $e) {
@@ -254,7 +291,7 @@ class PropertyPaymentPlanController extends Controller
      * Detaches a single installment attachment (template-linked or custom)
      * from a payment plan.
      */
-    public function detachInstallment(PropertyPaymentPlan $paymentPlan, InstallmentTemplate $installmentAttachment)
+    public function detachInstallment(PropertyPaymentPlan $paymentPlan, PropertyPaymentPlanInstallmentTemplate $installmentAttachment)
     {
         try {
             $installmentAttachment->delete();
@@ -275,7 +312,7 @@ class PropertyPaymentPlanController extends Controller
     {
         $request->validate([
             'planable_type' => 'required|in:property,unit',
-            'planable_id' => 'required|integer',
+            'planable_uuid' => 'required|string',
             'payment_template_id' => 'nullable|exists:payment_templates,id',
             'installment_template_ids' => 'nullable|array',
             'installment_template_ids.*' => 'exists:installment_templates,id',
@@ -305,7 +342,7 @@ class PropertyPaymentPlanController extends Controller
 
         try {
             $modelClass = $request->planable_type === 'unit' ? PropertyUnit::class : Property::class;
-            $model = $modelClass::findOrFail($request->planable_id);
+            $model = $modelClass::where('uuid', $request->planable_uuid)->firstOrFail();
 
             $paymentTemplateId = $this->nullableId($request->payment_template_id);
             $chargeValues = $this->chargeValuesFromRequest($request);
@@ -424,7 +461,7 @@ class PropertyPaymentPlanController extends Controller
             }
 
             if (in_array($key, self::SURPLUS_KEYS)
-                && (bool) $request->boolean($key.'_surplus') !== (bool) ($template->{$key.'_surplus'} ?? false)) {
+              && (bool) $request->boolean($key.'_surplus') !== (bool) ($template->{$key.'_surplus'} ?? false)) {
                 return false;
             }
         }
@@ -523,6 +560,17 @@ class PropertyPaymentPlanController extends Controller
             return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency is required when balloon payment is set'])->withInput();
         }
 
+        if ($request->filled('balloon_payment') && $request->filled('balloon_payment_frequency')) {
+            if (! InstallmentPlanCalculator::balloonFrequencyValid($request->input('installment_frequency'), $request->input('balloon_payment_frequency'))) {
+                return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
+            }
+
+            $ipp = InstallmentPlanCalculator::installmentsPerYear($request->input('installment_frequency'));
+            if ((int) $request->input('number_of_installments') % $ipp !== 0) {
+                return back()->withErrors(['number_of_installments' => 'With a balloon payment the number of installments must be a whole multiple of '.$ipp.' ('.ucfirst($request->input('installment_frequency')).')'])->withInput();
+            }
+        }
+
         try {
             $installmentAttachment->update([
                 'installment_template_id' => null,
@@ -561,41 +609,68 @@ class PropertyPaymentPlanController extends Controller
     }
 
     /**
-     * Eligible (owner-less) property IDs for a society/property selection,
-     * optionally narrowed by marla/kanal size range.
+     * Classifies each property UUID into applied / category-skipped / size-skipped.
+     *
+     * When $isCommercial is true → only commercial properties match.
+     * When $isCommercial is false → residential + other properties match (all except commercial).
+     *
+     * @param  array  $ids  Array of property UUIDs, or society/block identifiers.
+     * @param  string  $planableType  'society', 'block' or 'property'.
+     * @param  string|null  $sizeRange  e.g. '0-5-marla'.
+     * @param  bool  $isCommercial  true = commercial only, false = non-commercial.
+     * @return array{applied: array, category_skipped: array, size_skipped: array}
      */
-    private function getEligiblePropertyIds(array $ids, string $planableType, ?string $sizeRange): array
+    private function getEligibleProperties(array $ids, string $planableType, ?string $sizeRange, bool $isCommercial): array
     {
-        $query = $planableType === 'society'
-          ? Property::whereHas('block.society', fn ($q) => $q->whereIn('uuid', $ids))
-          : Property::whereIn('uuid', $ids);
+        $query = match ($planableType) {
+            'society' => Property::whereHas('block.society', fn ($q) => $q->whereIn('uuid', $ids)),
+            'block' => Property::whereHas('block', fn ($q) => $q->whereIn('id', $ids)),
+            default => Property::whereIn('uuid', $ids),
+        };
 
         $query->whereNull('owner_id');
 
-        if (! $sizeRange) {
-            return $query->pluck('id')->toArray();
+        $properties = $query->with('dimensions', 'block.society')->get();
+
+        $applied = [];
+        $categorySkipped = [];
+        $sizeSkipped = [];
+
+        foreach ($properties as $property) {
+            $propIsCommercial = $property->category === 'commercial';
+            if ($isCommercial !== $propIsCommercial) {
+                $categorySkipped[] = $property;
+
+                continue;
+            }
+
+            if ($sizeRange) {
+                [$min, $max] = $this->parseSizeRange($sizeRange);
+                if (! $this->areaInRange($property, $min, $max)) {
+                    $sizeSkipped[] = $property;
+
+                    continue;
+                }
+            }
+
+            $applied[] = $property;
         }
 
-        [$min, $max] = $this->parseSizeRange($sizeRange);
-
-        return $query->with('block.society', 'floors.units.rooms', 'floors.rooms')
-            ->get()
-            ->filter(fn ($property) => $this->areaInRange($property, $min, $max))
-            ->pluck('id')
-            ->toArray();
+        return [
+            'applied' => $applied,
+            'category_skipped' => $categorySkipped,
+            'size_skipped' => $sizeSkipped,
+        ];
     }
 
     private function areaInRange(Property $property, float $min, ?float $max): bool
     {
-        $sqft = $property->floors->flatMap->units->flatMap->rooms
-            ->merge($property->floors->flatMap->rooms)
-            ->sum(fn ($room) => GetArea::calculate($room->dimensions));
-
+        $sqft = GetArea::calculate($property->dimensions);
         $marlaSize = $property->block->society->marla_size ?: self::DEFAULT_MARLA_SQFT;
 
         $marla = $sqft / $marlaSize;
 
-        return $marla >= $min && ($max === null || $marla <= $max);
+        return $marla > $min && ($max === null || $marla <= $max);
     }
 
     private function parseSizeRange(string $range): array
@@ -616,25 +691,33 @@ class PropertyPaymentPlanController extends Controller
     }
 
     /**
-     * Print view for a property/unit payment plan. Supports selecting one of
-     * the property's applicants (people with inquiries) for a personalized
-     * print, or a simple copy with no applicant.
+     * Print view for a property/unit payment plan. Supports:
+     *   - ?mode=simple  existing full document (default), filtered to ?plans
+     *   - ?mode=brief   compact bank-receipt schedule layout (max 3 plans per row)
+     *   - ?plans=uuid1,uuid2  installment attachment uuids to include
+     *   - ?applicant=uuid     optional applicant personalisation for simple print
      */
     public function printPlan(Request $request, string $uuid)
     {
         $property = Property::where('uuid', $uuid)->first()
-            ?? PropertyUnit::where('uuid', $uuid)->first();
+          ?? PropertyUnit::where('uuid', $uuid)->first();
 
         abort_unless($property, 404);
 
         $listing = $property->listing;
-        $plan = $property->plan;
+        $plan = $property->paymentPlan;
+
+        $mode = in_array($request->query('mode'), ['simple', 'brief'], true) ? $request->query('mode') : 'simple';
+        $includeInstallments = filter_var($request->query('include_installments', true), FILTER_VALIDATE_BOOL);
+        $selectedUuids = $includeInstallments && $request->query('plans')
+          ? array_values(array_filter(array_map('trim', explode(',', (string) $request->query('plans')))))
+          : [];
 
         $applicants = $listing?->inquiries()->with('visitor')->orderByDesc('created_at')->get() ?? collect();
 
         $selectedApplicant = $request->query('applicant')
-            ? $applicants->firstWhere('uuid', $request->query('applicant'))
-            : null;
+          ? $applicants->firstWhere('uuid', $request->query('applicant'))
+          : null;
 
         $user = auth()->user();
         $fullName = trim(($user?->first_name ?? '').' '.($user?->last_name ?? ''));
@@ -642,34 +725,25 @@ class PropertyPaymentPlanController extends Controller
         $printedByRole = $user?->getRoleNames()->join(', ') ?: null;
 
         return view('components.property.payment-plans-print', compact(
-            'property', 'listing', 'plan', 'applicants', 'selectedApplicant',
-            'printedByName', 'printedByRole'
+            'property', 'listing', 'plan', 'mode', 'includeInstallments', 'selectedUuids', 'applicants',
+            'selectedApplicant', 'printedByName', 'printedByRole'
         ));
     }
 
-    public function getSocietyPropertyIds(Request $request)
+    public function printPlans(Request $request)
     {
-        try {
-            $request->validate(['society_ids' => 'required|string']);
+        $request->validate([
+            'block_id' => 'required|exists:blocks,id',
+            'plan_ids' => 'required|array',
+            'plan_ids.*' => 'exists:payment_templates,id',
+        ]);
 
-            $propertyIds = PropertyListing::whereHas('block.society', function ($query) use ($request) {
-                $query->whereIn('uuid', explode(',', $request->society_ids));
-            })->pluck('uuid')->toArray();
+        $block = Block::find($request->block_id);
+        $properties_with_templates = $block->properties()
+            ->whereHas('paymentPlan', function ($query) use ($request) {
+                $query->whereIn('payment_template_id', $request->plan_ids);
+            })->get();
 
-            return response()->json(['property_ids' => $propertyIds, 'count' => count($propertyIds)]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function getBlockPropertyIds(Request $request, string $blockId)
-    {
-        try {
-            $propertyIds = PropertyListing::where('block_id', $blockId)->pluck('uuid')->toArray();
-
-            return response()->json(['property_ids' => $propertyIds, 'count' => count($propertyIds)]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
+        dd($properties_with_templates);
     }
 }

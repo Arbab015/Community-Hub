@@ -7,23 +7,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class Block extends Model
 {
-  use HasUuids;
+    use HasUuids;
 
-  protected $guarded = [];
+    protected $guarded = [];
 
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
 
-  public function uniqueIds(): array
-  {
-    return ['uuid'];
-  }
+    public function society()
+    {
+        return $this->belongsTo(Society::class, 'society_id');
+    }
 
-  public function society(){
-    return $this->belongsTo(Society::class, 'society_id');
-  }
+    public function propertyPriceRanges()
+    {
+        return $this->hasMany(BlockPriceRange::class, 'block_id');
+    }
 
-
-  public function properties(){
-    return $this->hasMany(Property::class, 'block_id');
-  }
-
+    public function properties()
+    {
+        return $this->hasMany(Property::class, 'block_id');
+    }
 }

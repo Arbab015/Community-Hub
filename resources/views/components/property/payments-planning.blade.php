@@ -6,11 +6,27 @@
   $listingPrice = optional($property->listing)->price ?? 0;
   $listingUnit = optional($property->listing)->unit ?? 'PKR';
 
-  $plan = $property->plan;
+  $plan = $property->paymentPlan;
   $paymentTemplate = $plan?->paymentTemplate;
 
   $paymentTemplateOptions = $paymentsPlans ?? collect();
-  $installmentTemplateOptions = $installmentTemplates ?? collect();
+
+  // Templates matching this property's category...
+  $allInstallmentTemplates = collect($installmentTemplates ?? collect())
+      ->filter(fn ($t) => (bool) $t->is_commercial === (($isUnit
+          ? optional($property->floor?->property)->category
+          : optional($property)->category) === 'commercial'))
+      ->values();
+
+  // ...minus the ones already attached to this payment plan.
+  $attachedTemplateIds = collect($plan?->installmentAttachments ?? [])
+      ->pluck('installment_template_id')
+      ->filter()
+      ->all();
+
+  $installmentTemplateOptions = $allInstallmentTemplates
+      ->reject(fn ($t) => in_array($t->id, $attachedTemplateIds))
+      ->values();
 
   $feeKeys = [
       ['key' => 'booking_fee',      'label' => 'Booking Fee',      'icon' => 'ti tabler-key'],
@@ -100,13 +116,12 @@
       $excludedTotal += $amount;
   }
 
-  // ── Installment attachments (each row keeps its own snapshot values) ──
+  // ── Installment attachments via InstallmentPlanCalculator ──
   $attachments = $plan?->installmentAttachments ?? collect();
 
   $attValue = function ($att, $field) {
       $value = $att->{$field} ?? null;
       if ($value !== null) return $value;
-
       return $att->installmentTemplate?->{$field} ?? null;
   };
   $attName = fn ($att) => (($att->name ?? '') ?: '') ?: ($att->installmentTemplate?->name ?: 'Installment Plan');
@@ -114,6 +129,7 @@
   $installmentPlans = [];
   foreach ($attachments as $idx => $att) {
       $num = (int) $attValue($att, 'number_of_installments');
+      $frequency = $attValue($att, 'installment_frequency');
 
       $addPer = (bool) $attValue($att, 'additional_installment_amount_in_per');
       $addRaw = (float) ($attValue($att, 'additional_installment_amount') ?? 0);
@@ -121,22 +137,19 @@
 
       $balloonPer = (bool) $attValue($att, 'balloon_payment_in_per');
       $balloonRaw = (float) ($attValue($att, 'balloon_payment') ?? 0);
+      $balloonFrequency = $attValue($att, 'balloon_payment_frequency');
 
-      // Payment-plan amount = listed price + excluded charges + extra installment
-      $planBase = $listingPrice + $excludedTotal + $addAmount;
-
-      // Balloon is part of the plan amount; the remaining balance is split evenly
-      // across the number of installments (e.g. 100 - 10 = 90 / 9 = 10 each).
-      $balloonAmount = $balloonPer ? $planBase * $balloonRaw / 100 : $balloonRaw;
-      $planTotal = $planBase;
-      $perInstallment = $num > 0 ? ($planBase - $balloonAmount) / $num : 0;
-
-      $schedule = [];
-      $cumulative = 0;
-      for ($i = 1; $i <= $num; $i++) {
-          $cumulative += $perInstallment;
-          $schedule[] = ['no' => $i, 'amount' => $perInstallment, 'cumulative' => $cumulative];
-      }
+      $calc = \App\Support\InstallmentPlanCalculator::calculate([
+          'listing_price' => $listingPrice,
+          'included_charges_total' => $includedTotal,
+          'excluded_charges_total' => $excludedTotal,
+          'additional_amount' => $addAmount,
+          'number_of_installments' => $num,
+          'installment_frequency' => $frequency,
+          'balloon_payment' => $balloonRaw,
+          'balloon_payment_in_per' => $balloonPer,
+          'balloon_payment_frequency' => $balloonFrequency,
+      ]);
 
       $installmentPlans[] = [
           'id'                     => $att->id,
@@ -146,39 +159,43 @@
           'template_name'          => $att->installmentTemplate?->name,
           'sequence'               => $idx + 1,
           'number_of_installments' => $num,
-          'installment_frequency'  => $attValue($att, 'installment_frequency'),
+          'installment_frequency'  => $frequency,
           'add_amount'             => $addAmount,
           'add_raw'                => $addRaw,
           'add_in_per'             => $addPer,
-          'balloon_amount'         => $balloonAmount,
+          'balloon_amount'         => $calc['total_balloon'],
           'balloon_raw'            => $balloonRaw,
           'balloon_in_per'         => $balloonPer,
-          'balloon_frequency'      => $attValue($att, 'balloon_payment_frequency'),
-          'plan_base'              => $planBase,
-          'plan_total'             => $planTotal,
-          'per_installment'        => $perInstallment,
-          'schedule'               => $schedule,
+          'balloon_frequency'      => $balloonFrequency,
+          'balloon_count'          => $calc['balloon_count'],
+          'per_balloon'            => $calc['per_balloon'],
+          'normal_count'           => $calc['normal_count'],
+          'grand_total'            => $calc['grand_total'],
+          'installment_remaining'  => $calc['installment_remaining'],
+          'per_installment'        => $calc['per_installment'],
+          'schedule'               => $calc['schedule'],
+          'total_years'            => $calc['total_years'],
           'edit_payload'           => json_encode([
               'name' => $attName($att),
               'number_of_installments' => $num,
-              'installment_frequency' => $attValue($att, 'installment_frequency'),
+              'installment_frequency' => $frequency,
               'additional_installment_amount' => $addRaw,
               'additional_installment_amount_in_per' => (int) $addPer,
               'balloon_payment' => $balloonRaw,
               'balloon_payment_in_per' => (int) $balloonPer,
-              'balloon_payment_frequency' => $attValue($att, 'balloon_payment_frequency'),
+              'balloon_payment_frequency' => $balloonFrequency,
           ]),
       ];
   }
 
   $defaultPlan = $installmentPlans[0] ?? null;
 
-  // Summary defaults — show the first installment plan when attached, otherwise the payment plan only
-  $summaryAdjustment = $defaultPlan ? $defaultPlan['add_amount'] : 0;
-  $summaryBalloon = $defaultPlan ? $defaultPlan['balloon_amount'] : 0;
-  $summaryFinal = $defaultPlan
-      ? $defaultPlan['plan_total']
-      : ($plan ? ($listingPrice + $excludedTotal) : $listingPrice);
+  // ── Summary calculations ──
+  $grossAmount = $listingPrice + $excludedTotal;
+  $remainingAmount = $grossAmount - $includedTotal;
+  $extraInstallment = $defaultPlan ? $defaultPlan['add_amount'] : 0;
+  $summaryPerBalloon = $defaultPlan ? $defaultPlan['per_balloon'] : 0;
+  $summaryPerInstallment = $defaultPlan ? $defaultPlan['per_installment'] : 0;
   $summaryViewing = $defaultPlan ? $defaultPlan['name'] : ($plan ? 'Payment plan only' : '—');
 @endphp
 
@@ -204,10 +221,17 @@
                       data-bs-target="#editPlanModal">
                 <i class="ti tabler-edit me-1"></i> Edit Values
               </button>
-              <a href="{{ route('payment_plan.print', $property->uuid) }}" target="_blank"
-                 class="btn btn-sm btn-outline-primary">
-                <i class="ti tabler-printer me-1"></i> Print Plan
-              </a>
+              @if(count($installmentPlans))
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#printPlanModal">
+                  <i class="ti tabler-printer me-1"></i> Print Plan
+                </button>
+              @else
+                <a href="{{ route('payment_plan.print', $property->uuid) }}?include_installments=0" target="_blank"
+                   class="btn btn-sm btn-outline-primary">
+                  <i class="ti tabler-printer me-1"></i> Print Plan
+                </a>
+              @endif
               <form action="{{ route('payment_plan.destroy', $plan) }}" method="POST"
                     onsubmit="return confirmDelete(event, null)">
                 @csrf
@@ -233,8 +257,7 @@
           <div class="border rounded-3 p-3 mb-3 bg-label-secondary">
             <div class="row g-3">
               <div class="col-md-4">
-                <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Payment
-                  Template</small>
+                <small class="micro-label text-muted text-uppercase d-block mb-1">Payment Template</small>
                 @if($paymentTemplate)
                   <div class="fw-semibold small">
                     <i class="ti tabler-file-invoice text-primary me-1"></i>{{ $paymentTemplate->name }}
@@ -246,8 +269,7 @@
                 @endif
               </div>
               <div class="col-md-8">
-                <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Installment
-                  Templates</small>
+                <small class="micro-label text-muted text-uppercase d-block mb-1">Installment Templates</small>
                 @if(count($installmentPlans))
                   <div class="d-flex flex-wrap gap-2">
                     @foreach($installmentPlans as $planData)
@@ -287,7 +309,7 @@
                       </span>
                       <div class="min-w-0">
                         <div class="fw-semibold small">{{ $fee['label'] }}</div>
-                        <div class="text-muted" style="font-size:.7rem;">
+                        <div class="text-muted text-tiny">
                           @if($fee['is_per'])
                             {{ rtrim(rtrim(number_format($fee['raw'], 2, '.', ''), '0'), '.') }}% of listed price
                           @else
@@ -298,9 +320,8 @@
                     </div>
                     <div class="text-end flex-shrink-0">
                       <div class="fw-bold">{{ number_format($fee['amount'], 2) }} {{ $listingUnit }}</div>
-                      <span class="badge {{ $fee['surplus'] ? 'bg-success' : 'bg-label-secondary' }}"
-                            style="font-size:.6rem;">
-                        {{ $fee['surplus'] ? 'Excluded' : 'Included' }}
+                      <span class="badge badge-xs {{ $fee['surplus'] ? 'bg-danger' : 'bg-primary' }}">
+                        {{ $fee['surplus'] ? 'Excluded ' : 'Included ' }} in listed price
                       </span>
                     </div>
                   </div>
@@ -308,11 +329,7 @@
               </div>
             @endforeach
           </div>
-          <p class="small text-muted mt-3 mb-0">
-            <i class="ti tabler-help-circle me-1"></i>
-            <b>Included</b> amounts are already part of the listed price.
-            <b>Excluded</b> amounts are extra and added on top of the listed price.
-          </p>
+
         @else
           <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
             <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
@@ -366,10 +383,14 @@
             <div class="installment-pane {{ $planData['sequence'] === 1 ? '' : 'd-none' }}"
                  data-sequence="{{ $planData['sequence'] }}"
                  data-name="{{ $planData['name'] }}"
-                 data-total="{{ $planData['plan_total'] }}"
-                 data-adjustment="{{ $planData['add_amount'] }}"
-                 data-balloon="{{ $planData['balloon_amount'] }}"
+                 data-extra="{{ $planData['add_amount'] }}"
+                 data-balloon-amount="{{ $planData['balloon_amount'] }}"
+                 data-installment-remaining="{{ $planData['installment_remaining'] }}"
+                 data-grand-total="{{ $planData['grand_total'] }}"
+                 data-per-balloon="{{ $planData['per_balloon'] }}"
                  data-per-installment="{{ $planData['per_installment'] }}"
+                 data-balloon-count="{{ $planData['balloon_count'] }}"
+                 data-normal-count="{{ $planData['normal_count'] }}"
                  data-num="{{ $planData['number_of_installments'] }}">
 
               {{-- Pane header: name, source, edit, remove --}}
@@ -411,7 +432,7 @@
               <div class="row g-2 mb-3">
                 <div class="col-sm-6 col-xl-3">
                   <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                    <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Installments</small>
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Installments</small>
                     <div class="fw-semibold">{{ $planData['number_of_installments'] }}
                       @if($planData['installment_frequency'])
                         <span class="text-muted fw-normal">· {{ ucfirst($planData['installment_frequency']) }}</span>
@@ -421,25 +442,12 @@
                 </div>
                 <div class="col-sm-6 col-xl-3">
                   <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                    <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Additional
-                      Amount</small>
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Per Balloon</small>
                     <div class="fw-semibold">
-                      + {{ number_format($planData['add_amount'], 2) }} {{ $listingUnit }}
-                      @if($planData['add_in_per'])
-                        <span class="text-muted fw-normal">({{ rtrim(rtrim(number_format($planData['add_raw'], 2, '.', ''), '0'), '.') }}%)</span>
-                      @endif
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-xl-3">
-                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                    <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Balloon
-                      Payment</small>
-                    <div class="fw-semibold">
-                      @if($planData['balloon_amount'] > 0)
-                        {{ number_format($planData['balloon_amount'], 2) }} {{ $listingUnit }}
-                        @if($planData['balloon_frequency'])
-                          <span class="text-muted fw-normal">· {{ ucfirst($planData['balloon_frequency']) }}</span>
+                      @if($planData['per_balloon'] > 0)
+                        {{ number_format($planData['per_balloon'], 2) }} {{ $listingUnit }}
+                        @if($planData['balloon_count'] > 0)
+                          <span class="text-muted fw-normal">({{ $planData['balloon_count'] }}×)</span>
                         @endif
                       @else
                         <span class="text-muted fw-normal">—</span>
@@ -449,10 +457,16 @@
                 </div>
                 <div class="col-sm-6 col-xl-3">
                   <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                    <small class="text-muted text-uppercase d-block mb-1" style="font-size:.62rem;font-weight:600;">Per
-                      Installment</small>
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Per Installment</small>
                     <div
                       class="fw-semibold">{{ number_format($planData['per_installment'], 2) }} {{ $listingUnit }}</div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Total Amount</small>
+                    <div
+                      class="fw-semibold">{{ number_format($grossAmount + $planData['add_amount'], 2) }} {{ $listingUnit }}</div>
                   </div>
                 </div>
               </div>
@@ -462,41 +476,50 @@
                 <div class="px-3 py-2 bg-primary bg-opacity-10 d-flex align-items-center justify-content-between">
                   <span class="fw-semibold small text-primary">Installment Schedule</span>
                   <span
-                    class="small text-muted">{{ $planData['number_of_installments'] }} {{ $planData['number_of_installments'] > 1 ? 'installments' : 'installment' }} · {{ ucfirst($planData['installment_frequency'] ?? '—') }}</span>
+                    class="small text-muted">{{ $planData['number_of_installments'] }} {{ $planData['number_of_installments'] > 1 ? 'installments' : 'installment' }} · {{ ucfirst($planData['installment_frequency'] ?? '—') }}@if($planData['balloon_count'] > 0)
+                      · {{ $planData['balloon_count'] }} balloon{{ $planData['balloon_count'] > 1 ? 's' : '' }}
+                    @endif</span>
                 </div>
-                <div class="table-responsive" style="max-height:360px;overflow-y:auto;">
+                <div class="table-responsive schedule-scroll">
                   <table class="table table-sm mb-0">
                     <thead class="table-light">
                     <tr>
-                      <th class="ps-3" style="width:150px;">Installment</th>
+                      <th class="ps-3 col-seq">#</th>
+                      <th class="ps-3">Type</th>
                       <th class="ps-3">Amount</th>
                       <th class="ps-3">Cumulative</th>
                     </tr>
                     </thead>
                     <tbody>
-                    @foreach($planData['schedule'] as $inst)
-                      <tr>
-                        <td class="ps-3 text-heading">Installment #{{ $inst['no'] }}</td>
-                        <td class="ps-3 fw-semibold">{{ number_format($inst['amount'], 2) }} {{ $listingUnit }}</td>
-                        <td class="ps-3 text-muted">{{ number_format($inst['cumulative'], 2) }} {{ $listingUnit }}</td>
-                      </tr>
-                    @endforeach
-                    @if($planData['balloon_amount'] > 0)
-                      <tr class="bg-label-warning">
-                        <td class="ps-3 text-heading fw-semibold">
-                          Balloon Payment
-                          @if($planData['balloon_frequency'])
-                            <span class="text-muted fw-normal">({{ ucfirst($planData['balloon_frequency']) }})</span>
+                    @foreach($planData['schedule'] as $seq => $row)
+                      <tr class="{{ $row['type'] === 'balloon' ? 'bg-label-primary' : '' }}">
+                        <td class="ps-3">{{ $seq + 1 }}</td>
+                        <td class="ps-3 text-heading">
+                          @if($row['type'] === 'balloon')
+                            Balloon
+                            #{{ $row['balloon_no'] }}
+                            @if($planData['balloon_frequency'])
+                              <span class="text-muted fw-normal">({{ ucfirst($planData['balloon_frequency']) }})</span>
+                            @endif
+                          @else
+                            Installment #{{ $row['no'] }}
                           @endif
                         </td>
-                        <td
-                          class="ps-3 fw-bold text-warning">{{ number_format($planData['balloon_amount'], 2) }} {{ $listingUnit }}</td>
-                        <td class="ps-3 text-muted">—</td>
+                        <td class="ps-3 fw-semibold">{{ number_format($row['amount'], 2) }} {{ $listingUnit }}</td>
+                        <td class="ps-3 text-muted">{{ number_format($row['cumulative'], 2) }} {{ $listingUnit }}</td>
                       </tr>
-                    @endif
+                    @endforeach
                     <tr class="table-light">
-                      <td class="ps-3 text-heading fw-bold">Total Payable</td>
-                      <td class="ps-3 fw-bold">{{ number_format($planData['plan_total'], 2) }} {{ $listingUnit }}</td>
+                      <td class="ps-3 text-heading fw-bold" colspan="2">Total Payable</td>
+                      <td class="ps-3 fw-bold">{{ number_format($planData['grand_total'], 2) }} {{ $listingUnit }}</td>
+                      <td class="ps-3 text-muted">—</td>
+                    </tr>
+                    <tr>
+                      <td class="ps-3 text-heading fw-bold" colspan="2">Final Amount <span
+                          class="text-muted fw-normal">(Gross + Extra)</span></td>
+                      <td class="ps-3 fw-bold text-primary">
+                        {{ number_format($grossAmount + $planData['add_amount'], 2) }} {{ $listingUnit }}
+                      </td>
                       <td class="ps-3 text-muted">—</td>
                     </tr>
                     </tbody>
@@ -525,106 +548,119 @@
     <div class="col-lg-4 order-1 order-lg-2">
       <div class="summary-sticky">
         <div class="card border-0 shadow-sm rounded-3 p-4 mb-3 bg-light">
-          <p class="text-uppercase small text-dark mb-2 fw-bold" style="letter-spacing:.05em;">Listed Value</p>
+          <p class="text-uppercase small text-dark mb-2 fw-bold tracking-wide">Listed Value</p>
           <div class="d-flex align-items-baseline gap-2">
             <h3 class="fw-bold mb-0">{{ number_format($listingPrice, 0) }}</h3>
             <span class="text-muted fs-6">{{ $listingUnit }}</span>
           </div>
         </div>
 
-        <div class="card border-0 shadow-sm rounded-3 p-4 bg-gradient text-white" style="font-size:.95rem;">
-          <p class="text-uppercase small mb-3 fw-bold" style="opacity:.85;font-size:.82rem;letter-spacing:.05em;">Plan
-            Summary</p>
+        <div class="card border-0 shadow-sm rounded-3 p-4 bg-gradient text-white plan-summary-card">
+          <p class="text-uppercase small mb-3 fw-bold plan-summary-title">Plan Summary</p>
 
           <div class="d-flex justify-content-between mb-2">
             <span class="small">Listed Price</span>
             <span class="fw-semibold fs-6" id="summary_listed">{{ number_format($listingPrice, 0) }}</span>
           </div>
 
-          <div class="mb-2">
-            <span class="small d-block">Excluded Charges <span style="opacity:.7;">(on top of listed)</span></span>
-            <ul class="list-unstyled mb-1 ps-0" style="font-size:.78rem;opacity:.9;">
-              @forelse($excludedCharges as $c)
-                <li class="d-flex justify-content-between">
-                  <span>{{ $c['label'] }}</span>
-                  <span>{{ number_format($c['amount'], 0) }}</span>
-                </li>
-              @empty
-                <li style="opacity:.6;">None</li>
-              @endforelse
-            </ul>
-            <div class="d-flex justify-content-between fw-semibold small" id="summary_excluded">
-              <span>Total excluded</span>
-              <span>{{ number_format($excludedTotal, 0) }}</span>
-            </div>
+          <span class="small d-block">Additional Amount <span class="opacity-75">(on top of listed)</span></span>
+          <ul class="list-unstyled mb-1 ps-0 summary-list">
+            @forelse($excludedCharges as $c)
+              <li class="d-flex justify-content-between">
+                <span>{{ $c['label'] }}</span>
+                <span>{{ number_format($c['amount'], 0) }}</span>
+              </li>
+            @empty
+              <li class="opacity-50">None</li>
+            @endforelse
+          </ul>
+          <div class="d-flex justify-content-between fw-semibold small mb-1" id="summary_additional">
+            <span>Total Additional</span>
+            <span>{{ number_format($excludedTotal, 0) }}</span>
+          </div>
+          <div class="d-flex justify-content-between fw-semibold small">
+            <span class="small">Gross Amount</span>
+            <span id="summary_gross"
+                  class="mb-2 bg-label-secondary px-2 rounded text-dark">{{ number_format($grossAmount, 0) }}</span>
           </div>
 
-          <div class="mb-2">
-            <span class="small d-block">Included Charges <span
-                style="opacity:.7;">(already in listed price)</span></span>
-            <ul class="list-unstyled mb-1 ps-0" style="font-size:.78rem;opacity:.9;">
-              @forelse($includedCharges as $c)
-                <li class="d-flex justify-content-between">
-                  <span>{{ $c['label'] }}</span>
-                  <span>{{ number_format($c['amount'], 0) }}</span>
-                </li>
-              @empty
-                <li style="opacity:.6;">None</li>
-              @endforelse
-            </ul>
-            <div class="d-flex justify-content-between fw-semibold small">
-              <span>Total included</span>
-              <span>{{ number_format($includedTotal, 0) }}</span>
-            </div>
+          <hr class="opacity-25">
+
+          <span class="small d-block">One-time Charges <span class="opacity-75">(already in gross amount)</span></span>
+          <ul class="list-unstyled mb-1 ps-0 summary-list">
+            @forelse($includedCharges as $c)
+              <li class="d-flex justify-content-between">
+                <span>{{ $c['label'] }}</span>
+                <span>{{ number_format($c['amount'], 0) }}</span>
+              </li>
+            @empty
+              <li class="opacity-50">None</li>
+            @endforelse
+          </ul>
+          <div class="d-flex justify-content-between fw-semibold small mb-1">
+            <span>Total One-time</span>
+            <span>{{ number_format($includedTotal, 0) }}</span>
           </div>
 
-          <hr style="border-color:rgba(255,255,255,.2);">
+          <div class="d-flex justify-content-between fw-bold small ">
+            <span class="small">Remaining Amount</span>
+            <span id="summary_remaining"
+            >{{ number_format($remainingAmount, 0) }}</span>
+          </div>
+
+          <hr class="opacity-25">
 
           @if($defaultPlan)
-            <div class="d-flex justify-content-between mb-1">
-              <span class="small">Installment Adjustment</span>
-              <span class="fw-semibold fs-6" id="summary_adjustment">{{ number_format($summaryAdjustment, 0) }}</span>
+            <div class="d-flex justify-content-between ">
+              <span class="small">Extra in Case of Installment</span>
+              <span class="fw-semibold fs-6 bg-label-secondary px-2 rounded text-dark"
+                    id="summary_extra">{{ number_format($extraInstallment, 0) }}</span>
+            </div>
+
+            <div class="d-flex justify-content-between">
+              <span class="small">Total Balloon</span>
+              <span class="fw-semibold fs-6"
+                    id="summary_total_balloon">{{ number_format($defaultPlan['balloon_amount'], 0) }}</span>
             </div>
 
             <div class="d-flex justify-content-between mb-2">
-              <span class="small">Balloon Payment</span>
-              <span class="fw-semibold fs-6" id="summary_balloon">{{ number_format($summaryBalloon, 0) }}</span>
+              <span class="small">Remaining for Installment</span>
+              <span class="fw-semibold fs-6"
+                    id="summary_installment_remaining">{{ number_format($defaultPlan['installment_remaining'], 0) }}</span>
+            </div>
+
+            <div class="d-flex justify-content-between fs-5 fw-bold mb-2 summary-final-row">
+              <span>Final Amount</span>
+              <span id="summary_final_amount"
+                    class="bg-label-secondary px-2 rounded text-dark">{{ number_format($grossAmount + $extraInstallment, 0) }}</span>
             </div>
           @elseif($plan)
-            <div class="small d-flex align-items-center gap-1 mb-2" style="opacity:.8;">
+            <div class="small d-flex align-items-center gap-1 mb-2 opacity-75">
               <i class="ti tabler-info-circle"></i> No installment plan attached — showing the payment plan only.
             </div>
           @endif
 
-          @if($plan)
-            <div class="d-flex justify-content-between fs-5 fw-bold mb-2">
-              <span>Final Value</span>
-              <span id="summary_final">{{ number_format($summaryFinal, 0) }}</span>
-            </div>
-          @else
-            <div class="small d-block mb-2" style="opacity:.75;" id="summary_final">
-              Apply a payment plan to preview the final value.
-            </div>
-          @endif
-
           @if($defaultPlan)
-            <div class="small d-block" style="opacity:.75;" id="summary_per_installment">
-              Per installment: {{ number_format($defaultPlan['per_installment'], 2) }} {{ $listingUnit }}
+            <div class="small d-block opacity-75" id="summary_per_installment">
+              @if($summaryPerBalloon > 0)
+                Per balloon: {{ number_format($summaryPerBalloon, 2) }} {{ $listingUnit }}
+                · Per installment: {{ number_format($summaryPerInstallment, 2) }} {{ $listingUnit }}
+              @else
+                Per installment: {{ number_format($summaryPerInstallment, 2) }} {{ $listingUnit }}
+              @endif
               ({{ $defaultPlan['number_of_installments'] }} installments)
             </div>
           @elseif($plan)
-            <div class="small d-block" style="opacity:.75;" id="summary_per_installment">
+            <div class="small d-block opacity-75" id="summary_per_installment">
               No installment plan attached.
             </div>
           @endif
 
-          <div class="d-flex justify-content-between align-items-center mt-3 pt-3"
-               style="border-top:1px solid rgba(255,255,255,.2);">
+          <div class="d-flex justify-content-between align-items-center mt-3 pt-3 summary-divider">
             <span class="small">Viewing</span>
             @if($plan)
               <select id="summary_view_select"
-                      class="form-select form-select-sm border-0 bg-white text-dark fw-semibold d-inline-block"
-              >
+                      class="form-select form-select-sm border-0 bg-white text-dark fw-semibold d-inline-block summary-select">
                 <option value="plan_only" @selected(!$defaultPlan)>Payment plan only</option>
                 @foreach($installmentPlans as $p)
                   <option
@@ -721,10 +757,9 @@
 
             <div class="col-12">
               <hr class="my-1">
-              <p class="fw-semibold small text-uppercase text-muted mb-3" style="font-size:.7rem;letter-spacing:.04em;">
+              <p class="section-caption fw-semibold small text-uppercase text-muted mb-3">
                 Custom Charge Values
-                <span class="text-uppercase-none fw-normal" style="text-transform:none;">(optional — leave blank to use
-                  the selected template's values)</span>
+                <span class="caption-hint fw-normal">(optional — leave blank to use the selected template's values)</span>
               </p>
             </div>
 
@@ -747,7 +782,7 @@
                       <div class="form-check">
                         <input type="checkbox" name="{{ $key }}_surplus" id="surplus_apply_{{ $key }}"
                                class="form-check-input apply-charge-field" value="1">
-                        <label class="form-check-label small" for="surplus_apply_{{ $key }}">Excluded (on top of
+                        <label class="form-check-label small" for="surplus_apply_{{ $key }}">Additional (on top of
                           listed)</label>
                       </div>
                     @endif
@@ -758,7 +793,7 @@
 
             <div class="col-12">
               <hr class="my-1">
-              <p class="fw-semibold small text-uppercase text-muted mb-2" style="font-size:.7rem;letter-spacing:.04em;">
+              <p class="section-caption fw-semibold small text-uppercase text-muted mb-2">
                 Feature Premiums (always % of listed price — extra, on top)
               </p>
             </div>
@@ -800,7 +835,7 @@
 @if($plan)
   {{-- Add installment plan modal (available whenever a payment plan exists) --}}
   <div class="modal fade" id="addInstallmentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog  modal-simple modal-dialog-centered">
+    <div class="modal-dialog modal-simple modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-body p-0">
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -818,17 +853,40 @@
               <div class="mb-3">
                 <div class="select2-primary">
                   <select id="addInstallmentSelect" name="installment_template_ids[]"
-                          class="select2 form-select" multiple>
+                          class="select2 form-select installment-template-select" multiple
+                          data-preview="addInstallmentPreview">
                     @foreach($installmentTemplateOptions as $it)
-                      <option value="{{ $it->id }}">{{ $it->name }}</option>
+                      <option value="{{ $it->id }}"
+                              data-name="{{ $it->name }}"
+                              data-number-of-installments="{{ $it->number_of_installments }}"
+                              data-frequency="{{ $it->installment_frequency }}"
+                              data-additional="{{ $it->additional_installment_amount }}"
+                              data-additional-in-per="{{ $it->additional_installment_amount_in_per ? 1 : 0 }}"
+                              data-balloon="{{ $it->balloon_payment }}"
+                              data-balloon-in-per="{{ $it->balloon_payment_in_per ? 1 : 0 }}"
+                              data-balloon-frequency="{{ $it->balloon_payment_frequency }}">
+                        {{ $it->name }}
+                      </option>
                     @endforeach
                   </select>
+                </div>
+                <div id="addInstallmentPreview" class="mt-3 d-none"
+                     data-price-base="{{ $listingPrice }}"
+                     data-included-total="{{ $includedTotal }}"
+                     data-excluded-total="{{ $excludedTotal }}">
+                  <div class="it-preview-list"></div>
                 </div>
               </div>
             @else
               <div class="border rounded-3 p-3 bg-label-secondary">
-                <small class="text-muted">No installment templates available. <a
-                    href="{{ route('installment-templates.index') }}">Create one</a>.</small>
+                <small class="text-muted">
+                  @if(count($allInstallmentTemplates))
+                    All available installment templates are already applied to this {{ strtolower($entityLabel) }}.
+                  @else
+                    No installment templates available. <a href="{{ route('installment-templates.index') }}">Create
+                      one</a>.
+                  @endif
+                </small>
               </div>
             @endif
 
@@ -864,6 +922,36 @@
           <form id="editPlanForm" action="{{ route('payment_plan.update', $plan) }}" method="POST">
             @csrf
 
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Payment Template <span class="text-muted">(optional)</span></label>
+              <select name="payment_template_id" id="edit_payment_template" class="form-select">
+                <option value="">None (custom values)</option>
+                @foreach($paymentTemplateOptions as $pt)
+                  <option value="{{ $pt->id }}" @selected($plan->payment_template_id === $pt->id)
+                  data-booking-fee="{{ $pt->booking_fee }}"
+                          data-booking-fee-in-per="{{ $pt->booking_fee_in_per ? 1 : 0 }}"
+                          data-development-fee="{{ $pt->development_fee }}"
+                          data-development-fee-in-per="{{ $pt->development_fee_in_per ? 1 : 0 }}"
+                          data-development-fee-surplus="{{ $pt->development_fee_surplus ? 1 : 0 }}"
+                          data-down-payment="{{ $pt->down_payment }}"
+                          data-down-payment-in-per="{{ $pt->down_payment_in_per ? 1 : 0 }}"
+                          data-transfer-fee="{{ $pt->transfer_fee }}"
+                          data-transfer-fee-in-per="{{ $pt->transfer_fee_in_per ? 1 : 0 }}"
+                          data-transfer-fee-surplus="{{ $pt->transfer_fee_surplus ? 1 : 0 }}"
+                          data-confirmation-fee="{{ $pt->confirmation_fee }}"
+                          data-confirmation-fee-in-per="{{ $pt->confirmation_fee_in_per ? 1 : 0 }}"
+                          data-possession-fee="{{ $pt->possession_fee }}"
+                          data-possession-fee-in-per="{{ $pt->possession_fee_in_per ? 1 : 0 }}"
+                          data-possession-fee-surplus="{{ $pt->possession_fee_surplus ? 1 : 0 }}"
+                          data-corner-premium="{{ $pt->corner_premium }}"
+                          data-park-facing-premium="{{ $pt->park_facing_premium }}"
+                          data-main-boulevard-premium="{{ $pt->main_boulevard_premium }}">
+                    {{ $pt->name }}
+                  </option>
+                @endforeach
+              </select>
+            </div>
+
             <div class="row g-3">
               @foreach($feeKeys as $fk)
                 @php
@@ -889,7 +977,7 @@
                       <div class="form-check">
                         <input type="checkbox" name="{{ $key }}_surplus" id="surplus_{{ $key }}"
                                class="form-check-input" value="1" {{ $feeIsSurplus($key) ? 'checked' : '' }}>
-                        <label class="form-check-label small" for="surplus_{{ $key }}">Excluded (on top of
+                        <label class="form-check-label small" for="surplus_{{ $key }}">Additional (on top of
                           listed)</label>
                       </div>
                     @endif
@@ -899,8 +987,7 @@
 
               <div class="col-12">
                 <hr class="my-1">
-                <p class="fw-semibold small text-uppercase text-muted mb-2"
-                   style="font-size:.7rem;letter-spacing:.04em;">
+                <p class="section-caption fw-semibold small text-uppercase text-muted mb-2">
                   Feature Premiums (always % of listed price — extra, on top)
                 </p>
               </div>
@@ -1033,12 +1120,193 @@
   @endif
 @endif
 
+@if($plan && count($installmentPlans))
+  {{-- Print Plan options modal --}}
+  <div class="modal fade" id="printPlanModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-simple modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-0">
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+          <div class="text-center mb-4">
+            <h4 class="mb-2 fw-bolder">Print Payment Plan</h4>
+            <p class="text-muted mb-0">Choose how you'd like to print this payment plan.</p>
+          </div>
+
+
+          {{-- Include installment plan toggle --}}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Include Installment Plan?</label>
+            <div class="form-check form-switch">
+              <input type="checkbox" class="form-check-input" id="print_include_installments" checked>
+              <label class="form-check-label small" for="print_include_installments">Yes, include installment
+                details</label>
+            </div>
+          </div>
+
+          {{-- Mode selection (shown only when installments included) --}}
+          <div id="print_mode_section" class="mb-3">
+            <label class="form-label fw-semibold">Print Mode</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_simple" value="simple"
+                       checked>
+                <label class="form-check-label" for="print_mode_simple">
+                  <i class="ti tabler-file-text text-primary me-1"></i> Simple
+                  <div class="text-muted small text-tiny">Summary table format</div>
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_brief" value="brief">
+                <label class="form-check-label" for="print_mode_brief">
+                  <i class="ti tabler-layout-list text-primary me-1"></i> Brief
+                  <div class="text-muted small text-tiny">Detailed schedule cards</div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {{-- Installment plan selection --}}
+          <div id="print_plans_section" class="mb-3">
+            <label class="form-label fw-semibold">Select Plans to Print</label>
+            <div class="border rounded-3 p-3 bg-label-secondary">
+              @foreach($installmentPlans as $p)
+                <div class="form-check mb-1">
+                  <input class="form-check-input print-plan-checkbox" type="checkbox"
+                         value="{{ $p['att']->uuid }}" id="print_plan_{{ $p['att']->uuid }}" checked>
+                  <label class="form-check-label small" for="print_plan_{{ $p['att']->uuid }}">
+                    {{ $p['name'] }}
+                    <span
+                      class="text-muted">({{ $p['number_of_installments'] }} {{ ucfirst($p['installment_frequency'] ?? '') }} installments)</span>
+                  </label>
+                </div>
+              @endforeach
+              <div class="form-check mt-2 pt-2 border-top">
+                <input class="form-check-input" type="checkbox" id="print_select_all_plans" checked>
+                <label class="form-check-label fw-semibold small" for="print_select_all_plans">Select All</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="printPlanBtn" onclick="openPrintPlan()">
+              <i class="ti tabler-printer me-1"></i> Print
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+@endif
+
+<script>
+  function openPrintPlan() {
+    var propertyUuid = '{{ $property->uuid ?? "" }}';
+    var includeInstallments = document.getElementById('print_include_installments').checked;
+    var mode = 'simple';
+
+    if (includeInstallments) {
+      mode = document.querySelector('input[name="print_mode"]:checked').value;
+
+      var selectedPlans = [];
+      document.querySelectorAll('.print-plan-checkbox:checked').forEach(function(cb) {
+        selectedPlans.push(cb.value);
+      });
+
+      if (selectedPlans.length === 0) {
+        alert('Please select at least one installment plan.');
+        return;
+      }
+    }
+
+    var url = '{{ route("payment_plan.print", ":uuid") }}'.replace(':uuid', propertyUuid);
+    var params = new URLSearchParams();
+    params.set('mode', includeInstallments ? mode : 'simple');
+    params.set('include_installments', includeInstallments ? '1' : '0');
+
+    if (includeInstallments) {
+      var selectedPlans = [];
+      document.querySelectorAll('.print-plan-checkbox:checked').forEach(function(cb) {
+        selectedPlans.push(cb.value);
+      });
+      params.set('plans', selectedPlans.join(','));
+    }
+
+    window.open(url + '?' + params.toString(), '_blank');
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var includeToggle = document.getElementById('print_include_installments');
+    var modeSection = document.getElementById('print_mode_section');
+    var plansSection = document.getElementById('print_plans_section');
+    var selectAll = document.getElementById('print_select_all_plans');
+
+    if (includeToggle) {
+      includeToggle.addEventListener('change', function() {
+        var show = this.checked;
+        if (modeSection) modeSection.style.display = show ? '' : 'none';
+        if (plansSection) plansSection.style.display = show ? '' : 'none';
+      });
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener('change', function() {
+        var checked = this.checked;
+        document.querySelectorAll('.print-plan-checkbox').forEach(function(cb) {
+          cb.checked = checked;
+        });
+      });
+    }
+  });
+</script>
+
 @push('styles')
   <style>
+    /* ── Component root ── */
     .planner {
       --radius: 0.75rem;
     }
 
+    /* ── Small labels & helper text ── */
+    .micro-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+    }
+
+    .text-tiny {
+      font-size: 0.7rem;
+    }
+
+    .badge-xs {
+      font-size: 0.6rem;
+    }
+
+    .tracking-wide {
+      letter-spacing: 0.05em;
+    }
+
+    /* Modal section headings */
+    .section-caption {
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+    }
+
+    .caption-hint {
+      text-transform: none;
+    }
+
+    /* ── Installment schedule table ── */
+    .schedule-scroll {
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .col-seq {
+      width: 50px;
+    }
+
+    /* ── Summary sidebar ── */
     .summary-sticky {
       top: 1.5rem;
     }
@@ -1049,6 +1317,37 @@
       }
     }
 
+    .plan-summary-card {
+      font-size: 0.95rem;
+    }
+
+    .plan-summary-title {
+      font-size: 0.82rem;
+      letter-spacing: 0.05em;
+      opacity: 0.85;
+    }
+
+    .summary-list {
+      font-size: 0.78rem;
+      opacity: 0.9;
+    }
+
+    .summary-final-row {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 0.35rem;
+      padding: 0.35rem 0.5rem;
+    }
+
+    .summary-divider {
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .summary-select {
+      width: auto;
+      max-width: 180px;
+    }
+
+    /* ── Summary card gradient (theme override) ── */
     .bg-gradient {
       background: linear-gradient(160deg, #7367f0 0%, #4f4f82 45%, #7367f0 100%) !important;
       box-shadow: 0 8px 24px rgba(13, 110, 253, 0.2);
@@ -1059,20 +1358,24 @@
 @push('scripts')
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      var grossAmount = {{ $grossAmount }};
+      var remainingAmount = {{ $remainingAmount }};
+
       function applySummary(view) {
         var viewSelect = document.getElementById('summary_view_select');
         if (viewSelect) viewSelect.value = String(view);
 
-        var adjustmentEl = document.getElementById('summary_adjustment');
-        var balloonEl = document.getElementById('summary_balloon');
-        var finalEl = document.getElementById('summary_final');
+        var extraEl = document.getElementById('summary_extra');
+        var totalBalloonEl = document.getElementById('summary_total_balloon');
+        var installmentRemainingEl = document.getElementById('summary_installment_remaining');
+        var finalAmountEl = document.getElementById('summary_final_amount');
         var perEl = document.getElementById('summary_per_installment');
 
-        // "Payment plan only" — no installment adjustment / balloon
         if (view === 'plan_only') {
-          if (adjustmentEl) adjustmentEl.textContent = '0';
-          if (balloonEl) balloonEl.textContent = '0';
-          if (finalEl) finalEl.textContent = Number({{ $plan ? $listingPrice + $excludedTotal : $listingPrice }}).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          if (extraEl) extraEl.textContent = '0';
+          if (totalBalloonEl) totalBalloonEl.textContent = '0';
+          if (installmentRemainingEl) installmentRemainingEl.textContent = Number(remainingAmount).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          if (finalAmountEl) finalAmountEl.textContent = Number(grossAmount).toLocaleString(undefined, { maximumFractionDigits: 0 });
           if (perEl) perEl.textContent = 'No installment plan selected.';
           return;
         }
@@ -1080,12 +1383,25 @@
         var pane = document.querySelector('.installment-pane[data-sequence="' + view + '"]');
         if (!pane) return;
 
-        if (adjustmentEl) adjustmentEl.textContent = Number(pane.dataset.adjustment || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-        if (balloonEl) balloonEl.textContent = Number(pane.dataset.balloon || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-        if (finalEl) finalEl.textContent = Number(pane.dataset.total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-        if (perEl) perEl.textContent =
-          'Per installment: ' + Number(pane.dataset.perInstallment || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
-          ' (' + pane.dataset.num + ' installments)';
+        var extra = Number(pane.dataset.extra || 0);
+        var totalBalloon = Number(pane.dataset.balloonAmount || 0);
+        var installmentRemaining = Number(pane.dataset.installmentRemaining || 0);
+        var perBalloon = Number(pane.dataset.perBalloon || 0);
+        var perInstallment = Number(pane.dataset.perInstallment || 0);
+        var num = pane.dataset.num || 0;
+
+        if (extraEl) extraEl.textContent = extra.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        if (totalBalloonEl) totalBalloonEl.textContent = totalBalloon.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        if (installmentRemainingEl) installmentRemainingEl.textContent = installmentRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        if (finalAmountEl) finalAmountEl.textContent = (grossAmount + extra).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+        var perText = '';
+        if (perBalloon > 0) {
+          perText = 'Per balloon: ' + perBalloon.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' · ';
+        }
+        perText += 'Per installment: ' + perInstallment.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        perText += ' (' + num + ' installments)';
+        if (perEl) perEl.textContent = perText;
       }
 
       function activateInstallmentPane(sequence) {
@@ -1111,8 +1427,6 @@
         });
       });
 
-      // Summary "Viewing" dropdown — switch between the payment plan only
-      // and any attached installment plan.
       var viewSelect = document.getElementById('summary_view_select');
       if (viewSelect) {
         viewSelect.addEventListener('change', function() {
@@ -1152,8 +1466,7 @@
         bootstrap.Modal.getOrCreateInstance(document.getElementById('editInstallmentModal')).show();
       });
 
-      // Autofill the "Apply Plan" custom charge fields from the selected
-      // payment template. Any single value can still be edited afterwards.
+      // ── Shared template auto-fill logic ──
       var applyFeeFields = [
         { key: 'booking_fee', per: true, surplus: false },
         { key: 'development_fee', per: true, surplus: true },
@@ -1165,7 +1478,7 @@
       var applyPremiumFields = ['corner_premium', 'park_facing_premium', 'main_boulevard_premium'];
       var isFillingFromTemplate = false;
 
-      function fillApplyChargesFromTemplate(opt) {
+      function fillChargesFromTemplate(opt, prefix) {
         function dataAttr(key) {
           return opt ? opt.getAttribute('data-' + key.replace(/_/g, '-')) : null;
         }
@@ -1173,44 +1486,46 @@
         isFillingFromTemplate = true;
 
         applyFeeFields.forEach(function(f) {
-          var valueInput = document.querySelector('input[name="' + f.key + '"]');
+          var valueInput = document.querySelector(prefix + ' input[name="' + f.key + '"]');
           if (valueInput) {
             valueInput.value = dataAttr(f.key) !== null ? dataAttr(f.key) : '';
           }
           if (f.per) {
-            var perInput = document.querySelector('input[name="' + f.key + '_in_per"]');
+            var perInput = document.querySelector(prefix + ' input[name="' + f.key + '_in_per"]');
             if (perInput) perInput.checked = dataAttr(f.key + '-in-per') === '1';
           }
           if (f.surplus) {
-            var surplusInput = document.querySelector('input[name="' + f.key + '_surplus"]');
+            var surplusInput = document.querySelector(prefix + ' input[name="' + f.key + '_surplus"]');
             if (surplusInput) surplusInput.checked = dataAttr(f.key + '-surplus') === '1';
           }
         });
 
         applyPremiumFields.forEach(function(key) {
-          var valueInput = document.querySelector('input[name="' + key + '"]');
+          var valueInput = document.querySelector(prefix + ' input[name="' + key + '"]');
           if (valueInput) {
             valueInput.value = dataAttr(key) !== null ? dataAttr(key) : '';
           }
         });
 
-        // Selecting a template (or re-selecting "None") always resets the
-        // modified flag — the freshly-filled values are considered untouched.
         var modifiedInput = document.getElementById('template_modified');
         if (modifiedInput) modifiedInput.value = '0';
 
         isFillingFromTemplate = false;
       }
 
+      // Apply modal template auto-fill
       document.addEventListener('change', function(e) {
         if (e.target.id === 'apply_payment_template') {
-          fillApplyChargesFromTemplate(e.target.selectedOptions[0]);
+          fillChargesFromTemplate(e.target.selectedOptions[0], '#applyPlanModal');
           return;
         }
 
-        // Any manual edit to a charge field after autofill marks the
-        // template as modified, so the controller stores the submitted
-        // values instead of keeping the template link.
+        // Edit modal template auto-fill
+        if (e.target.id === 'edit_payment_template') {
+          fillChargesFromTemplate(e.target.selectedOptions[0], '#editPlanModal');
+          return;
+        }
+
         if (!isFillingFromTemplate && e.target.classList.contains('apply-charge-field')) {
           var modifiedInput = document.getElementById('template_modified');
           if (modifiedInput) modifiedInput.value = '1';

@@ -10,7 +10,7 @@
   @vite(['resources/assets/vendor/libs/jquery/jquery.js', 'resources/assets/vendor/libs/notiflix/notiflix.js', 'resources/assets/vendor/libs/sortablejs/sortable.js', 'resources/assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js', 'resources/assets/vendor/libs/select2/select2.js'  ])
 @endsection
 @section('page-script')
-  @vite(['resources/assets/js/cards-actions.js', 'resources/assets/js/forms-selects.js'])
+  @vite(['resources/assets/js/cards-actions.js', 'resources/assets/js/forms-selects.js', 'resources/assets/js/installment-plan-calculator.js', 'resources/assets/js/installment-template-preview.js'])
 @endsection
 @section('content')
   @php

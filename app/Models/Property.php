@@ -57,7 +57,7 @@ class Property extends Model
         return $this->morphMany(VisitorFavourite::class, 'favouritable');
     }
 
-    public function plan()
+    public function paymentPlan()
     {
         return $this->morphOne(PropertyPaymentPlan::class, 'planable');
     }

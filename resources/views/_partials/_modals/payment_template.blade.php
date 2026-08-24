@@ -20,6 +20,15 @@
                    placeholder="Enter template name" required>
           </div>
 
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="is_commercial" name="is_commercial"
+                     value="1">
+              <label class="form-check-label fw-semibold" for="is_commercial">Commercial Template</label>
+            </div>
+            <small class="text-muted">When enabled, this template will only apply to commercial properties</small>
+          </div>
+
           <!-- Booking Fee -->
           <div class="fee-block mb-4 pb-3 border-bottom" data-fee="booking_fee">
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -235,25 +244,22 @@
   </div>
 </div>
 
+{{-- Template Info Modal --}}
+<div class="modal fade" id="templateInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow-lg">
+      <div class="modal-header  bg-secondary  pb-4">
+        <h5 class="modal-title text-white fw-bold"><i class="ti tabler-file-invoice me-2"></i>Template Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4" id="templateInfoBody"></div>
+    </div>
+  </div>
+</div>
 
 
 @push('styles')
   <style>
-    .bg-light-primary {
-      background-color: rgba(99, 115, 129, 0.08) !important;
-      border: 1px solid rgba(99, 115, 129, 0.12) !important;
-    }
-
-    .bg-light-success {
-      background-color: rgba(76, 175, 80, 0.08) !important;
-      border: 1px solid rgba(76, 175, 80, 0.12) !important;
-    }
-
-    .bg-light-warning {
-      background-color: rgba(255, 193, 7, 0.08) !important;
-      border: 1px solid rgba(255, 193, 7, 0.12) !important;
-    }
-
     .premium-percentage-toggle:checked + label .badge {
       background-color: #03a9f4 !important;
       color: white !important;
@@ -269,125 +275,98 @@
 
 @push('scripts')
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-
-      // Fee blocks configuration
-      const feeKeys = [
-        { key: 'booking_fee', surplus: false, required: false, alwaysPercentage: false },
-        { key: 'development_fee', surplus: true, required: false, alwaysPercentage: false },
-        { key: 'down_payment', surplus: false, required: false, alwaysPercentage: false },
-        { key: 'confirmation_fee', surplus: false, required: false, alwaysPercentage: false },
-        { key: 'possession_fee', surplus: true, required: false, alwaysPercentage: false },
-        { key: 'corner_premium', surplus: false, required: false, alwaysPercentage: true },
-        { key: 'park_facing_premium', surplus: false, required: false, alwaysPercentage: true },
-        { key: 'main_boulevard_premium', surplus: false, required: false, alwaysPercentage: true }
+    (function () {
+      // Fees: have an "Add" toggle that shows/hides + enables/disables their fields.
+      // surplusField (when present) points at the "Added in listed price" checkbox.
+      const FEE_FIELDS = [
+        { key: 'booking_fee', label: 'Booking Fee', surplusField: null },
+        { key: 'development_fee', label: 'Development Fee', surplusField: 'development_fee_surplus' },
+        { key: 'down_payment', label: 'Down Payment', surplusField: null },
+        { key: 'confirmation_fee', label: 'Confirmation Fee', surplusField: null },
+        { key: 'possession_fee', label: 'Possession Fee', surplusField: 'possession_fee_surplus' },
       ];
 
-      // Toggle fee blocks on/off
-      document.querySelectorAll('.fee-enable-toggle').forEach(function(toggle) {
-        toggle.addEventListener('change', function() {
-          const block = this.closest('.fee-block');
-          const fields = block.querySelector('.fee-fields');
-          const inputs = fields.querySelectorAll('input');
+      // Premiums: always visible, always a percentage, no "Add" toggle.
+      const PREMIUM_FIELDS = [
+        { key: 'corner_premium', label: 'Corner Premium' },
+        { key: 'park_facing_premium', label: 'Park Facing Premium' },
+        { key: 'main_boulevard_premium', label: 'Main Boulevard Premium' },
+      ];
 
-          if (this.checked) {
-            fields.classList.remove('d-none');
-            inputs.forEach(function(input) {
-              input.disabled = false;
-            });
-          } else {
-            fields.classList.add('d-none');
-            inputs.forEach(function(input) {
-              input.disabled = true;
-              input.type === 'checkbox' ? (input.checked = false) : (input.value = '');
-              clearFieldError(input);
-            });
-          }
-        });
-      });
+      // Combined list used for validation, since premiums are validated the
+      // same way as fees (just always treated as a percentage).
+      const AMOUNT_FIELDS = [
+        ...FEE_FIELDS.map(field => ({ ...field, alwaysPercentage: false })),
+        ...PREMIUM_FIELDS.map(field => ({ ...field, alwaysPercentage: true })),
+      ];
 
-      function extractFeeAmount(html) {
-        if (!html || typeof html !== 'string') return null;
-        if (html.includes('tabler-x')) return null;
-        const match = html.match(/fw-medium">([^<]+)</);
-        if (!match) return null;
-        const numeric = parseFloat(match[1].replace(/[,%]/g, ''));
-        return isNaN(numeric) ? null : numeric;
+      const templateForm = document.getElementById('templateForm');
+      const templateModalEl = document.getElementById('templateModal');
+
+      function feeBlockFor(key) {
+        return document.querySelector(`.fee-block[data-fee="${key}"]`);
       }
 
-      function resetTemplateForm() {
-        document.getElementById('modalTitle').textContent = 'Add Payment Planning Template';
-        document.getElementById('templateForm').reset();
-        document.getElementById('templateId').value = '';
+      // Shows/hides a fee block's fields and enables/disables its inputs.
+      // Used both when the user flips the "Add" toggle and when prefilling
+      // the form for edit, so the two stay in sync automatically.
+      function setFeeBlockEnabled(block, enabled) {
+        const fieldsWrapper = block.querySelector('.fee-fields');
+        if (!fieldsWrapper) return;
 
-        document.querySelectorAll('.fee-block').forEach(function(block) {
-          const toggle = block.querySelector('.fee-enable-toggle');
-          if (toggle) {
-            toggle.checked = false;
-
-            const fields = block.querySelector('.fee-fields');
-            if (fields) {
-              fields.classList.add('d-none');
-              fields.querySelectorAll('input').forEach(function(input) {
-                input.disabled = true;
-              });
-            }
+        fieldsWrapper.classList.toggle('d-none', !enabled);
+        fieldsWrapper.querySelectorAll('input').forEach(input => {
+          input.disabled = !enabled;
+          if (!enabled) {
+            input.type === 'checkbox' ? (input.checked = false) : (input.value = '');
+            clearFieldError(input);
           }
         });
-
-        clearValidationErrors();
       }
 
-      // Clear all validation error messages and classes
       function clearValidationErrors() {
-        document.querySelectorAll('.invalid-feedback').forEach(function(el) {
-          el.remove();
-        });
-        document.querySelectorAll('.form-control, .form-check-input').forEach(function(el) {
-          el.classList.remove('is-invalid');
-        });
+        document.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+        document.querySelectorAll('.form-control, .form-check-input').forEach(el => el.classList.remove('is-invalid'));
       }
 
-      // Clear error for a single field only
       function clearFieldError(input) {
         input.classList.remove('is-invalid');
-        const next = input.nextElementSibling;
-        if (next && next.classList.contains('invalid-feedback')) {
-          next.remove();
-        }
+        const errorEl = input.nextElementSibling;
+        if (errorEl && errorEl.classList.contains('invalid-feedback')) errorEl.remove();
       }
 
-      // Add error message to a field
-      function addFieldError(element, message) {
-        clearFieldError(element);
-        element.classList.add('is-invalid');
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'invalid-feedback d-block';
-        errorDiv.textContent = message;
-        element.insertAdjacentElement('afterend', errorDiv);
+      function addFieldError(input, message) {
+        clearFieldError(input);
+        input.classList.add('is-invalid');
+        const errorEl = document.createElement('div');
+        errorEl.className = 'invalid-feedback d-block';
+        errorEl.textContent = message;
+        input.insertAdjacentElement('afterend', errorEl);
       }
 
-      // Validate a single fee amount field (used for live + full validation)
-      function validateFeeAmount(cfg) {
-        const key = cfg.key;
-        const amountInput = document.getElementById(key);
-        const isPercentageCheckbox = document.getElementById(key + '_in_per');
+      // Validates a single amount field (fee or premium). Used both live
+      // (on input/toggle) and again on submit.
+      function validateAmountField(fieldConfig) {
+        const amountInput = document.getElementById(fieldConfig.key);
+        const percentToggle = document.getElementById(fieldConfig.key + '_in_per');
 
         clearFieldError(amountInput);
 
-        const amount = amountInput.value.trim();
-        if (!amount) return true;
+        const rawValue = amountInput.value.trim();
+        if (!rawValue) return true;
 
-        const numAmount = parseFloat(amount);
-        if (isNaN(numAmount)) {
+        const numericValue = parseFloat(rawValue);
+        if (isNaN(numericValue)) {
           addFieldError(amountInput, 'Please enter a valid number');
           return false;
         }
-        if (numAmount < 0) {
+        if (numericValue < 0) {
           addFieldError(amountInput, 'Amount cannot be negative');
           return false;
         }
-        if ((cfg.alwaysPercentage || (isPercentageCheckbox && isPercentageCheckbox.checked)) && numAmount > 100) {
+
+        const isPercentage = fieldConfig.alwaysPercentage || Boolean(percentToggle && percentToggle.checked);
+        if (isPercentage && numericValue > 100) {
           addFieldError(amountInput, 'Percentage must be between 0-100');
           return false;
         }
@@ -395,23 +374,6 @@
         return true;
       }
 
-      // Live validation: as you type, and when the % toggle changes
-      feeKeys.forEach(function(cfg) {
-        const amountInput = document.getElementById(cfg.key);
-        const percentToggle = document.getElementById(cfg.key + '_in_per');
-
-        amountInput.addEventListener('input', function() {
-          validateFeeAmount(cfg);
-        });
-
-        if (percentToggle) {
-          percentToggle.addEventListener('change', function() {
-            validateFeeAmount(cfg);
-          });
-        }
-      });
-
-      // Full form validation on submit
       function validateTemplateForm() {
         clearValidationErrors();
         let isValid = true;
@@ -422,93 +384,168 @@
           isValid = false;
         }
 
-        feeKeys.forEach(function(cfg) {
-          const block = document.querySelector('.fee-block[data-fee="' + cfg.key + '"]');
+        AMOUNT_FIELDS.forEach(fieldConfig => {
+          const block = feeBlockFor(fieldConfig.key);
           const enableToggle = block.querySelector('.fee-enable-toggle');
-          const amountInput = document.getElementById(cfg.key);
-          const amount = amountInput.value.trim();
+          const amount = document.getElementById(fieldConfig.key).value.trim();
 
-          const shouldValidate = cfg.required
-            || (enableToggle && enableToggle.checked)
-            || (!enableToggle && amount !== '');
-
+          // Fee blocks only need validating when switched on; premiums
+          // (no enable toggle) only need validating when filled in.
+          const shouldValidate = enableToggle ? enableToggle.checked : amount !== '';
           if (!shouldValidate) return;
 
-          if (cfg.required && !amount) {
-            addFieldError(amountInput, 'Amount is required');
-            isValid = false;
-            return;
-          }
-
-          if (!validateFeeAmount(cfg)) {
-            isValid = false;
-          }
+          if (!validateAmountField(fieldConfig)) isValid = false;
         });
 
         return isValid;
       }
 
-      // Handle form submission
-      const templateForm = document.getElementById('templateForm');
-      templateForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        if (!validateTemplateForm()) return false;
-        this.submit();
-      });
+      function resetTemplateForm() {
+        document.getElementById('modalTitle').textContent = 'Add Payment Planning Template';
+        templateForm.reset();
+        document.getElementById('templateId').value = '';
+        document.getElementById('is_commercial').checked = false;
 
-      // Prefill the modal when an edit button is clicked
-      document.addEventListener('click', function(e) {
-        const editBtn = e.target.closest('.edit-template-btn');
-        if (!editBtn) return;
+        FEE_FIELDS.forEach(fieldConfig => setFeeBlockEnabled(feeBlockFor(fieldConfig.key), false));
+        clearValidationErrors();
+      }
 
-        const table = new DataTable('#payment_templates_table');
-        const row = editBtn.closest('tr');
-        const rowData = table.row(row).data();
-        if (!rowData) return;
+      // Reads a fee amount out of the DataTable's rendered HTML cell,
+      // e.g. '<span class="fw-medium">1,500</span>' -> 1500. Returns null
+      // when the cell shows the "not set" icon (tabler-x).
+      function extractFeeAmount(cellHtml) {
+        if (!cellHtml || typeof cellHtml !== 'string' || cellHtml.includes('tabler-x')) return null;
 
-        resetTemplateForm();
+        const match = cellHtml.match(/fw-medium">([^<]+)</);
+        if (!match) return null;
 
+        const numericValue = parseFloat(match[1].replace(/[,%]/g, ''));
+        return isNaN(numericValue) ? null : numericValue;
+      }
+
+      function fillFormForEdit(templateRow) {
         document.getElementById('modalTitle').textContent = 'Edit Payment Planning Template';
-        document.getElementById('templateId').value = rowData.id;
-        document.getElementById('template_name').value = rowData.name;
+        document.getElementById('templateId').value = templateRow.id;
+        document.getElementById('template_name').value = templateRow.name;
+        document.getElementById('is_commercial').checked = Boolean(templateRow.is_commercial);
 
-        feeKeys.forEach(function(cfg) {
-          const key = cfg.key;
-          const amount = extractFeeAmount(rowData[key]);
-          const block = document.querySelector('.fee-block[data-fee="' + key + '"]');
-          const enableToggle = block.querySelector('.fee-enable-toggle');
-          const fields = block.querySelector('.fee-fields');
+        FEE_FIELDS.forEach(fieldConfig => {
+          const amount = extractFeeAmount(templateRow[fieldConfig.key]);
+          if (amount === null) return;
 
-          if (amount !== null) {
-            if (enableToggle) enableToggle.checked = true;
-            if (fields) {
-              fields.classList.remove('d-none');
-              fields.querySelectorAll('input').forEach(function(input) {
-                input.disabled = false;
-              });
-            }
+          setFeeBlockEnabled(feeBlockFor(fieldConfig.key), true);
+          document.getElementById(fieldConfig.key).value = amount;
 
-            document.getElementById(key).value = amount;
+          const percentToggle = document.getElementById(fieldConfig.key + '_in_per');
+          if (percentToggle) percentToggle.checked = Boolean(templateRow[fieldConfig.key + '_in_per']);
 
-            const percentToggle = document.getElementById(key + '_in_per');
-            if (percentToggle && percentToggle.type === 'checkbox') {
-              percentToggle.checked = !!rowData[key + '_in_per'];
-            }
-
-            if (cfg.surplus) {
-              document.getElementById(key + '_surplus').checked = !!rowData[key + '_surplus'];
-            }
+          if (fieldConfig.surplusField) {
+            document.getElementById(fieldConfig.surplusField).checked = Boolean(templateRow[fieldConfig.surplusField]);
           }
         });
 
-        const modalEl = document.getElementById('templateModal');
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        PREMIUM_FIELDS.forEach(fieldConfig => {
+          if (templateRow[fieldConfig.key]) {
+            document.getElementById(fieldConfig.key).value = templateRow[fieldConfig.key];
+          }
+        });
+      }
+
+      // Builds one info-modal row: "Label   value  [Included/Excluded]".
+      function buildFeeInfoRow(fieldConfig, templateData) {
+        const amount = templateData[fieldConfig.key];
+        if (amount === null || amount === undefined || amount === '') return null;
+
+        const displayValue = templateData[fieldConfig.key + '_in_per']
+          ? `${amount}%`
+          : Number(amount).toLocaleString();
+
+        // Fields without a surplus toggle are always "Included in listed price".
+        const isIncluded = fieldConfig.surplusField ? Boolean(templateData[fieldConfig.surplusField]) : true;
+        const badge = isIncluded
+          ? '<span class="badge bg-label-success ms-1">Included</span>'
+          : '<span class="badge bg-label-danger ms-1">Excluded</span>';
+
+        return `<tr><td class="fw-semibold">${fieldConfig.label}</td><td class="text-end">${displayValue} ${badge}</td></tr>`;
+      }
+
+      function buildPremiumInfoRow(fieldConfig, templateData) {
+        const amount = templateData[fieldConfig.key];
+        if (!amount) return null;
+        return `<tr><td class="fw-semibold">${fieldConfig.label}</td><td class="text-end">${amount}%</td></tr>`;
+      }
+
+      function buildTemplateInfoHtml(templateData) {
+        const typeLabel = templateData.is_commercial ? 'Commercial' : 'Residential';
+        const typeBadgeClass = templateData.is_commercial ? 'bg-label-warning' : 'bg-label-success';
+
+        const feeRows = FEE_FIELDS.map(field => buildFeeInfoRow(field, templateData)).filter(Boolean);
+        const premiumRows = PREMIUM_FIELDS.map(field => buildPremiumInfoRow(field, templateData)).filter(Boolean);
+
+        let html = `
+          <div class="text-center mb-3">
+            <h5 class="fw-bold mb-1">${templateData.name}</h5>
+            <span class="badge ${typeBadgeClass} fs-6">${typeLabel}</span>
+          </div>`;
+
+        if (feeRows.length) {
+          html += `<div class="table-responsive"><table class="table table-sm mb-0"><tbody>${feeRows.join('')}</tbody></table></div>`;
+        }
+
+        if (premiumRows.length) {
+          html += `
+            <h6 class="fw-bold mb-2 mt-3"><i class="ti tabler-star me-1"></i>Premiums</h6>
+            <div class="table-responsive"><table class="table table-sm mb-0"><tbody>${premiumRows.join('')}</tbody></table></div>`;
+        }
+
+        if (!feeRows.length && !premiumRows.length) {
+          html += '<p class="text-center text-muted mb-0"><i class="ti tabler-info-circle me-1"></i>No charges configured</p>';
+        }
+
+        return html;
+      }
+
+      // ── Wiring ──────────────────────────────────────────────────────
+      document.querySelectorAll('.fee-enable-toggle').forEach(toggle => {
+        toggle.addEventListener('change', () => {
+          setFeeBlockEnabled(toggle.closest('.fee-block'), toggle.checked);
+        });
       });
 
-      document.getElementById('templateModal').addEventListener('hidden.bs.modal', function() {
-        resetTemplateForm();
+      AMOUNT_FIELDS.forEach(fieldConfig => {
+        document.getElementById(fieldConfig.key).addEventListener('input', () => validateAmountField(fieldConfig));
+
+        const percentToggle = document.getElementById(fieldConfig.key + '_in_per');
+        if (percentToggle) percentToggle.addEventListener('change', () => validateAmountField(fieldConfig));
       });
 
-    });
+      templateForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (validateTemplateForm()) this.submit();
+      });
+
+      templateModalEl.addEventListener('hidden.bs.modal', resetTemplateForm);
+
+      document.addEventListener('click', function (e) {
+        const editButton = e.target.closest('.edit-template-btn');
+        if (editButton) {
+          const table = new DataTable('#payment_templates_table');
+          const templateRow = table.row(editButton.closest('tr')).data();
+          if (!templateRow) return;
+
+          resetTemplateForm();
+          fillFormForEdit(templateRow);
+          bootstrap.Modal.getOrCreateInstance(templateModalEl).show();
+          return;
+        }
+
+        const infoButton = e.target.closest('.info-template-btn');
+        if (infoButton) {
+          const templateData = JSON.parse(infoButton.getAttribute('data-template'));
+          document.getElementById('templateInfoBody').innerHTML = buildTemplateInfoHtml(templateData);
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('templateInfoModal')).show();
+        }
+      });
+    })();
   </script>
 @endpush

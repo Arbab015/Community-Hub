@@ -1,6 +1,22 @@
 @extends('layouts/layoutMaster')
 
 @section('title', 'Blocks/Sectors')
+
+@section('vendor-style')
+  @parent
+  @vite(['resources/assets/vendor/libs/select2/select2.scss'])
+@endsection
+
+@section('vendor-script')
+  @parent
+  @vite(['resources/assets/vendor/libs/select2/select2.js'])
+@endsection
+
+@section('page-script')
+  @parent
+  @vite(['resources/assets/js/forms-selects.js'])
+@endsection
+
 @section('content')
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
@@ -72,7 +88,11 @@
       </div>
     </div>
   </div>
+
   @include('_partials._modals.add_edit_blocks')
+  @include('_partials._modals.apply_payment_plan')
+  @include('_partials._modals.print_payment_plans')
+
 @endsection
 
 @push('scripts')
@@ -117,10 +137,45 @@
             <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">
               Bulk Delete
             </button>
+            <button class="btn btn-sm btn-primary d-none" id="bulk_apply_plan_btn"
+                    onclick="applyPaymentPlanToBlocks()">
+              <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
+            </button>
           `);
         }
       });
+
+      // Show/hide bulk actions together with the shared bulk-delete toggle
+      const syncBulkPlanBtn = function() {
+        $('#bulk_apply_plan_btn').toggleClass('d-none', !$('.checkbox:checked').length);
+      };
+      $(document).on('change', '.checkbox', syncBulkPlanBtn);
+      $(document).on('change', '#select_all', syncBulkPlanBtn);
+      table.on('draw', syncBulkPlanBtn);
     });
+
+    // Apply a payment plan to every selected block (all their properties)
+    function applyPaymentPlanToBlocks() {
+      const ids = $('.checkbox:checked').map(function() {
+        return this.value;
+      }).get();
+      if (!ids.length) return;
+
+      document.getElementById('apply_plan_selected_count').textContent = ids.length;
+
+      const form = document.getElementById('apply_payment_plan_form');
+      form.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+      ids.forEach(function(id) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ids[]';
+        input.value = id;
+        form.appendChild(input);
+      });
+
+      document.getElementById('apply_plan_type').value = 'block';
+      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
+    }
 
     function addBlockModel(e) {
       e.preventDefault();
@@ -144,6 +199,26 @@
       modal.show();
     });
 
+
+    {{--$('#printPlanModal').on('show.bs.modal', function(e) {--}}
+    {{--  let uuid = $(e.relatedTarget).data('uuid');--}}
+    {{--  if (!uuid) return;--}}
+
+    {{--  let templatesUrl = "{{ route('blocks.payment_plan_templates', $block->uuid) }}";--}}
+
+    {{--  let printActionUrl = "{{ route('blocks.print_payment_plans', $block->uuid) }}";--}}
+
+    {{--  $('#printPlanForm').attr('action', printActionUrl);--}}
+
+    {{--  let $select = $('#select2Primary').empty().trigger('change');--}}
+
+    {{--  $.get(templatesUrl, function(res) {--}}
+    {{--    (res.templates || []).forEach(function(t) {--}}
+    {{--      $select.append(new Option(t.name, t.id));--}}
+    {{--    });--}}
+    {{--    $select.trigger('change');--}}
+    {{--  });--}}
+    {{--});--}}
   </script>
 @endpush
 

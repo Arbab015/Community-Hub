@@ -42,8 +42,9 @@ class PropertyUnitController extends Controller
         $room_types = $property_attributes->where('type', 'room_type');
         $amenities = $property_attributes->where('type', 'amenity');
 
-        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->get();
-        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->get();
+        $isCommercial = $unit->floor->property->category === 'commercial';
+        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->where('is_commercial', $isCommercial)->get();
+        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->where('is_commercial', $isCommercial)->get();
 
         return view(
             'content.property_management.blocks.properties.unit_details',

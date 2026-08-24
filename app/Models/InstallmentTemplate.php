@@ -15,4 +15,9 @@ class InstallmentTemplate extends Model
     {
         return ['uuid'];
     }
+
+    public function getRouteKeyName()
+    {
+        return 'uuid';
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InstallmentTemplate;
+use App\Support\InstallmentPlanCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -19,17 +20,37 @@ class InstallmentTemplateController extends Controller
             if ($request->ajax()) {
                 return DataTables::of($query->get())
                     ->addColumn('checkbox', fn ($t) => '<input type="checkbox" class="form-check-input checkbox" value="'.$t->id.'">')
+                    ->addColumn('is_commercial', fn ($t) => $t->is_commercial
+                        ? '<span class="badge bg-label-warning">Commercial</span>'
+                        : '<span class="badge bg-label-success">Residential</span>')
                     ->addColumn('balloon_payment', fn ($t) => ! $t->balloon_payment ? '<i class="ti tabler-x text-danger"></i>' : ($t->balloon_payment_in_per ? $t->balloon_payment.'%' : $t->balloon_payment))
                     ->addColumn('balloon_payment_frequency', fn ($t) => ! $t->balloon_payment ? '<i class="ti tabler-x text-danger"></i>' : ucfirst($t->balloon_payment_frequency))
                     ->addColumn('additional_amount', fn ($t) => $t->additional_installment_amount_in_per ? $t->additional_installment_amount.'%' : $t->additional_installment_amount)
                     ->addColumn('actions', function ($t) use ($login_user) {
+                        $info = '';
                         $edit = '';
                         $delete = '';
+
+                        $infoData = htmlspecialchars(json_encode([
+                            'name' => $t->name,
+                            'is_commercial' => (bool) $t->is_commercial,
+                            'number_of_installments' => $t->number_of_installments,
+                            'installment_frequency' => $t->installment_frequency,
+                            'additional_installment_amount' => $t->additional_installment_amount,
+                            'additional_installment_amount_in_per' => (int) $t->additional_installment_amount_in_per,
+                            'balloon_payment' => $t->balloon_payment,
+                            'balloon_payment_in_per' => (int) $t->balloon_payment_in_per,
+                            'balloon_payment_frequency' => $t->balloon_payment_frequency,
+                        ]), ENT_QUOTES, 'UTF-8');
+                        $info = '<button type="button" class="btn btn-sm btn-outline-info me-1 info-template-btn" data-template="'.$infoData.'">
+                            <i class="ti tabler-info-circle"></i>
+                        </button>';
 
                         if ($login_user->can('installment_template_create')) {
                             $data = htmlspecialchars(json_encode([
                                 'id' => $t->id,
                                 'name' => $t->name,
+                                'is_commercial' => (int) $t->is_commercial,
                                 'number_of_installments' => $t->number_of_installments,
                                 'installment_frequency' => $t->installment_frequency,
                                 'additional_installment_amount' => $t->additional_installment_amount,
@@ -44,7 +65,7 @@ class InstallmentTemplateController extends Controller
                         }
 
                         if ($login_user->can('installment_template_delete')) {
-                            $delete = '<form action="'.route('installment-templates.destroy', $t->id).'" method="POST" style="display:inline;">'
+                            $delete = '<form action="'.route('installment-templates.destroy', $t->uuid).'" method="POST" style="display:inline;">'
                               .csrf_field().method_field('DELETE')
                               .'<button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(event)">
                             <i class="ti tabler-trash"></i>
@@ -52,16 +73,16 @@ class InstallmentTemplateController extends Controller
                               .'</form>';
                         }
 
-                        return $edit.' '.$delete;
+                        return $info.' '.$edit.' '.$delete;
                     })
-                    ->rawColumns(['checkbox', 'balloon_payment', 'balloon_payment_frequency', 'additional_amount', 'actions'])
+                    ->rawColumns(['checkbox', 'is_commercial', 'balloon_payment', 'balloon_payment_frequency', 'additional_amount', 'actions'])
                     ->make(true);
             }
             $can_edit = $login_user->can('installment_template_create');
             $can_delete = $login_user->can('installment_template_delete');
             $show_actions = $can_edit || $can_delete;
 
-            return view('content.property_management.installment_planning.index', compact('show_actions'));
+            return view('content.property_management.installment_template.index', compact('show_actions'));
         } catch (\Exception $e) {
             Log::error('Installment templates index error: '.$e->getMessage());
 
@@ -112,6 +133,7 @@ class InstallmentTemplateController extends Controller
                         ->where('owner_id', auth()->id())
                         ->ignore($templateId),
                 ],
+                'is_commercial' => ['nullable', 'boolean'],
                 'number_of_installments' => ['required', 'integer', 'min:1', 'max:360'],
                 'installment_frequency' => ['required', 'in:monthly,quarterly,biannually,annually'],
                 'additional_installment_amount' => [
@@ -151,9 +173,21 @@ class InstallmentTemplateController extends Controller
                 return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency is required when balloon payment is set'])->withInput();
             }
 
+            if ($validated['balloon_payment'] && $validated['balloon_payment_frequency']) {
+                if (! InstallmentPlanCalculator::balloonFrequencyValid($validated['installment_frequency'], $validated['balloon_payment_frequency'])) {
+                    return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
+                }
+
+                $ipp = InstallmentPlanCalculator::installmentsPerYear($validated['installment_frequency']);
+                if ($validated['number_of_installments'] % $ipp !== 0) {
+                    return back()->withErrors(['number_of_installments' => 'With a balloon payment the number of installments must be a whole multiple of '.$ipp.' ('.ucfirst($validated['installment_frequency']).')'])->withInput();
+                }
+            }
+
             $data = [
                 'owner_id' => auth()->id(),
                 'name' => $validated['name'],
+                'is_commercial' => $request->boolean('is_commercial'),
                 'number_of_installments' => $validated['number_of_installments'],
                 'installment_frequency' => $validated['installment_frequency'],
                 'additional_installment_amount' => $validated['additional_installment_amount'],

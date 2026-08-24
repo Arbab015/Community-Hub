@@ -2,13 +2,26 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class PropertyPaymentPlanInstallmentTemplate extends Pivot
 {
+    use HasUuids;
+
     protected $table = 'property_payment_plan_installment_templates';
 
     protected $guarded = [];
+
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
+
+    public function getRouteKeyName()
+    {
+        return 'uuid';
+    }
 
     public function paymentPlan()
     {

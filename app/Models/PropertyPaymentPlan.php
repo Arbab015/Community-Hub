@@ -23,6 +23,11 @@ class PropertyPaymentPlan extends Model
         return ['uuid'];
     }
 
+    public function getRouteKeyName()
+    {
+        return 'uuid';
+    }
+
     // Polymorphic relationship
     public function planable()
     {
@@ -35,6 +40,7 @@ class PropertyPaymentPlan extends Model
             InstallmentTemplate::class,
             'property_payment_plan_installment_templates'
         )
+            ->using(PropertyPaymentPlanInstallmentTemplate::class)
             ->withPivot([
                 'name',
                 'number_of_installments',

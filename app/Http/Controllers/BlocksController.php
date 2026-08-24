@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Helpers\SocietyAccessResolver;
 use App\Models\Block;
+use App\Models\InstallmentTemplate;
+use App\Models\PaymentTemplate;
 use App\Models\Property;
 use App\Models\Society;
 use Illuminate\Database\QueryException;
@@ -65,8 +67,11 @@ class BlocksController extends Controller
         $can_view = $login_user->can('view_block');
         $show_actions = $can_edit || $can_delete || $can_view;
         $societies = Society::whereIn('id', $societies_ids)->get();
+        $payment_templates = PaymentTemplate::where('owner_id', auth()->id())->get();
+        $installment_templates = InstallmentTemplate::where('owner_id', auth()->id())->get();
 
-        return view('content.property_management.blocks.index', compact('show_actions', 'societies'));
+        return view('content.property_management.blocks.index',
+            compact('show_actions', 'societies', 'payment_templates', 'installment_templates'));
     }
 
     public function store(Request $request)
@@ -161,5 +166,39 @@ class BlocksController extends Controller
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function paymentPlanTemplates($uuid)
+    {
+        $block = Block::where('uuid', $uuid)
+            ->with('properties.paymentPlan.paymentTemplate')
+            ->firstOrFail();
+
+        $templates = $block->properties
+            ->filter(fn ($property) => $property->paymentPlan?->paymentTemplate)
+            ->map(fn ($property) => $property->paymentPlan->paymentTemplate)
+            ->unique('id')
+            ->values()
+            ->map(fn ($template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+            ]);
+
+        return response()->json(['templates' => $templates]);
+    }
+
+    public function printPaymentPlans(Request $request, $uuid)
+    {
+        $request->validate([
+            'plan_ids' => 'required|array|min:1',
+            'plan_ids.*' => 'integer',
+        ]);
+
+        $block = Block::where('uuid', $uuid)->firstOrFail();
+
+        return redirect()->route('payment-plans.print', [
+            'block' => $block->uuid,
+            'plan_ids' => $request->plan_ids,
+        ]);
     }
 }

@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Yajra\DataTables\DataTables;
 
 class PropertiesController extends Controller
 {
@@ -73,13 +74,9 @@ class PropertiesController extends Controller
     public function show(Request $request, $uuid, $user_type = null, $society_uuid = null, $isPending = null)
     {
         $block = Block::where('uuid', $uuid)->first();
-        $skip = $request->input('skip', 0);
-        $total_skip = 4 + $skip;
-        $take = 4;
         $society = Society::where('uuid', $society_uuid)->first();
-        $query = Property::where('block_id', $block->id)->with(
-            'dimensions',
-        )->latest();
+
+        $query = Property::where('block_id', $block->id)->with('dimensions')->latest();
         $query->when($request->category, fn ($q) => $q->where('category', $request->category));
         $query->when($request->type, fn ($q) => $q->where('type', $request->type));
         $query->when($request->search_content, function ($q) use ($request) {
@@ -90,28 +87,79 @@ class PropertiesController extends Controller
             });
         });
 
-        $total_properties = $query->count();
-        $properties = $query->skip($skip)->take($take)->get();
-        $query_dropdown = Property::query()->where('block_id', $block->id);
-        $property_categories = $query_dropdown->distinct('id')->pluck('category');
-        $property_types = $query_dropdown->distinct('id')->pluck('type');
         if ($request->ajax()) {
-            return response()->json([
-                'society' => $society,
-                'user_type' => $user_type,
-                'block' => $block,
-                'total_skip' => $total_skip,
-                'properties' => $properties,
-                'total_properties' => $total_properties,
-            ]);
-        }
+            return DataTables::of($query)
+                ->addColumn('checkbox', function ($property) {
+                    return '<input type="checkbox" class="form-check-input property-checkbox" style="width:1.15em;height:1.15em;cursor:pointer;" value="'.$property->uuid.'">';
+                })
+                ->addColumn('name', function ($property) {
+                    return $property->name ? ucfirst($property->name) : ucfirst($property->type);
+                })
+                ->addColumn('property_no', function ($property) {
+                    return '#'.ucfirst($property->property_no);
+                })
+                ->addColumn('category', function ($property) {
+                    return ucfirst($property->category);
+                })
+                ->addColumn('actions', function ($property) use ($society, $user_type) {
+                    $view = '';
+                    $delete = '';
+                    $setPrice = '';
 
+                    $viewUrl = isset($society) && $user_type
+                      ? route('society.property.details', [$user_type, $society->uuid, $property->uuid])
+                      : route('property.details', $property->uuid);
+
+                    if (auth()->user()->can('view_property')) {
+                        $view = '<a href="'.$viewUrl.'" class="pe-3">
+                    <i class="fa-solid fa-eye text-primary" role="button" title="View details"></i>
+                </a>';
+                    }
+
+                    if (auth()->user()->can('listing_property')) {
+                        $listingData = $property->listing ? htmlspecialchars(json_encode($property->listing), ENT_QUOTES) : '';
+                        $setPrice = '<span class="pe-3 set-price-btn" role="button" title="Set Price"
+                          data-type="property" data-id="'.$property->uuid.'"
+                          data-listing="'.$listingData.'"
+                          data-bs-toggle="modal" data-bs-target="#sell_rent_modal">
+                          <i class="ti tabler-tag text-success"></i>
+                        </span>';
+                    }
+
+                    if (auth()->user()->can('delete_property')) {
+                        $deleteUrl = '';
+
+                        $delete = '<form action="'.$deleteUrl.'" method="POST" style="display:inline;">
+                      '.csrf_field().method_field('DELETE').'
+                      <i class="fa-solid fa-trash text-danger cursor-pointer me-2" title="Delete"
+                         onclick="confirmDelete(event)">
+                      </i>
+                   </form>';
+                    }
+
+                    return $setPrice.' '.$view.' '.$delete;
+                })
+                ->rawColumns(['checkbox', 'actions'])
+                ->make(true);
+        }
+        $can_delete = auth()->user()->can('delete_block');
+        $can_view = auth()->user()->can('view_block');
+        $show_actions = $can_delete || $can_view;
         if ($isPending) {
             session()->flash('success', 'Property created successfully.');
         }
 
+        $query_dropdown = Property::query()->where('block_id', $block->id);
+        $property_categories = $query_dropdown->distinct('id')->pluck('category');
+        $property_types = $query_dropdown->distinct('id')->pluck('type');
+
         $payment_templates = PaymentTemplate::where('owner_id', auth()->id())->get();
         $installment_templates = InstallmentTemplate::where('owner_id', auth()->id())->get();
+
+        $property_plans_templates = $block->properties
+            ->filter(fn ($property) => $property->paymentPlan?->paymentTemplate)
+            ->map(fn ($property) => $property->paymentPlan->paymentTemplate)
+            ->unique('id');
 
         return view(
             'content.property_management.blocks.show',
@@ -121,14 +169,12 @@ class PropertiesController extends Controller
                 'block',
                 'payment_templates',
                 'installment_templates',
-                'properties',
-                'total_skip',
                 'property_categories',
                 'property_types',
-                'total_properties'
+                'property_plans_templates',
+                'show_actions'
             )
         );
-
     }
 
     public function ownerProperties(Request $request)
@@ -767,7 +813,7 @@ class PropertiesController extends Controller
     public function details($request, $user_type, $society_uuid, $uuid, $isOwner = null)
     {
         $property = Property::where('uuid', $uuid)
-            ->with('block', 'plan.paymentTemplate', 'plan.installmentAttachments.installmentTemplate')
+            ->with('block', 'paymentPlan.paymentTemplate', 'paymentPlan.installmentAttachments.installmentTemplate')
             ->first();
         $society = $property->block->society ?? null;
 
@@ -777,8 +823,9 @@ class PropertiesController extends Controller
         $room_types = $property_attributes->where('type', 'room_type');
         $amenities = $property_attributes->where('type', 'amenity');
 
-        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->get();
-        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->get();
+        $isCommercial = $property->category === 'commercial';
+        $paymentsPlans = PaymentTemplate::where('owner_id', Auth()->id())->where('is_commercial', $isCommercial)->get();
+        $installmentTemplates = InstallmentTemplate::where('owner_id', Auth()->id())->where('is_commercial', $isCommercial)->get();
 
         return view(
             'content.property_management.blocks.properties.property_details',

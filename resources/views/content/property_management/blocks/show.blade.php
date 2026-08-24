@@ -3,15 +3,20 @@
 @section('title', 'Properties in ' . ucwords($block?->name ?? 'Block'))
 
 @section('vendor-style')
+  @parent
   @vite(['resources/assets/vendor/libs/spinkit/spinkit.scss', 'resources/assets/vendor/libs/notiflix/notiflix.scss', 'resources/assets/vendor/libs/select2/select2.scss'])
 @endsection
 
 @section('vendor-script')
+  @parent
   @vite(['resources/assets/vendor/libs/notiflix/notiflix.js', 'resources/assets/vendor/libs/select2/select2.js'])
 @endsection
+
 @section('page-script')
-  @vite(['resources/assets/js/forms-selects.js'])
+  @parent
+  @vite(['resources/assets/js/forms-selects.js', 'resources/assets/js/installment-plan-calculator.js', 'resources/assets/js/installment-template-preview.js'])
 @endsection
+
 @section('content')
 
   <div
@@ -27,6 +32,7 @@
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
+
             <a href="{{ route('dashboard.analytics') }}">Home</a>
           </li>
           @if(isset($society))
@@ -65,7 +71,7 @@
     <div class="alert alert-danger">
       <ul>
         @foreach ($errors->all() as $error)
-          <i class="ti tabler-alert-circle me-1"></i>{{ $error }}</li>
+          <li><i class="ti tabler-alert-circle me-1"></i>{{ $error }}</li>
         @endforeach
       </ul>
     </div>
@@ -98,51 +104,8 @@
   </div>
 
   <div class="card mb-4">
-    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <h5 class="mb-1 fw-semibold ">
-        {{ ucfirst($block->name) }} — <span
-          class="ms-1 badge bg-label-secondary"> {{  ucfirst($block->society->name) }} </span>
-      </h5>
-      @can('create_property')
-        <div class="d-flex gap-2 align-items-center">
-
-          <button type="button" id="select_all_properties_btn" class="btn btn-sm btn-outline-secondary"
-                  onclick="toggleSelectAllProperties()">
-            <i class="ti tabler-checkbox me-1"></i> Select All
-          </button>
-
-          <button type="button" id="apply_payment_plan_btn" class="btn btn-sm btn-primary d-none"
-                  onclick="applyPaymentPlanToProperties()">
-            <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
-          </button>
-
-          <button type="button" id="apply_listing_btn" class="btn btn-sm btn-outline-primary d-none"
-                  onclick="applyListingToProperties()">
-            <i class="ti tabler-tag me-1"></i> Apply Listing
-          </button>
-          <button id="view_errors_btn" class="btn btn-sm btn-outline-warning d-none" onclick="openErrorModal()">
-            <i class="ti tabler-alert-triangle me-1"></i> View Errors
-          </button>
-
-          <button id="import_btn" class="btn btn-sm btn-outline-secondary" onclick="showModel()">
-            <i class="fa-solid fa-upload me-1 text-primary"></i> Import
-          </button>
-          @php
-            $url = isset($society) && $user_type ?  route('society.property.create', [$user_type, $block->uuid] ) : route('property.create', [$block->uuid]);
-          @endphp
-
-          <a href="{{ $url }}" class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
-            <i class="ti tabler-plus"></i>
-            Add Property
-          </a>
-        </div>
-      @endcan
-    </div>
-    <hr class="mt-0 mb-3">
     <div class="card-body">
-      <form method="Get" action="{{ isset($society) && $user_type
-    ? route('society.block.view', [$user_type, $society->uuid, $block->uuid])
-    : route('block.view', $block->uuid) }}" id="filter_form" class="fiter_form">
+      <form id="filter_form" class="fiter_form" onsubmit="return false;">
         <div class="row g-4">
 
           <div class="col-12 col-md-4 mt-0">
@@ -151,11 +114,9 @@
                    value="{{ request('search_content') }}" placeholder="Search by name or property no...">
           </div>
 
-
           <div class="col-12 col-md-4 mt-0">
             <label class="form-label text-uppercase fw-semibold"> Category</label>
-            <select class="form-select" name="category" id="category"
-                    onchange="document.getElementById('filter_form').submit()">
+            <select class="form-select" name="category" id="category" onchange="propertiesTable.ajax.reload()">
               <option value="">All</option>
               @foreach($property_categories as $category)
                 <option
@@ -166,8 +127,7 @@
 
           <div class="col-12 col-md-4 mt-0">
             <label class="form-label text-uppercase fw-semibold"> Property Type</label>
-            <select class="form-select" id="type" name="type"
-                    onchange="document.getElementById('filter_form').submit()">
+            <select class="form-select" id="type" name="type" onchange="propertiesTable.ajax.reload()">
               <option value="">All</option>
               @foreach($property_types as $type)
                 <option value="{{$type}}" {{  request('type') == $type ? 'selected' : "" }} > {{$type}}</option>
@@ -175,238 +135,167 @@
             </select>
           </div>
         </div>
-
       </form>
     </div>
   </div>
 
-  <div class="row g-4 mx-0 mb-4" id="property_cards">
-    @forelse($properties as $property)
-      <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
-        <div class="card h-100 border-0 shadow-sm property-card">
-          @php
-            $url = $property->attachment?->link
-                      ? asset('storage/' . $property->attachment->link)
-                      : asset('assets/img/my_images/dummy_property_image.png')
-          @endphp
-          <div class="position-relative">
-            <input type="checkbox" class="form-check-input property-checkbox position-absolute top-0 start-0 m-2"
-                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;"
-                   value="{{ $property->uuid }}">
-            <img src="{{ $url }}" class="card-img-top property-img cursor-pointer" alt="Property Image"
-                 title="Click to Preview image..."
-                 onclick="showImage('{{$url}}')">
-            <span class="badge bg-primary opacity-75 position-absolute top-0 end-0 m-2">
-              {{ ucfirst($property->type) }}
-            </span>
 
+
+
+
+  <div class="card">
+    <div class="">
+      <div class="card-header pb-1">
+        <div class="dt-scroll-wrapper">
+          <div class="dt-actions-bar">
+            <div id="dt-right-actions" class="d-none">
+              <div class="d-flex align-items-center gap-2">
+
+                {{-- Shown only while properties are selected --}}
+                <button type="button" id="apply_payment_plan_btn" class="btn btn-sm btn-primary d-none"
+                        onclick="applyPaymentPlanToProperties()">
+                  <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
+                </button>
+
+                <div class="dropdown">
+                  <button type="button" class="btn btn-sm btn-icon btn-outline-secondary" data-bs-toggle="dropdown"
+                          aria-expanded="false" title="Actions">
+                    <i class="ti tabler-dots-vertical"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <a class="dropdown-item" href="javascript:void(0)" onclick="applyListingToBlock()">
+                        <i class="ti tabler-tag text-success me-2"></i>Apply Listing
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-none" href="javascript:void(0)" id="view_errors_btn"
+                         onclick="openErrorModal()">
+                        <i class="ti tabler-alert-triangle text-warning me-2"></i>View Errors
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="javascript:void(0)" data-bs-toggle="modal"
+                         data-bs-target="#printPlanModal" data-uuid="{{ $block->uuid }}">
+                        <i class="fa-solid fa-print text-primary me-2"></i>Print Plans
+                      </a>
+                    </li>
+                    @can('create_property')
+                      <li>
+                        <a class="dropdown-item" href="javascript:void(0)" id="import_btn" onclick="showModel()">
+                          <i class="fa-solid fa-upload text-secondary me-2"></i>Import
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item"
+                           href="{{ isset($society) && $user_type ? route('society.property.create', [$user_type, $block->uuid]) : route('property.create', [$block->uuid]) }}">
+                          <i class="ti tabler-plus text-primary me-2"></i>Add Property
+                        </a>
+                      </li>
+                    @endcan
+                  </ul>
+                </div>
+
+              </div>
+            </div>
           </div>
 
-          <div class="card-body p-4">
-            <h6 class="fw-bold mb-1 text-truncate text-uppercase cursor-pointer" data-bs-toggle="tooltip"
-                data-bs-placement="bottom" data-bs-custom-class="tooltip-secondary"
-                data-bs-original-title="{{ $property->name ? ucfirst($property->name) : ucfirst($property->type)}}">
-              {{ $property->name ? ucfirst($property->name) : ucfirst($property->type)}}
-            </h6>
-            <p class="text-muted small mb-1">
-              Property No: <span class="fw-semibold"> #{{ ucfirst($property->property_no) }}</span>
-            </p>
-            <p class="text-muted small mb-1">
-              Category: <span class="fw-semibold"> {{ ucfirst($property->category) }}</span>
-            </p>
-            <p class="small text-secondary mb-0">
-              Last update: {{ $property->updated_at->format('F d, Y h:i A') }}
-            </p>
-          </div>
-          @php
-            $url = isset($society) && $user_type
-                ? route('society.property.details', [$user_type, $society->uuid,$property->uuid])
-                : route('property.details', $property->uuid);
-          @endphp
+          <!-- TABLE -->
+          <div class="card-datatable">
+            <table id="blocks_table" class="table table_to_reload datatables-users">
+              <thead class="bg-label-primary">
 
-          <div class="card-footer bg-white border-0 d-flex justify-content-between">
-            <a href="{{ $url }}"
-               class="btn btn-sm btn-outline-primary w-100">
-              View Details
-            </a>
+              <tr>
+                <th><input type="checkbox" class="form-check-input" id="select_all"></th>
+                <th>Property Name</th>
+                <th>Property No</th>
+                <th>Category</th>
+                @if ($show_actions)
+                  <th>Actions</th>
+                @endif
+              </tr>
+              </thead>
+            </table>
           </div>
-
         </div>
       </div>
-
-    @empty
-      <div class="card p-4">
-        <div class="text-center py-5">
-          <i class="ti tabler-building-skyscraper fs-1 not_found_icon"> </i>
-          <h6 class="text-muted">No properties found</h6>
-        </div>
-      </div>
-
-    @endforelse
+    </div>
   </div>
 
-
-
-  @if ($total_properties > $total_skip)
-    <div id="load_more" class="text-center">
-      <button class="btn btn-sm btn-primary" type="button" onclick="loadMore(event)">
-        <span class="spinner-border me-1 d-none" role="status" aria-hidden="true" id="spinner"></span>
-        <span id="load_more_text"> Load More </span>
-      </button>
-    </div>
-  @endif
-
-  @include('_partials._modals.lightbox_model')
   @include('_partials._modals.import_properties')
   @include('_partials._modals.import_errors')
   @include('_partials._modals.apply_payment_plan')
+  @include('_partials._modals.apply_listing')
   @include('_partials._modals.listing_property')
+  @include('_partials._modals.print_payment_plans')
 
 @endsection
 
-@push('styles')
-  <style>
-    .property-card {
-      transition: all 0.3s ease;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .property-card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-    }
-
-    .property-img {
-      height: 180px;
-      object-fit: cover;
-    }
-
-    .import_errors {
-      max-height: 150px;
-      overflow-y: auto;
-    }
-
-    .column-title {
-      font-size: 11px;
-      letter-spacing: .05em;
-      text-transform: uppercase
-    }
-  </style>
-@endpush
-
-
 @push('scripts')
   <script>
-    let searchTimer;
-    document.getElementById('search_content').addEventListener('keyup', function() {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        document.getElementById('filter_form').submit();
-      }, 1000);
-    });
+    var propertiesTable;
 
-    var skip = 4;
+    $(function() {
+      let searchTimer;
+      document.getElementById('search_content').addEventListener('keyup', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          propertiesTable.ajax.reload();
+        }, 1000);
+      });
 
-    function loadMore(event) {
-      event.preventDefault();
-      var load_more = document.getElementById('load_more');
-      var spinner = document.getElementById('spinner');
-      var load_more_text = document.getElementById('load_more_text');
-
-      spinner.classList.remove('d-none');
-      load_more_text.style.display = 'none';
-      var btn = event.target;
-      btn.disabled = true;
-
-      var data = {
-        skip: skip,
-        search_content: document.getElementById('search_content').value,
-        category: document.getElementById('category').value,
-        type: document.getElementById('type').value
-      };
-
-      let url = "{{ isset($society) && $user_type
-      ? route('society.block.view', [$user_type, $society->uuid, $block->uuid])
-      : route('block.view', $block->uuid) }}";
-
-      $.ajax({
-        url: url, type: 'GET', data: data,
-        success: function(response) {
-          skip = response.total_skip;
-          response.properties.forEach(function(property) {
-            const date = new Date(property.updated_at);
-            const formatted = date.toLocaleString('en-US', {
-              month: 'long', day: '2-digit', year: 'numeric',
-              hour: '2-digit', minute: '2-digit', hour12: true
-            });
-
-            var image_url = property.attachment
-              ? "{{ asset('storage/') }}/" + property.attachment.link
-              : "{{ asset('assets/img/my_images/dummy_property_image.png') }}";
-
-            let prop_details_url = "{{ isset($society) && $user_type
-            ? route('society.property.details', [$user_type, $society->uuid, '__UUID__'])
-            : route('property.details', '__UUID__') }}";
-            prop_details_url = prop_details_url.replace('__UUID__', property.uuid);
-
-            $('#property_cards').append(`
-  <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
-    <div class="card h-100 border-0 shadow-sm property-card">
-      <div class="position-relative">
-        <input type="checkbox" class="form-check-input property-checkbox position-absolute top-0 start-0 m-2"
-               style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="${property.uuid}"
-               ${selectedProperties.has(property.uuid) ? 'checked' : ''}>
-                  <img src="${image_url}" class="card-img-top property-img cursor-pointer" alt="Property Image"
-                       title="Click to Preview image..." onclick="showImage('${image_url}')">
-                  <span class="badge bg-primary opacity-75 position-absolute top-0 end-0 m-2">${property.type}</span>
-                </div>
-                <div class="card-body p-4">
-                  <h6 class="fw-bold mb-1 text-truncate text-uppercase cursor-pointer"
-                      data-bs-toggle="tooltip" data-bs-placement="bottom"
-                      data-bs-custom-class="tooltip-secondary" data-bs-original-title="">
-                    ${property.name ? property.name : property.type}
-                  </h6>
-                  <p class="text-muted small mb-1">Property No: <span class="fw-semibold">#${property.property_no}</span></p>
- <p class="text-muted small mb-1">
-    Category: <span class="fw-semibold">${property.category.charAt(0).toUpperCase() + property.category.slice(1)}</span>
-</p>
-                  <p class="small text-secondary mb-0">Last update: ${formatted}</p>
-                </div>
-                <div class="card-footer bg-white border-0 d-flex justify-content-between">
-                  <a href="${prop_details_url}" class="btn btn-sm btn-outline-primary w-100">View Details</a>
-                </div>
-              </div>
-            </div>
-          `);
-
-            if (response.total_properties > response.total_skip) {
-              load_more.style.display = 'block';
-              spinner.classList.add('d-none');
-              load_more_text.style.display = 'block';
-              btn.disabled = false;
-            } else {
-              load_more.style.display = 'none';
-            }
-          });
-        },
-        error: function() {
-          spinner.classList.add('d-none');
-          btn.disabled = false;
-          if (typeof Swal !== 'undefined') {
-            Swal.fire('Error', 'Failed to load more properties', 'error');
+      propertiesTable = $('#blocks_table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+          url: "{{ isset($society) && $user_type
+        ? route('society.block.view', [$user_type, $society->uuid, $block->uuid])
+        : route('block.view', $block->uuid) }}",
+          data: function(d) {
+            d.search_content = document.getElementById('search_content').value;
+            d.category = document.getElementById('category').value;
+            d.type = document.getElementById('type').value;
           }
+        },
+        dom: '<\'row align-items-center\'' +
+          '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
+          '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
+          '>' +
+          '<\'row\'<\'col-12\'tr>>' +
+          '<\'row mt-3 align-items-center\'' +
+          '<\'col-md-6\'i>' +
+          '<\'col-md-6 d-flex justify-content-end\'p>' +
+          '>',
+        columns: [{ data: 'checkbox', orderable: false, searchable: false },
+          { data: 'name' },
+          { data: 'property_no' },
+          { data: 'category' },
+            @if ($show_actions)
+          {
+            data: 'actions',
+            orderable: false,
+            searchable: false
+          },
+          @endif
+        ],
+        initComplete: function() {
+          $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
+          $('#bulk-delete-wrap').html(`
+              <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">
+                Bulk Delete
+              </button>
+            `);
+
+          // Restore checked rows when returning from another page / after reload
+          propertiesTable.on('draw', function() {
+            document.querySelectorAll('.property-checkbox').forEach(function(cb) {
+              cb.checked = selectedProperties.has(cb.value);
+            });
+            syncSelectAllHeader();
+          });
         }
       });
-    }
-
-    function showImage(image) {
-      const modal = new bootstrap.Modal(document.getElementById('lightboxModal'));
-      const img = document.getElementById('lightboxImage');
-      img.classList.remove('d-none');
-      img.src = image;
-      modal.show();
-    }
+    });
 
     function showModel() {
       const modal = new bootstrap.Modal(document.getElementById('importPropertiesModal'));
@@ -547,7 +436,6 @@
       });
     }
 
-
     document.querySelector('#importPropertiesModal form').addEventListener('submit', function(e) {
       e.preventDefault();
       const form = this;
@@ -571,7 +459,6 @@
           (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
 
           if (res.errors) {
-            // Validation errors from CSV structure — show inline alert, no progress wrapper
             showImportErrors(res.errors);
           } else {
             setImportBtnDisabled(true);
@@ -677,137 +564,182 @@
       });
     });
 
-    // ---- Property multi-select for payment plan application ----
+    // ---- Property multi-select (header checkbox + per-row checkboxes) ----
+    // Selection is kept across pagination/filter redraws.
     let selectedProperties = new Set();
-    let allPropertiesSelected = false;
 
-    document.addEventListener('change', function(e) {
-      if (e.target.classList.contains('property-checkbox')) {
-        if (e.target.checked) {
-          selectedProperties.add(e.target.value);
-        } else {
-          selectedProperties.delete(e.target.value);
-          if (allPropertiesSelected) {
-            allPropertiesSelected = false;
-            setSelectAllPropertiesBtn(false);
-          }
-        }
-        updatePropertySelectionBar();
-      }
-    });
-
-    function setSelectAllPropertiesBtn(active) {
-      const btn = document.getElementById('select_all_properties_btn');
-      btn.innerHTML = active
-        ? '<i class="ti tabler-square-off me-1"></i> Deselect All'
-        : '<i class="ti tabler-checkbox me-1"></i> Select All';
-    }
-
-    function toggleSelectAllProperties() {
-      const btn = document.getElementById('select_all_properties_btn');
-
-      if (allPropertiesSelected) {
-        selectedProperties.clear();
-        document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = false);
-        allPropertiesSelected = false;
-        setSelectAllPropertiesBtn(false);
-        updatePropertySelectionBar();
-        return;
-      }
-
-      const originalHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Selecting...';
-
-      var data = {
-        search_content: document.getElementById('search_content').value,
-        category: document.getElementById('category').value,
-        type: document.getElementById('type').value
-      };
-
-
-      let url = "{{ isset($society) && $user_type
-    ? route('society.block.properties.all_ids', [$user_type, $society->uuid, $block->uuid])
-    : route('block.properties.all_ids', $block->uuid) }}";
-
-      $.ajax({
-        url: url,
-        type: 'GET',
-        data: data,
-        success: function(response) {
-          selectedProperties = new Set(response.ids);
-          document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = true);
-          allPropertiesSelected = true;
-          setSelectAllPropertiesBtn(true);
-          updatePropertySelectionBar();
-        },
-        error: function() {
-          if (typeof Swal !== 'undefined') {
-            Swal.fire('Error', 'Failed to select all properties', 'error');
-          }
-        },
-        complete: function() {
-          btn.disabled = false;
-          if (!allPropertiesSelected) btn.innerHTML = originalHtml;
-        }
-      });
+    function syncSelectAllHeader() {
+      const boxes = Array.from(document.querySelectorAll('.property-checkbox'));
+      const header = document.getElementById('select_all');
+      if (!header) return;
+      header.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
     }
 
     function updatePropertySelectionBar() {
       const hasSelection = selectedProperties.size > 0;
       document.getElementById('apply_payment_plan_btn').classList.toggle('d-none', !hasSelection);
-      document.getElementById('apply_listing_btn').classList.toggle('d-none', !hasSelection);
     }
+
+    document.addEventListener('change', function(e) {
+      if (!e.target.classList.contains('property-checkbox')) return;
+
+      if (e.target.checked) {
+        selectedProperties.add(e.target.value);
+      } else {
+        selectedProperties.delete(e.target.value);
+      }
+      syncSelectAllHeader();
+      updatePropertySelectionBar();
+    });
+
+    document.getElementById('select_all').addEventListener('change', function() {
+      const checked = this.checked;
+      document.querySelectorAll('.property-checkbox').forEach(function(cb) {
+        cb.checked = checked;
+        if (checked) {
+          selectedProperties.add(cb.value);
+        } else {
+          selectedProperties.delete(cb.value);
+        }
+      });
+      updatePropertySelectionBar();
+    });
 
     function applyPaymentPlanToProperties() {
       if (!selectedProperties.size) return;
       document.getElementById('apply_plan_selected_count').textContent = selectedProperties.size;
-      document.getElementById('apply_plan_ids').value = Array.from(selectedProperties).join(',');
+
+      var form = document.getElementById('apply_payment_plan_form');
+      form.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+      selectedProperties.forEach(function(uuid) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ids[]';
+        input.value = uuid;
+        form.appendChild(input);
+      });
+
       document.getElementById('apply_plan_type').value = 'property';
       new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
-
     }
 
-    // ============================================
-    // FOR BLOCK VIEW (Multiple Properties Page)
-    // ============================================
+    function applyListingToBlock() {
+      document.getElementById('listing_block_uuid').value = '{{ $block->uuid }}';
+      new bootstrap.Modal(document.getElementById('applyListingModal')).show();
+    }
 
-    function applyListingToProperties() {
-      if (!selectedProperties.size) return;
+    // Toggle price fields based on listing type in apply listing modal
+    document.getElementById('applyListingModal').addEventListener('change', function(e) {
+      if (e.target.name === 'listing_type') {
+        var isRent = e.target.value === 'rent';
+        document.getElementById('listing_price_wrapper').classList.toggle('d-none', isRent);
+        document.getElementById('listing_show_price').closest('.form-check.form-switch').classList.toggle('d-none', isRent);
+        if (isRent) {
+          document.getElementById('listing_price').value = '';
+        }
+      }
+    });
 
+    // Listing modal: configure for single property when opened from Set Price button
+    document.getElementById('sell_rent_modal').addEventListener('show.bs.modal', function(e) {
+      const btn = e.relatedTarget;
+      if (!btn) return;
+
+      const itemType = btn.dataset.type || 'property';
+      const itemId = btn.dataset.id || '';
+      const listing = btn.dataset.listing ? JSON.parse(btn.dataset.listing) : null;
       const form = document.getElementById('listing_form');
 
-      // Set form for BULK mode
-      form.querySelector('[name="type"]').value = 'property';
-      form.querySelector('[name="id"]').value = '';
-      form.querySelector('[name="ids"]').value = Array.from(selectedProperties).join(',');
-      form.action = "{{ route('listing.bulk_store') }}";
+      form.querySelector('[name="type"]').value = itemType;
+      form.querySelector('[name="id"]').value = itemId;
+      form.action = "{{ route('listing.store') }}";
 
-      // Show bulk UI
-      document.getElementById('modal_title').textContent = 'Apply Listing';
-      document.getElementById('bulk_notice').classList.remove('d-none');
-      document.getElementById('count').textContent = selectedProperties.size;
-      document.getElementById('single_price').classList.add('d-none');
-      document.getElementById('bulk_rate').classList.remove('d-none');
-      document.getElementById('btn_text').textContent = `Apply to ${selectedProperties.size} Properties`;
+      document.getElementById('modal_title').textContent = listing ? 'Update Listing' : 'List Property';
+      document.getElementById('single_price').classList.remove('d-none');
+      document.getElementById('btn_text').textContent = 'Submit Listing';
 
-      // Set defaults
-      document.getElementById('type_sell').checked = true;
-
-      new bootstrap.Modal(document.getElementById('sell_rent_modal')).show();
-    }
-
-    function updateSocietySelectionBar() {
-      const applyBtn = document.getElementById('apply_payment_template_btn');
-      applyBtn.classList.toggle('d-none', selectedSocieties.size === 0);
-    }
-
-    function applyPaymentTemplateToSocieties() {
-      if (!selectedSocieties.size) return;
-      document.getElementById('apply_plan_selected_count').textContent = selectedSocieties.size;
-      document.getElementById('apply_plan_ids').value = Array.from(selectedSocieties).join(',');
-      document.getElementById('apply_plan_type').value = 'society';
-      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
-    }
+      if (listing) {
+        document.getElementById('type_' + listing.listing_type).checked = true;
+        document.getElementById('price').value = listing.price || '';
+        document.getElementById('unit').value = listing.unit || 'PKR';
+        document.getElementById('show_price').checked = listing.show_price ? true : false;
+        document.getElementById('contact').value = listing.contact_no || '';
+        document.getElementById('show_contact').checked = listing.show_contact_no ? true : false;
+        document.getElementById('email').value = listing.email || '';
+        document.getElementById('description').value = listing.description || '';
+      } else {
+        document.getElementById('type_sell').checked = true;
+        document.getElementById('price').value = '';
+        document.getElementById('unit').value = 'PKR';
+        document.getElementById('show_price').checked = true;
+        document.getElementById('contact').value = '';
+        document.getElementById('show_contact').checked = true;
+        document.getElementById('email').value = '';
+        document.getElementById('description').value = '';
+      }
+    });
   </script>
+@endpush
+
+@push('styles')
+  <style>
+    .import_errors {
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .column-title {
+      font-size: 11px;
+      letter-spacing: .05em;
+      text-transform: uppercase
+    }
+
+    /* Hide "Show entries" / "Search:" labels — cover both DataTables build
+       naming conventions (new bs5 build uses dt-*, classic build uses
+       dataTables_*) so this works no matter which vendor bundle loads. */
+    .dt-search label,
+    .dataTables_filter label {
+      display: none !important;
+    }
+
+    .dt-length label,
+    .dataTables_length label {
+      display: none !important;
+    }
+
+    table.dataTable thead th {
+      border-bottom: 2px solid #cdcdcf !important;
+    }
+
+    @media (max-width: 575px) {
+      .dataTables_wrapper .row.align-items-center {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+      }
+
+      .dataTables_wrapper .dt-actions {
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+        margin-top: 10px !important;
+      }
+    }
+
+    @media (max-width: 991px) {
+      .dt-scroll-wrapper {
+        overflow-x: auto;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .dt-scroll-wrapper > * {
+        min-width: 1100px;
+      }
+
+      table.dataTable {
+        white-space: nowrap;
+      }
+    }
+  </style>
 @endpush

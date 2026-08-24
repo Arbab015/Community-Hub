@@ -24,6 +24,9 @@ class PaymentTemplateController extends Controller
         if ($request->ajax()) {
             return DataTables::of($query->get())
                 ->addColumn('checkbox', fn ($t) => '<input type="checkbox" class="form-check-input checkbox" value="'.$t->id.'">')
+                ->addColumn('is_commercial', fn ($t) => $t->is_commercial
+                    ? '<span class="badge bg-label-warning">Commercial</span>'
+                    : '<span class="badge bg-label-success">Residential</span>')
                 ->addColumn('booking_fee', fn ($t) => $this->feeCell($t->booking_fee, $t->booking_fee_in_per))
                 ->addColumn('development_fee', fn ($t) => $this->feeCell($t->development_fee, $t->development_fee_in_per, $t->development_fee_surplus))
                 ->addColumn('down_payment', fn ($t) => $this->feeCell($t->down_payment, $t->down_payment_in_per))
@@ -33,13 +36,38 @@ class PaymentTemplateController extends Controller
                 ->addColumn('park_facing_premium', fn ($t) => $this->feeCell($t->park_facing_premium, true, false))
                 ->addColumn('main_boulevard_premium', fn ($t) => $this->feeCell($t->main_boulevard_premium, true, false))
                 ->addColumn('actions', function ($t) use ($login_user) {
+                    $info = '';
                     $edit = '';
                     $delete = '';
+
+                    $infoData = htmlspecialchars(json_encode([
+                        'name' => $t->name,
+                        'is_commercial' => (bool) $t->is_commercial,
+                        'booking_fee' => $t->booking_fee,
+                        'booking_fee_in_per' => (int) $t->booking_fee_in_per,
+                        'development_fee' => $t->development_fee,
+                        'development_fee_in_per' => (int) $t->development_fee_in_per,
+                        'development_fee_surplus' => (int) $t->development_fee_surplus,
+                        'down_payment' => $t->down_payment,
+                        'down_payment_in_per' => (int) $t->down_payment_in_per,
+                        'confirmation_fee' => $t->confirmation_fee,
+                        'confirmation_fee_in_per' => (int) $t->confirmation_fee_in_per,
+                        'possession_fee' => $t->possession_fee,
+                        'possession_fee_in_per' => (int) $t->possession_fee_in_per,
+                        'possession_fee_surplus' => (int) $t->possession_fee_surplus,
+                        'corner_premium' => $t->corner_premium,
+                        'park_facing_premium' => $t->park_facing_premium,
+                        'main_boulevard_premium' => $t->main_boulevard_premium,
+                    ]), ENT_QUOTES, 'UTF-8');
+                    $info = '<button type="button" class="btn btn-sm btn-outline-info me-1 info-template-btn" data-template="'.$infoData.'">
+                        <i class="ti tabler-info-circle"></i>
+                    </button>';
 
                     if ($login_user->can('payment_template_create')) {
                         $data = htmlspecialchars(json_encode([
                             'id' => $t->id,
                             'name' => $t->name,
+                            'is_commercial' => (int) $t->is_commercial,
                             'booking_fee' => $t->booking_fee,
                             'booking_fee_in_per' => (int) $t->booking_fee_in_per,
                             'development_fee' => $t->development_fee,
@@ -65,9 +93,9 @@ class PaymentTemplateController extends Controller
                         $delete = '<form action="'.route('payment-templates.destroy', $t->id).'" method="POST" style="display:inline;">'.csrf_field().method_field('DELETE').'<button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(event)"><i class="ti tabler-trash"></i></button></form>';
                     }
 
-                    return $edit.' '.$delete;
+                    return $info.' '.$edit.' '.$delete;
                 })
-                ->rawColumns(['checkbox', 'booking_fee', 'development_fee', 'down_payment', 'confirmation_fee', 'possession_fee', 'corner_premium', 'park_facing_premium', 'main_boulevard_premium', 'actions'])
+                ->rawColumns(['checkbox', 'is_commercial', 'booking_fee', 'development_fee', 'down_payment', 'confirmation_fee', 'possession_fee', 'corner_premium', 'park_facing_premium', 'main_boulevard_premium', 'actions'])
                 ->make(true);
         }
 
@@ -75,7 +103,7 @@ class PaymentTemplateController extends Controller
         $can_delete = $login_user->can('payment_template_delete');
         $show_actions = $can_edit || $can_delete;
 
-        return view('content.property_management.payment_planning.index', compact('show_actions'));
+        return view('content.property_management.payment_template.index', compact('show_actions'));
     }
 
     public function store(Request $request)
@@ -87,6 +115,7 @@ class PaymentTemplateController extends Controller
             $validated = $request->validate([
                 'id' => ['nullable', Rule::exists('payment_templates', 'id')],
                 'name' => ['required', 'string', 'min:3', 'max:100', Rule::unique('payment_templates', 'name')->where('owner_id', auth()->id())->ignore($templateId)],
+                'is_commercial' => ['nullable', 'boolean'],
                 'booking_fee' => ['nullable', 'numeric', 'min:0'],
                 'booking_fee_in_per' => ['nullable', 'boolean'],
                 'development_fee' => ['nullable', 'numeric', 'min:0'],
@@ -111,6 +140,7 @@ class PaymentTemplateController extends Controller
             $data = [
                 'owner_id' => auth()->id(),
                 'name' => $validated['name'],
+                'is_commercial' => $request->boolean('is_commercial'),
                 'booking_fee' => $validated['booking_fee'] ?? null,
                 'booking_fee_in_per' => $request->boolean('booking_fee_in_per'),
                 'development_fee' => $validated['development_fee'] ?? null,

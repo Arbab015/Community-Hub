@@ -190,6 +190,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('block.properties.all_ids');
 
         Route::get('{user_type}/societies/{society:uuid}/blocks/{block:uuid}/properties/all-ids', 'allIds')->name('society.block.properties.all_ids');
+
+        //        Route::get('blocks/{uuid}/payment-plan-templates', 'paymentPlanTemplates')
+        //            ->name('blocks.payment_plan_templates');
+        //
+        //        Route::post('blocks/{uuid}/print-payment-plans', 'printPaymentPlans')
+        //            ->name('blocks.print_payment_plans');
     });
 
     Route::controller(PropertiesController::class)->group(function () {
@@ -264,9 +270,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::controller(\App\Http\Controllers\PropertyListingController::class)->group(function () {
         Route::post('property-listing', 'store')->name('listing.store');
+        Route::post('listing/block-store', 'blockStore')->name('listing.block_store');
         // web.php
         Route::get('property_listing/destroy/{uuid}', 'destroy')->name('listing.destroy');
-        Route::post('listing/bulk-store', 'bulkStore')->name('listing.bulk_store');
     });
 
     Route::controller(\App\Http\Controllers\PropertyAttributeController::class)->group(function () {
@@ -322,6 +328,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('payment_plan/print/{uuid}', 'printPlan')->name('payment_plan.print')->middleware('permission:installment_template_listing');
 
+        Route::post('payment_plans/print', 'printPlans')->name('payment_plans.print');
     });
 
     // Attachment controller
