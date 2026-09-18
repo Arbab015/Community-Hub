@@ -31,6 +31,11 @@ class PropertyUnit extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function ownerships()
+    {
+        return $this->morphMany(PropertyOwner::class, 'property_ownerable');
+    }
+
     public function rooms()
     {
         return $this->hasMany(Room::class, 'unit_id');
@@ -65,5 +70,15 @@ class PropertyUnit extends Model
     public function paymentPlan()
     {
         return $this->morphOne(PropertyPaymentPlan::class, 'planable');
+    }
+
+    public function paymentPlans()
+    {
+        return $this->morphMany(PropertyPaymentPlan::class, 'planable');
+    }
+
+    public function ownershipPaymentPlans()
+    {
+        return $this->morphMany(PropertyOwnershipPaymentPlan::class, 'property_ownerable');
     }
 }

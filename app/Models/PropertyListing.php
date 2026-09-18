@@ -11,9 +11,18 @@ class PropertyListing extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'closed' => 'boolean',
+    ];
+
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    public function scopeOpen($query)
+    {
+        return $query->where('closed', false);
     }
 
     public function listable()

@@ -18,7 +18,7 @@ class FileServices
      * @param  \Illuminate\Database\Eloquent\Model|null  $model
      * @return array New attachment IDs
      */
-    public function compressAndStore($files, $model = null, bool $isSingle = false, bool $isMain = false): array
+    public function compressAndStore($files, $model = null, bool $isSingle = false, bool $isMain = false, ?int $userId = null): array
     {
         if ($isSingle && $files instanceof \Illuminate\Http\UploadedFile) {
             $files = [$files];
@@ -47,6 +47,7 @@ class FileServices
                       'size' => '0 KB',
                       'is_main' => $isMain,
                       'progress' => 10,
+                      'user_id' => $userId,
                   ])
                   : $model->attachments()->create([
                       'name' => $filename,
@@ -56,6 +57,7 @@ class FileServices
                       'size' => '0 KB',
                       'is_main' => false,
                       'progress' => 10,
+                      'user_id' => $userId,
                   ]);
             }
 

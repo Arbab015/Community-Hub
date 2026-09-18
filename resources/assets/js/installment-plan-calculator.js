@@ -58,8 +58,8 @@
   }
 
   function balloonCount(numberOfInstallments, installmentFrequency, balloonFrequency) {
-    const years = Math.floor(numberOfInstallments / installmentsPerYear(installmentFrequency));
-    return Math.max(0, (years * balloonsPerYear(balloonFrequency)) - 1);
+    const years = numberOfInstallments / installmentsPerYear(installmentFrequency);
+    return Math.max(0, Math.ceil(years * balloonsPerYear(balloonFrequency)) - 1);
   }
 
   function toFloat(value) {
@@ -98,8 +98,6 @@
         errors.push('Balloon frequency is required when balloon payment is set');
       } else if (!balloonFrequencyValid(installmentFrequency, balloonFrequency)) {
         errors.push('Balloon frequency must be less frequent than the installment frequency');
-      } else if (num % ipp !== 0) {
-        errors.push('With a balloon payment the number of installments must be a whole multiple of ' + ipp + ' (' + cap(installmentFrequency) + ')');
       }
     }
 

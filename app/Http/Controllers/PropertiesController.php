@@ -594,9 +594,14 @@ class PropertiesController extends Controller
                 $newAttachmentIds = [];
                 $mainPicId = null;
 
+                $userScope = SocietyAccessResolver::resolver(auth()->user());
+                $scopedUploadUserId = ($userScope['isSocietyScoped'] ?? false)
+                    ? ($userScope['ownerId'] ?? auth()->id())
+                    : auth()->id();
+
                 if ($request->hasFile('main_pic')) {
                     $ids = app(FileServices::class)->compressAndStore(
-                        $request->file('main_pic'), $property, true, true
+                        $request->file('main_pic'), $property, true, true, $scopedUploadUserId
                     );
                     $mainPicId = $ids[0] ?? null;
                     $newAttachmentIds = array_merge($newAttachmentIds, $ids);
@@ -604,7 +609,7 @@ class PropertiesController extends Controller
 
                 if ($request->hasFile('documents')) {
                     $ids = app(FileServices::class)->compressAndStore(
-                        $request->file('documents'), $property, false
+                        $request->file('documents'), $property, false, false, $scopedUploadUserId
                     );
                     $newAttachmentIds = array_merge($newAttachmentIds, $ids);
                 }
@@ -1084,6 +1089,68 @@ class PropertiesController extends Controller
             'success' => true,
             'message' => "{$deleted} item(s) deleted successfully.",
         ]);
+    }
+
+    public function bulkDeleteProperties(Request $request)
+    {
+        try {
+            $request->validate([
+                'ids'   => 'required|array',
+                'ids.*' => 'string|exists:properties,uuid',
+            ]);
+
+            $properties = Property::whereIn('uuid', $request->input('ids'))->get();
+            $deleted = 0;
+
+            foreach ($properties as $property) {
+                $attachmentIds = $property->attachments()->pluck('id')->toArray();
+                $property->dimensions()->delete();
+
+                if ($property->listing) {
+                    $property->listing->inquiries()->delete();
+                    $property->listing->delete();
+                }
+
+                foreach ($property->floors as $floor) {
+                    foreach ($floor->units as $unit) {
+                        $attachmentIds = array_merge($attachmentIds, $unit->attachments()->pluck('id')->toArray());
+                        $unit->dimensions()->delete();
+                        if ($unit->listing) {
+                            $unit->listing->inquiries()->delete();
+                            $unit->listing->delete();
+                        }
+                        foreach ($unit->rooms as $room) {
+                            $room->dimensions()->delete();
+                            $room->delete();
+                        }
+                        $unit->delete();
+                    }
+                    foreach ($floor->rooms as $room) {
+                        $room->dimensions()->delete();
+                        $room->delete();
+                    }
+                    $floor->delete();
+                }
+
+                if (! empty($attachmentIds)) {
+                    app(FileServices::class)->deleteByIds($attachmentIds);
+                }
+
+                $property->delete();
+                $deleted++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$deleted} property(ies) deleted successfully.",
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function destroyProperty($uuid, $user_type = null)

@@ -9,7 +9,7 @@ class PropertyPaymentPlanInstallmentTemplate extends Pivot
 {
     use HasUuids;
 
-    protected $table = 'property_payment_plan_installment_templates';
+    protected $table = 'property_installment_plans';
 
     protected $guarded = [];
 

@@ -67,6 +67,7 @@ class PermissionsSeeder extends Seeder
             'edit_block',
             'delete_block',
             'view_block',
+            'pricing_payment_plans_info', // show the pricing details and payment plans details block level
 
             'listing_attribute',
             'create_attribute',
@@ -97,6 +98,19 @@ class PermissionsSeeder extends Seeder
             'installment_template_create',
             'installment_template_edit',
             'installment_template_delete',
+
+            // payment planning
+            'payment_plan_apply',
+            'payment_plan_edit', // edit only payment plan not installment plan
+            'payment_plan_delete', // delete whole payment plan with installment plans
+            'payment_plan_print', // for print payment plan
+            'installment_plan_add', // add installment plan in the payment plan
+            'installment_plan_edit',  // edit installment plan in the payment plan
+            'installment_plan_delete', // remove or delete the installment plan
+            'property_assign_owner',
+
+            // payment collection / tracking
+            'payment_collect', // record payments against a committed plan
         ];
 
         foreach ($permissions as $permission) {
@@ -120,6 +134,7 @@ class PermissionsSeeder extends Seeder
             'add_rule',
             'edit_rule',
             'delete_rule',
+            'pricing_payment_plans_info',
 
             'society_blocks',
             'add_block',
@@ -146,6 +161,16 @@ class PermissionsSeeder extends Seeder
             'installment_template_create',
             'installment_template_edit',
             'installment_template_delete',
+
+            'payment_plan_apply',
+            'payment_plan_edit',
+            'payment_plan_delete',
+            'payment_plan_print',
+            'installment_plan_add',
+            'installment_plan_edit',
+            'installment_plan_delete',
+            'property_assign_owner',
+
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -212,6 +237,7 @@ class PermissionsSeeder extends Seeder
             'edit_block',
             'delete_block',
             'view_block',
+            'pricing_payment_plans_info',
 
             'create_property',
             'edit_property',
@@ -233,6 +259,18 @@ class PermissionsSeeder extends Seeder
             'installment_template_create',
             'installment_template_edit',
             'installment_template_delete',
+
+            'payment_plan_apply',
+            'payment_plan_edit',
+            'payment_plan_delete',
+            'payment_plan_print',
+            'installment_plan_add',
+            'installment_plan_edit',
+            'installment_plan_delete',
+
+            'property_assign_owner',
+
+            'payment_collect',
         ];
 
         $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);

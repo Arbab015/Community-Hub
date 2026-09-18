@@ -49,9 +49,9 @@
             <form id="formAuthentication" class="mb-4 " action="{{ route('user.login') }}" method="post">
               @csrf
               <div class="mb-6 form-control-validation">
-                <label for="email" class="form-label">Email </label>
+                <label for="email" class="form-label">Email or Contact No. </label>
                 <input type="text" class="form-control" id="email" name="email"
-                  placeholder="Enter your email address" autofocus />
+                  placeholder="Enter your email address or contact number" autofocus />
               </div>
               <div class="mb-6 form-password-toggle form-control-validation">
                 <label class="form-label" for="password">Password</label>

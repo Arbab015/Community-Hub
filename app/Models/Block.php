@@ -30,4 +30,9 @@ class Block extends Model
     {
         return $this->hasMany(Property::class, 'block_id');
     }
+
+    public function blockPaymentPlans()
+    {
+        return $this->hasMany(BlockPaymentPlan::class, 'block_id');
+    }
 }

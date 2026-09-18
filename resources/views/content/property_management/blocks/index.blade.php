@@ -90,22 +90,23 @@
   </div>
 
   @include('_partials._modals.add_edit_blocks')
-  @include('_partials._modals.apply_payment_plan')
-  @include('_partials._modals.print_payment_plans')
+  @include('_partials._modals.apply_block_payment_plan')
+  @include('_partials._modals.print_block_payment_plan')
+  @include('_partials._modals.pricing_&_paymentPlans')
+  @include('_partials._modals.apply_listing')
 
 @endsection
 
 @push('scripts')
   <script>
     $(function() {
-      // DataTable initialization
-      let table = $('#blocks_table').DataTable({
+      var table = $('#blocks_table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: `/blocks/index`,
+        ajax: '/blocks/index',
         dom: '<\'row align-items-center\'' +
-          '<\'col-sm-6 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
-          '<\'col-sm-6 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
+          '<\'col-sm-9 col-12 d-flex align-items-center gap-2 mb-2 mb-sm-0\'l f <\'#bulk-delete-wrap\'>>' +
+          '<\'col-sm-3 col-12 d-flex justify-content-sm-end justify-content-start\'<\'dt-actions\'>>' +
           '>' +
           '<\'row\'<\'col-12\'tr>>' +
           '<\'row mt-3 align-items-center\'' +
@@ -133,92 +134,279 @@
         ],
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
-          $('#bulk-delete-wrap').html(`
-            <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">
-              Bulk Delete
-            </button>
-            <button class="btn btn-sm btn-primary d-none" id="bulk_apply_plan_btn"
-                    onclick="applyPaymentPlanToBlocks()">
-              <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
-            </button>
-          `);
+          $('#bulk-delete-wrap').html(
+            '<button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">Bulk Delete</button>' +
+            '<button class="btn btn-sm btn-primary d-none" id="bulk_apply_plan_btn" onclick="applyPaymentPlanToBlocks()"><i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan</button>' +
+            '<button class="btn btn-sm btn-success d-none" id="bulk_apply_listing_btn" onclick="applyListingToBlocks()"><i class="ti tabler-tag me-1"></i> Apply Listing</button>'
+          );
         }
       });
 
-      // Show/hide bulk actions together with the shared bulk-delete toggle
-      const syncBulkPlanBtn = function() {
-        $('#bulk_apply_plan_btn').toggleClass('d-none', !$('.checkbox:checked').length);
+      var syncBulkBtns = function() {
+        var planBtn = document.getElementById('bulk_apply_plan_btn');
+        var listBtn = document.getElementById('bulk_apply_listing_btn');
+        if (!planBtn || !listBtn) return;
+        var hasChecked = !!document.querySelectorAll('.checkbox:checked').length;
+        planBtn.classList.toggle('d-none', !hasChecked);
+        listBtn.classList.toggle('d-none', !hasChecked);
       };
-      $(document).on('change', '.checkbox', syncBulkPlanBtn);
-      $(document).on('change', '#select_all', syncBulkPlanBtn);
-      table.on('draw', syncBulkPlanBtn);
+      document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('checkbox') || e.target.id === 'select_all') {
+          syncBulkBtns();
+        }
+      });
+      table.on('draw', syncBulkBtns);
     });
 
-    // Apply a payment plan to every selected block (all their properties)
     function applyPaymentPlanToBlocks() {
-      const ids = $('.checkbox:checked').map(function() {
-        return this.value;
-      }).get();
+      var checkboxes = document.querySelectorAll('.checkbox:checked');
+      var ids = Array.from(checkboxes).map(function(cb) { return cb.value; });
       if (!ids.length) return;
 
-      document.getElementById('apply_plan_selected_count').textContent = ids.length;
+      document.getElementById('block_plan_selected_count').textContent = ids.length;
 
-      const form = document.getElementById('apply_payment_plan_form');
-      form.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+      var form = document.getElementById('apply_block_payment_plan_form');
+      form.querySelectorAll('input[name="block_ids[]"]').forEach(function(el) { el.remove(); });
       ids.forEach(function(id) {
-        const input = document.createElement('input');
+        var input = document.createElement('input');
         input.type = 'hidden';
-        input.name = 'ids[]';
+        input.name = 'block_ids[]';
         input.value = id;
         form.appendChild(input);
       });
 
-      document.getElementById('apply_plan_type').value = 'block';
-      new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
+      new bootstrap.Modal(document.getElementById('applyBlockPaymentPlanModal')).show();
     }
+
+    function applyListingToBlocks() {
+      var checkboxes = document.querySelectorAll('.checkbox:checked');
+      var uuids = Array.from(checkboxes).map(function(cb) {
+        return cb.closest('tr').querySelector('.checkbox').dataset.uuid;
+      });
+      if (!uuids.length) return;
+
+      var form = document.getElementById('apply_listing_form');
+      document.getElementById('listing_block_uuid').value = '';
+      form.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) { el.remove(); });
+
+      uuids.forEach(function(uuid) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'block_uuids[]';
+        input.value = uuid;
+        form.appendChild(input);
+      });
+
+      new bootstrap.Modal(document.getElementById('applyListingModal')).show();
+    }
+
+    document.getElementById('applyListingModal').addEventListener('change', function(e) {
+      if (e.target.name === 'listing_type') {
+        var isRent = e.target.value === 'rent';
+        document.getElementById('listing_price_wrapper').classList.toggle('d-none', isRent);
+        document.getElementById('listing_show_price').closest('.form-check.form-switch').classList.toggle('d-none', isRent);
+        if (isRent) {
+          document.getElementById('listing_price').value = '';
+        }
+      }
+    });
+
+    document.getElementById('applyListingModal').addEventListener('hidden.bs.modal', function() {
+      this.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) { el.remove(); });
+    });
 
     function addBlockModel(e) {
       e.preventDefault();
-      $('#block_id').val('');
-      $('#name').val('');
-      $('#hidden_society_id').remove();
-      $('#society_id').val('').prop('disabled', false);
-      let modal = new bootstrap.Modal(document.getElementById('blockModal'));
+      document.getElementById('block_id').value = '';
+      document.getElementById('name').value = '';
+      var hiddenSociety = document.getElementById('hidden_society_id');
+      if (hiddenSociety) hiddenSociety.remove();
+      var societySelect = document.getElementById('society_id');
+      societySelect.value = '';
+      societySelect.disabled = false;
+      var modal = new bootstrap.Modal(document.getElementById('blockModal'));
       modal.show();
     }
 
-    $(document).on('click', '.edit_block_btn', function() {
-      let btn = $(this);
-      $('#block_id').val(btn.data('id'));
-      $('#name').val(btn.data('name'));
-      $('#society_id').val(btn.data('society_id')).prop('disabled', true);
-      $('#hidden_society_id').val(btn.data('society_id'));
-      $('#modalTitle').text('Edit Block');
-      // Show modal
-      let modal = new bootstrap.Modal(document.getElementById('blockModal'));
-      modal.show();
+    document.addEventListener('click', function(e) {
+      var printBtn = e.target.closest('.block_print_plan_btn');
+      if (printBtn) {
+        var uuid = printBtn.dataset.uuid;
+
+        document.getElementById('block_print_loading').classList.add('d-none');
+        document.getElementById('block_print_status').classList.add('d-none');
+        document.getElementById('block_print_submit').classList.add('d-none');
+        document.getElementById('block_print_size').value = '';
+        document.getElementById('block_print_unit').value = 'marla';
+        document.getElementById('block_print_corner').checked = false;
+        document.getElementById('block_print_park_facing').checked = false;
+        document.getElementById('block_print_main_boulevard').checked = false;
+
+        document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid = uuid;
+        new bootstrap.Modal(document.getElementById('printBlockPaymentPlanModal')).show();
+      }
+
+      var editBtn = e.target.closest('.edit_block_btn');
+      if (editBtn) {
+        document.getElementById('block_id').value = editBtn.dataset.id;
+        document.getElementById('name').value = editBtn.dataset.name;
+        document.getElementById('society_id').value = editBtn.dataset.societyId;
+        document.getElementById('society_id').disabled = true;
+        var hiddenInput = document.getElementById('hidden_society_id');
+        if (hiddenInput) hiddenInput.value = editBtn.dataset.societyId;
+        document.getElementById('modalTitle').textContent = 'Edit Block';
+        var modal = new bootstrap.Modal(document.getElementById('blockModal'));
+        modal.show();
+      }
+
+      var detailsBtn = e.target.closest('.block_details_btn');
+      if (detailsBtn) {
+        var uuid = detailsBtn.dataset.uuid;
+        var name = detailsBtn.dataset.name;
+
+        document.getElementById('block_details_name').textContent = name;
+
+        document.getElementById('price_ranges_loading').classList.remove('d-none');
+        document.getElementById('price_ranges_empty').classList.add('d-none');
+        document.getElementById('price_ranges_table_wrapper').classList.add('d-none');
+        document.getElementById('price_ranges_tbody').innerHTML = '';
+        document.getElementById('price_range_count').textContent = '0';
+
+        document.getElementById('payment_plans_loading').classList.remove('d-none');
+        document.getElementById('payment_plans_empty').classList.add('d-none');
+        document.getElementById('payment_plans_table_wrapper').classList.add('d-none');
+        document.getElementById('payment_plans_tbody').innerHTML = '';
+        document.getElementById('payment_plan_count').textContent = '0';
+
+        var modal = new bootstrap.Modal(document.getElementById('blockDetailsModal'));
+        modal.show();
+
+        fetch('/blocks/' + uuid + '/details')
+          .then(function(res) { return res.json(); })
+          .then(function(res) {
+            document.getElementById('price_ranges_loading').classList.add('d-none');
+            document.getElementById('payment_plans_loading').classList.add('d-none');
+
+            if (res.priceRanges.length === 0) {
+              document.getElementById('price_ranges_empty').classList.remove('d-none');
+            } else {
+              document.getElementById('price_range_count').textContent = res.priceRanges.length;
+              var tbody = document.getElementById('price_ranges_tbody');
+              res.priceRanges.forEach(function(r) {
+                var row = '<tr>' +
+                  '<td>' + (r.min_size ?? '\u2014') + '</td>' +
+                  '<td>' + (r.max_size ?? '\u221E') + '</td>' +
+                  '<td>' + Number(r.price).toLocaleString() + '</td>' +
+                  '<td><span class="badge bg-label-secondary">' + r.price_unit + '</span></td>' +
+                  '</tr>';
+                tbody.insertAdjacentHTML('beforeend', row);
+              });
+              document.getElementById('price_ranges_table_wrapper').classList.remove('d-none');
+            }
+
+            if (res.paymentPlans.length === 0) {
+              document.getElementById('payment_plans_empty').classList.remove('d-none');
+            } else {
+              document.getElementById('payment_plan_count').textContent = res.paymentPlans.length;
+              var tbody2 = document.getElementById('payment_plans_tbody');
+              res.paymentPlans.forEach(function(p) {
+                var sizeRange = (p.min_size ?? '\u2014') + ' - ' + (p.max_size ?? '\u221E') + ' ' + p.size_unit;
+                var typeBadge = p.is_commercial
+                  ? '<span class="badge bg-label-success">Commercial</span>'
+                  : '<span class="badge bg-label-primary">Non-Commercial</span>';
+                var tplBadge = p.payment_template
+                  ? '<span class="badge bg-label-warning">' + p.payment_template.name + '</span>'
+                  : '<span class="text-muted">\u2014</span>';
+                var instBadges = p.installment_templates.length > 0
+                  ? p.installment_templates.map(function(n) {
+                    return '<span class="badge bg-label-info">' + n + '</span>';
+                  }).join(' ')
+                  : '<span class="text-muted">\u2014</span>';
+
+                var row2 = '<tr>' +
+                  '<td>' + sizeRange + '</td>' +
+                  '<td>' + typeBadge + '</td>' +
+                  '<td>' + tplBadge + '</td>' +
+                  '<td>' + instBadges + '</td>' +
+                  '</tr>';
+                tbody2.insertAdjacentHTML('beforeend', row2);
+              });
+              document.getElementById('payment_plans_table_wrapper').classList.remove('d-none');
+            }
+          })
+          .catch(function() {
+            document.getElementById('price_ranges_loading').classList.add('d-none');
+            document.getElementById('payment_plans_loading').classList.add('d-none');
+            document.getElementById('price_ranges_empty').classList.remove('d-none');
+            document.getElementById('payment_plans_empty').classList.remove('d-none');
+          });
+      }
     });
 
+    document.getElementById('block_print_size').addEventListener('input', checkPaymentPlanAvailability);
 
-    {{--$('#printPlanModal').on('show.bs.modal', function(e) {--}}
-    {{--  let uuid = $(e.relatedTarget).data('uuid');--}}
-    {{--  if (!uuid) return;--}}
+    ['block_print_unit', 'block_print_corner', 'block_print_park_facing', 'block_print_main_boulevard'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', checkPaymentPlanAvailability);
+    });
+    document.querySelectorAll('input[name="block_print_type"]').forEach(function(el) {
+      el.addEventListener('change', checkPaymentPlanAvailability);
+    });
 
-    {{--  let templatesUrl = "{{ route('blocks.payment_plan_templates', $block->uuid) }}";--}}
+    function getSelectedFeatures() {
+      var features = [];
+      if (document.getElementById('block_print_corner').checked) features.push('corner_premium');
+      if (document.getElementById('block_print_park_facing').checked) features.push('park_facing_premium');
+      if (document.getElementById('block_print_main_boulevard').checked) features.push('main_boulevard_premium');
+      return features;
+    }
 
-    {{--  let printActionUrl = "{{ route('blocks.print_payment_plans', $block->uuid) }}";--}}
+    function checkPaymentPlanAvailability() {
+      var uuid = document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid;
+      var size = document.getElementById('block_print_size').value;
+      var unit = document.getElementById('block_print_unit').value;
+      var typeEl = document.querySelector('input[name="block_print_type"]:checked');
+      var type = typeEl ? typeEl.value : 'non_commercial';
+      var features = getSelectedFeatures();
 
-    {{--  $('#printPlanForm').attr('action', printActionUrl);--}}
+      document.getElementById('block_print_submit').classList.add('d-none');
+      if (!uuid || !size || parseFloat(size) <= 0) {
+        document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
+        document.getElementById('block_print_status_text').textContent = 'Enter a property size to check availability.';
+        return;
+      }
 
-    {{--  let $select = $('#select2Primary').empty().trigger('change');--}}
+      document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
+      document.getElementById('block_print_status').classList.add('text-muted');
+      document.getElementById('block_print_loading').classList.remove('d-none');
+      document.getElementById('block_print_status_text').textContent = 'Checking availability...';
 
-    {{--  $.get(templatesUrl, function(res) {--}}
-    {{--    (res.templates || []).forEach(function(t) {--}}
-    {{--      $select.append(new Option(t.name, t.id));--}}
-    {{--    });--}}
-    {{--    $select.trigger('change');--}}
-    {{--  });--}}
-    {{--});--}}
+      fetch('/blocks/' + uuid + '/print-plan/available?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit))
+        .then(function(res) { return res.json(); })
+        .then(function(res) {
+          document.getElementById('block_print_loading').classList.add('d-none');
+          if (res.available) {
+            document.getElementById('block_print_status').classList.remove('alert-danger', 'text-muted');
+            document.getElementById('block_print_status').classList.add('alert', 'alert-success');
+            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-circle-check me-1"></i>' + res.message;
+            var printUrl = '/blocks/' + uuid + '/print-plan?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit);
+            if (features.length > 0) {
+              printUrl += '&features=' + features.join(',');
+            }
+            document.getElementById('block_print_submit').classList.remove('d-none');
+            document.getElementById('block_print_submit').href = printUrl;
+          } else {
+            document.getElementById('block_print_status').classList.remove('text-muted');
+            document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
+            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-alert-triangle me-1"></i>' + res.message;
+          }
+        })
+        .catch(function() {
+          document.getElementById('block_print_loading').classList.add('d-none');
+          document.getElementById('block_print_status').classList.remove('text-muted');
+          document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
+          document.getElementById('block_print_status_text').textContent = 'Could not verify availability. Please try again.';
+        });
+    }
   </script>
 @endpush
 

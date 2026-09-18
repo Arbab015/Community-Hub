@@ -38,7 +38,7 @@ class PropertyPaymentPlan extends Model
     {
         return $this->belongsToMany(
             InstallmentTemplate::class,
-            'property_payment_plan_installment_templates'
+            'property_installment_plans'
         )
             ->using(PropertyPaymentPlanInstallmentTemplate::class)
             ->withPivot([

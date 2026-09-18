@@ -152,6 +152,11 @@
               <div class="d-flex align-items-center gap-2">
 
                 {{-- Shown only while properties are selected --}}
+                <button type="button" id="bulk_delete_btn" class="btn btn-sm btn-danger d-none"
+                        onclick="bulkDeleteProperties()">
+                  <i class="ti tabler-trash me-1"></i> Bulk Delete
+                </button>
+
                 <button type="button" id="apply_payment_plan_btn" class="btn btn-sm btn-primary d-none"
                         onclick="applyPaymentPlanToProperties()">
                   <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
@@ -175,8 +180,8 @@
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="javascript:void(0)" data-bs-toggle="modal"
-                         data-bs-target="#printPlanModal" data-uuid="{{ $block->uuid }}">
+                      <a class="dropdown-item" href="javascript:void(0)"
+                         onclick="openBlockPrintPlan('{{ $block->uuid }}')">
                         <i class="fa-solid fa-print text-primary me-2"></i>Print Plans
                       </a>
                     </li>
@@ -202,7 +207,7 @@
 
           <!-- TABLE -->
           <div class="card-datatable">
-            <table id="blocks_table" class="table table_to_reload datatables-users">
+            <table id="properties_table" class="table">
               <thead class="bg-label-primary">
 
               <tr>
@@ -227,7 +232,7 @@
   @include('_partials._modals.apply_payment_plan')
   @include('_partials._modals.apply_listing')
   @include('_partials._modals.listing_property')
-  @include('_partials._modals.print_payment_plans')
+  @include('_partials._modals.print_block_payment_plan')
 
 @endsection
 
@@ -235,16 +240,16 @@
   <script>
     var propertiesTable;
 
-    $(function() {
-      let searchTimer;
+    document.addEventListener('DOMContentLoaded', function() {
+      var searchTimer;
       document.getElementById('search_content').addEventListener('keyup', function() {
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
+        searchTimer = setTimeout(function() {
           propertiesTable.ajax.reload();
         }, 1000);
       });
 
-      propertiesTable = $('#blocks_table').DataTable({
+      propertiesTable = $('#properties_table').DataTable({
         processing: true,
         serverSide: true,
         ajax: {
@@ -274,19 +279,13 @@
           {
             data: 'actions',
             orderable: false,
-            searchable: false
+            searchable: true
           },
           @endif
         ],
         initComplete: function() {
           $('.dt-actions').html($('#dt-right-actions').removeClass('d-none'));
-          $('#bulk-delete-wrap').html(`
-              <button class="btn btn-sm btn-danger d-none bulk_btn" data-url="{{ route('blocks.bulk_delete') }}">
-                Bulk Delete
-              </button>
-            `);
 
-          // Restore checked rows when returning from another page / after reload
           propertiesTable.on('draw', function() {
             document.querySelectorAll('.property-checkbox').forEach(function(cb) {
               cb.checked = selectedProperties.has(cb.value);
@@ -295,10 +294,21 @@
           });
         }
       });
+
+      fetch("{{ route('properties.import_properties', $block->uuid) }}")
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.status === 'processing') {
+            setImportBtnDisabled(true);
+            startImportPolling();
+          } else if (data.status === 'completed' && data.has_errors) {
+            setViewErrorsBtnVisible(true);
+          }
+        });
     });
 
     function showModel() {
-      const modal = new bootstrap.Modal(document.getElementById('importPropertiesModal'));
+      var modal = new bootstrap.Modal(document.getElementById('importPropertiesModal'));
       document.getElementById('file').value = '';
       modal.show();
     }
@@ -317,7 +327,7 @@
       btn.classList.toggle('d-none', !visible);
     }
 
-    let error_files = [];
+    var error_files = [];
 
     function openErrorModal() {
       document.getElementById('error_files_loading').classList.remove('d-none');
@@ -328,12 +338,11 @@
       var modal = new bootstrap.Modal(document.getElementById('importErrorsModal'));
       modal.show();
 
-      $.ajax({
-        url: "{{ route('properties.import_errors_files', $block->uuid) }}",
-        type: 'GET',
-        success: function(res) {
+      fetch("{{ route('properties.import_errors_files', $block->uuid) }}")
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
           document.getElementById('error_files_loading').classList.add('d-none');
-          var files = res.import_error_files;
+          var files = data.import_error_files;
 
           if (files.length === 0) {
             document.getElementById('error_files_empty').classList.remove('d-none');
@@ -355,129 +364,112 @@
               : 'import_errors_.csv';
             var downloadUrl = "{{ route('properties.import_errors_download', $block->uuid) }}";
 
-            var row = `
-<tr>
-  <td class="ps-4">
-    <span class="text-muted small">${dateStr}</span>
-  </td>
-  <td>
-    <div class="d-flex align-items-center gap-2">
-      <i class="ti tabler-file-text text-secondary"></i>
-      <span class="small fw-semibold text-truncate" style="max-width:200px" title="${file.file_name}">
-        ${file.file_name}
-      </span>
-    </div>
-  </td>
-  <td>
-    <div class="d-flex align-items-center gap-2">
-      <i class="ti tabler-file-alert text-warning"></i>
-      <span class="small fw-semibold text-truncate" style="max-width:200px" title="${errorFileName}">
-        ${errorFileName}
-      </span>
-    </div>
-  </td>
-  <td class="pe-4">
-    <div class="d-flex justify-content-end gap-2">
-      <a  href="${downloadUrl}"
-         class="btn btn-sm btn-outline-primary d-flex align-items-center justify-content-center p-0"
-         style="width:30px;height:30px" title="Download error file">
-        <i class="ti tabler-download"></i>
-      </a>
-      <button type="button"
-              class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0"
-              style="width:30px;height:30px"
-              title="Delete error file"
-              onclick="deleteErrorFile(this)">
-        <i class="ti tabler-trash"></i>
-      </button>
-    </div>
-  </td>
-</tr>`;
+            var row = '<tr>' +
+              '<td class="ps-4"><span class="text-muted small">' + dateStr + '</span></td>' +
+              '<td><div class="d-flex align-items-center gap-2">' +
+              '<i class="ti tabler-file-text text-secondary"></i>' +
+              '<span class="small fw-semibold text-truncate" style="max-width:200px" title="' + file.file_name + '">' + file.file_name + '</span>' +
+              '</div></td>' +
+              '<td><div class="d-flex align-items-center gap-2">' +
+              '<i class="ti tabler-file-alert text-warning"></i>' +
+              '<span class="small fw-semibold text-truncate" style="max-width:200px" title="' + errorFileName + '">' + errorFileName + '</span>' +
+              '</div></td>' +
+              '<td class="pe-4"><div class="d-flex justify-content-end gap-2">' +
+              '<a href="' + downloadUrl + '" class="btn btn-sm btn-outline-primary d-flex align-items-center justify-content-center p-0" style="width:30px;height:30px" title="Download error file"><i class="ti tabler-download"></i></a>' +
+              '<button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-0" style="width:30px;height:30px" title="Delete error file" onclick="deleteErrorFile(this)"><i class="ti tabler-trash"></i></button>' +
+              '</div></td></tr>';
 
             tbody.insertAdjacentHTML('beforeend', row);
           });
-        },
-        error: function() {
+        })
+        .catch(function() {
           document.getElementById('error_files_loading').classList.add('d-none');
           document.getElementById('error_files_empty').classList.remove('d-none');
-        }
-      });
+        });
     }
 
     function deleteErrorFile(btn) {
       btn.disabled = true;
       Swal.fire({
         title: 'Are you sure?',
-        text: 'You won\'t be able to revert this!',
+        text: "You won't be able to revert this!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
         confirmButtonText: 'Yes, delete it!'
-      }).then(result => {
-        $.ajax({
-          url: "{{ route('properties.import_errors_delete', $block->uuid) }}",
-          type: 'DELETE',
-          data: { _token: '{{ csrf_token() }}' },
-          success: function() {
-            btn.closest('tr').remove();
-
-            if (document.getElementById('error_files_tbody').children.length === 0) {
-              document.getElementById('error_files_table_wrapper').classList.add('d-none');
-              document.getElementById('error_files_empty').classList.remove('d-none');
-              setViewErrorsBtnVisible(false);
-            }
-          },
-          error: function() {
-            btn.disabled = false;
-            alert('Could not delete the error file. Please try again.');
+      }).then(function(result) {
+        if (!result.isConfirmed) return;
+        fetch("{{ route('properties.import_errors_delete', $block->uuid) }}", {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'X-Requested-With': 'XMLHttpRequest'
           }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function() {
+          btn.closest('tr').remove();
+          if (document.getElementById('error_files_tbody').children.length === 0) {
+            document.getElementById('error_files_table_wrapper').classList.add('d-none');
+            document.getElementById('error_files_empty').classList.remove('d-none');
+            setViewErrorsBtnVisible(false);
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          alert('Could not delete the error file. Please try again.');
         });
       });
     }
 
     document.querySelector('#importPropertiesModal form').addEventListener('submit', function(e) {
       e.preventDefault();
-      const form = this;
-      const modalEl = document.getElementById('importPropertiesModal');
+      var form = this;
+      var modalEl = document.getElementById('importPropertiesModal');
 
       Block.standard('#section-block', {
         backgroundColor: 'rgba(' + window.Helpers.getCssVar('black-rgb') + ', 0.5)',
         svgSize: '0px'
       });
 
-      let customSpinner = document.createElement('div');
+      var customSpinner = document.createElement('div');
       customSpinner.classList.add('spinner-border', 'text-primary');
       customSpinner.setAttribute('role', 'status');
       document.querySelector('#section-block .notiflix-block').appendChild(customSpinner);
 
-      $.ajax({
-        url: form.action, type: 'POST',
-        data: new FormData(form), contentType: false, processData: false,
-        success: function(res) {
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form)
+      })
+      .then(function(res) {
+        return res.json().then(function(data) {
           Block.remove('#section-block');
           (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
 
-          if (res.errors) {
-            showImportErrors(res.errors);
+          if (!res.ok) {
+            if (data.errors) {
+              showImportErrors(Object.values(data.errors).flat());
+            } else if (data.message) {
+              showImportErrors([data.message]);
+            } else {
+              showImportErrors(['Import failed. Please try again.']);
+            }
+            return;
+          }
+
+          if (data.errors) {
+            showImportErrors(data.errors);
           } else {
             setImportBtnDisabled(true);
             startImportPolling();
           }
-        },
-        error: function(xhr) {
-          Block.remove('#section-block');
-          (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
-
-          let res = xhr.responseJSON;
-          if (res && res.errors) {
-            showImportErrors(Object.values(res.errors).flat());
-          } else if (res && res.message) {
-            showImportErrors([res.message]);
-          } else {
-            showImportErrors(['Import failed. Please try again.']);
-          }
-        }
+        });
+      })
+      .catch(function() {
+        Block.remove('#section-block');
+        (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+        showImportErrors(['Import failed. Please try again.']);
       });
     });
 
@@ -488,18 +480,16 @@
       }
       setImportBtnDisabled(false);
 
-      const html = errors.map(e => `<li class="small">${e}</li>`).join('');
-      const alert = `
-      <div class="alert alert-danger alert-dismissible fade show" id="import_error_alert">
-        <strong><i class="ti tabler-alert-circle me-1"></i>Import failed — ${errors.length} error(s):</strong>
-        <hr class="my-1">
-        <ul class="mb-0 mt-2 ps-3" style="max-height:150px;overflow-y:auto">${html}</ul>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>`;
+      var html = errors.map(function(e) { return '<li class="small">' + e + '</li>'; }).join('');
+      var alertHtml = '<div class="alert alert-danger alert-dismissible fade show" id="import_error_alert">' +
+        '<strong><i class="ti tabler-alert-circle me-1"></i>Import failed \u2014 ' + errors.length + ' error(s):</strong>' +
+        '<hr class="my-1">' +
+        '<ul class="mb-0 mt-2 ps-3" style="max-height:150px;overflow-y:auto">' + html + '</ul>' +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
 
-      const old = document.getElementById('import_error_alert');
+      var old = document.getElementById('import_error_alert');
       if (old) old.remove();
-      document.querySelector('.card.mb-4').insertAdjacentHTML('beforebegin', alert);
+      document.querySelector('.card.mb-4').insertAdjacentHTML('beforebegin', alertHtml);
     }
 
     function startImportPolling() {
@@ -515,68 +505,137 @@
       bar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
       badge.textContent = '0%';
       spinner.classList.remove('d-none');
-      status.textContent = 'Importing properties…';
+      status.textContent = 'Importing properties\u2026';
       subText.textContent = 'Please wait while your properties are being imported.';
 
       if (window._importInterval) clearInterval(window._importInterval);
 
       window._importInterval = setInterval(function() {
-        $.get("{{ route('properties.import_properties', $block->uuid) }}", function(res) {
-          console.log(res);
-          var p = parseInt(res.progress) || 0;
-          bar.style.width = p + '%';
-          bar.setAttribute('aria-valuenow', p);
-          badge.textContent = p + '%';
+        fetch("{{ route('properties.import_properties', $block->uuid) }}")
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            console.log(data);
+            var p = parseInt(data.progress) || 0;
+            bar.style.width = p + '%';
+            bar.setAttribute('aria-valuenow', p);
+            badge.textContent = p + '%';
 
-          if (res.status === 'completed') {
-            clearInterval(window._importInterval);
-            window._importInterval = null;
-            spinner.classList.add('d-none');
-            setImportBtnDisabled(false);
+            if (data.status === 'completed') {
+              clearInterval(window._importInterval);
+              window._importInterval = null;
+              spinner.classList.add('d-none');
+              setImportBtnDisabled(false);
 
-            if (res.has_errors) {
-              bar.className = 'progress-bar bg-warning';
-              status.textContent = 'Import completed with some errors.';
-              subText.textContent = 'Some rows were skipped. Use the "View Errors" button to download the error report.';
-              setViewErrorsBtnVisible(true);
-            } else {
-              bar.className = 'progress-bar bg-success';
-              status.textContent = 'Import completed successfully!';
-              subText.textContent = 'All properties were imported.';
-              setViewErrorsBtnVisible(false);
-              setTimeout(function() {
-                window.location.reload();
-              }, 2000);
+              if (data.has_errors) {
+                bar.className = 'progress-bar bg-warning';
+                status.textContent = 'Import completed with some errors.';
+                subText.textContent = 'Some rows were skipped. Use the "View Errors" button to download the error report.';
+                setViewErrorsBtnVisible(true);
+              } else {
+                bar.className = 'progress-bar bg-success';
+                status.textContent = 'Import completed successfully!';
+                subText.textContent = 'All properties were imported.';
+                setViewErrorsBtnVisible(false);
+                setTimeout(function() {
+                  window.location.reload();
+                }, 2000);
+              }
             }
-          }
-        });
+          });
       }, 1000);
     }
 
-    $(function() {
-      $.get("{{ route('properties.import_properties', $block->uuid) }}", function(res) {
-        if (res.status === 'processing') {
-          setImportBtnDisabled(true);
-          startImportPolling();
-        } else if (res.status === 'completed' && res.has_errors) {
-          setViewErrorsBtnVisible(true);
-        }
-      });
+    function openBlockPrintPlan(uuid) {
+      document.getElementById('block_print_loading').classList.add('d-none');
+      document.getElementById('block_print_status').classList.add('d-none');
+      document.getElementById('block_print_submit').classList.add('d-none');
+      document.getElementById('block_print_size').value = '';
+      document.getElementById('block_print_unit').value = 'marla';
+      document.getElementById('block_print_corner').checked = false;
+      document.getElementById('block_print_park_facing').checked = false;
+      document.getElementById('block_print_main_boulevard').checked = false;
+
+      document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid = uuid;
+      new bootstrap.Modal(document.getElementById('printBlockPaymentPlanModal')).show();
+    }
+
+    document.getElementById('block_print_size').addEventListener('input', checkPaymentPlanAvailability);
+
+    ['block_print_unit', 'block_print_corner', 'block_print_park_facing', 'block_print_main_boulevard'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', checkPaymentPlanAvailability);
+    });
+    document.querySelectorAll('input[name="block_print_type"]').forEach(function(el) {
+      el.addEventListener('change', checkPaymentPlanAvailability);
     });
 
-    // ---- Property multi-select (header checkbox + per-row checkboxes) ----
-    // Selection is kept across pagination/filter redraws.
-    let selectedProperties = new Set();
+    function getSelectedFeatures() {
+      var features = [];
+      if (document.getElementById('block_print_corner').checked) features.push('corner_premium');
+      if (document.getElementById('block_print_park_facing').checked) features.push('park_facing_premium');
+      if (document.getElementById('block_print_main_boulevard').checked) features.push('main_boulevard_premium');
+      return features;
+    }
+
+    function checkPaymentPlanAvailability() {
+      var uuid = document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid;
+      var size = document.getElementById('block_print_size').value;
+      var unit = document.getElementById('block_print_unit').value;
+      var typeEl = document.querySelector('input[name="block_print_type"]:checked');
+      var type = typeEl ? typeEl.value : 'non_commercial';
+      var features = getSelectedFeatures();
+
+      document.getElementById('block_print_submit').classList.add('d-none');
+      if (!uuid || !size || parseFloat(size) <= 0) {
+        document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
+        document.getElementById('block_print_status_text').textContent = 'Enter a property size to check availability.';
+        return;
+      }
+
+      document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
+      document.getElementById('block_print_status').classList.add('text-muted');
+      document.getElementById('block_print_loading').classList.remove('d-none');
+      document.getElementById('block_print_status_text').textContent = 'Checking availability...';
+
+      fetch('/blocks/' + uuid + '/print-plan/available?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit))
+        .then(function(res) { return res.json(); })
+        .then(function(res) {
+          document.getElementById('block_print_loading').classList.add('d-none');
+          if (res.available) {
+            document.getElementById('block_print_status').classList.remove('alert-danger', 'text-muted');
+            document.getElementById('block_print_status').classList.add('alert', 'alert-success');
+            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-circle-check me-1"></i>' + res.message;
+            var printUrl = '/blocks/' + uuid + '/print-plan?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit);
+            if (features.length > 0) {
+              printUrl += '&features=' + features.join(',');
+            }
+            document.getElementById('block_print_submit').classList.remove('d-none');
+            document.getElementById('block_print_submit').href = printUrl;
+          } else {
+            document.getElementById('block_print_status').classList.remove('text-muted');
+            document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
+            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-alert-triangle me-1"></i>' + res.message;
+          }
+        })
+        .catch(function() {
+          document.getElementById('block_print_loading').classList.add('d-none');
+          document.getElementById('block_print_status').classList.remove('text-muted');
+          document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
+          document.getElementById('block_print_status_text').textContent = 'Could not verify availability. Please try again.';
+        });
+    }
+
+    var selectedProperties = new Set();
 
     function syncSelectAllHeader() {
-      const boxes = Array.from(document.querySelectorAll('.property-checkbox'));
-      const header = document.getElementById('select_all');
+      var boxes = Array.from(document.querySelectorAll('.property-checkbox'));
+      var header = document.getElementById('select_all');
       if (!header) return;
-      header.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
+      header.checked = boxes.length > 0 && boxes.every(function(cb) { return cb.checked; });
     }
 
     function updatePropertySelectionBar() {
-      const hasSelection = selectedProperties.size > 0;
+      var hasSelection = selectedProperties.size > 0;
+      document.getElementById('bulk_delete_btn').classList.toggle('d-none', !hasSelection);
       document.getElementById('apply_payment_plan_btn').classList.toggle('d-none', !hasSelection);
     }
 
@@ -593,7 +652,7 @@
     });
 
     document.getElementById('select_all').addEventListener('change', function() {
-      const checked = this.checked;
+      var checked = this.checked;
       document.querySelectorAll('.property-checkbox').forEach(function(cb) {
         cb.checked = checked;
         if (checked) {
@@ -610,7 +669,7 @@
       document.getElementById('apply_plan_selected_count').textContent = selectedProperties.size;
 
       var form = document.getElementById('apply_payment_plan_form');
-      form.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+      form.querySelectorAll('input[name="ids[]"]').forEach(function(el) { el.remove(); });
       selectedProperties.forEach(function(uuid) {
         var input = document.createElement('input');
         input.type = 'hidden';
@@ -623,12 +682,54 @@
       new bootstrap.Modal(document.getElementById('applyPaymentPlanModal')).show();
     }
 
+    function bulkDeleteProperties() {
+      if (!selectedProperties.size) return;
+
+      Swal.fire({
+        title: 'Are you sure?',
+        text: "You won't be able to revert this!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, delete them!'
+      }).then(function(result) {
+        if (!result.isConfirmed) return;
+        Swal.fire({
+          title: 'Deleting...',
+          allowOutsideClick: false,
+          showConfirmButton: false,
+          didOpen: function() { Swal.showLoading(); }
+        });
+
+        var formData = new FormData();
+        formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+        Array.from(selectedProperties).forEach(function(id) {
+          formData.append('ids[]', id);
+        });
+
+        fetch("{{ route('properties.bulk_delete') }}", {
+          method: 'POST',
+          body: formData
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(res) {
+          Swal.fire('Deleted', res.message, 'success');
+          selectedProperties.clear();
+          propertiesTable.ajax.reload(null, false);
+          updatePropertySelectionBar();
+        })
+        .catch(function() {
+          Swal.fire('Error!', 'Something went wrong.', 'error');
+        });
+      });
+    }
+
     function applyListingToBlock() {
       document.getElementById('listing_block_uuid').value = '{{ $block->uuid }}';
       new bootstrap.Modal(document.getElementById('applyListingModal')).show();
     }
 
-    // Toggle price fields based on listing type in apply listing modal
     document.getElementById('applyListingModal').addEventListener('change', function(e) {
       if (e.target.name === 'listing_type') {
         var isRent = e.target.value === 'rent';
@@ -640,15 +741,14 @@
       }
     });
 
-    // Listing modal: configure for single property when opened from Set Price button
     document.getElementById('sell_rent_modal').addEventListener('show.bs.modal', function(e) {
-      const btn = e.relatedTarget;
+      var btn = e.relatedTarget;
       if (!btn) return;
 
-      const itemType = btn.dataset.type || 'property';
-      const itemId = btn.dataset.id || '';
-      const listing = btn.dataset.listing ? JSON.parse(btn.dataset.listing) : null;
-      const form = document.getElementById('listing_form');
+      var itemType = btn.dataset.type || 'property';
+      var itemId = btn.dataset.id || '';
+      var listing = btn.dataset.listing ? JSON.parse(btn.dataset.listing) : null;
+      var form = document.getElementById('listing_form');
 
       form.querySelector('[name="type"]').value = itemType;
       form.querySelector('[name="id"]').value = itemId;
@@ -694,9 +794,10 @@
       text-transform: uppercase
     }
 
-    /* Hide "Show entries" / "Search:" labels — cover both DataTables build
-       naming conventions (new bs5 build uses dt-*, classic build uses
-       dataTables_*) so this works no matter which vendor bundle loads. */
+    .dt-search {
+      display: none !important;
+    }
+
     .dt-search label,
     .dataTables_filter label {
       display: none !important;

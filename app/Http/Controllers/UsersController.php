@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\SocietyAccessResolver;
 use App\Models\Society;
 use App\Models\User;
 use App\Services\FileServices;
@@ -35,14 +36,13 @@ class UsersController extends Controller
                     $q->where('name', 'Society Owner');
                 });
             } elseif ($slug === 'society_members') {
-                $usersQuery->whereHas('roles', function ($q) {
-                    $q->where('name', 'Society Member');
-                })->whereHas('memberSocieties', function ($q) {
-                    $q->whereIn(
-                        'member_societies.society_id',
-                        auth()->user()->societies()->select('id')
-                    );
-                });
+
+                $societyScope = SocietyAccessResolver::resolver($login_user);
+                if ($societyScope['ownedSocietyIds'] !== null) {
+                    $usersQuery->whereHas('memberSocieties', function ($q) use ($societyScope) {
+                        $q->whereIn('member_societies.society_id', $societyScope['ownedSocietyIds']);
+                    });
+                }
             } elseif ($slug === 'system_users') {
                 $usersQuery->whereHas('roles.creator.roles', function ($q) {
                     $q->where('name', 'Super Admin');
@@ -70,8 +70,14 @@ class UsersController extends Controller
                 ->addColumn('checkbox', function ($user) {
                     return '<input type="checkbox" class="form-check-input checkbox" value="'.$user->id.'" data_type="user">';
                 })
-                ->addColumn('role', function ($user) {
-                    return $user->roles->pluck('name')->implode(', ');
+                ->addColumn('role', function ($user) use ($slug) {
+                    $roleNames = $user->roles->pluck('name');
+                    if ($slug === 'society_members' && $roleNames->isEmpty()) {
+
+                        $roleNames = collect(['Society Member']);
+                    }
+
+                    return $roleNames->implode(', ');
                 })
                 ->addColumn('name', function ($user) use ($slug) {
                     $url = route('user.edit', [$user->uuid, $slug]);
@@ -105,8 +111,19 @@ class UsersController extends Controller
                 });
 
             if ($slug === 'society_members') {
-                $datatables->addColumn('society', function ($user) {
-                    return $user->memberSocieties->map(function ($society) {
+                $ownedIds = isset($societyScope) && $societyScope['ownedSocietyIds'] !== null
+                  ? $societyScope['ownedSocietyIds']->toArray()
+                  : null;
+                $datatables->addColumn('society', function ($user) use ($ownedIds) {
+                    $societies = $user->memberSocieties;
+                    if ($societies->isEmpty()) {
+                        return '';
+                    }
+                    if ($ownedIds !== null) {
+                        $societies = $societies->whereIn('id', $ownedIds);
+                    }
+
+                    return $societies->map(function ($society) {
                         return '<span class="badge bg-label-primary me-1">'.e($society->name).'</span>';
                     })->implode('');
                 });
@@ -181,12 +198,12 @@ class UsersController extends Controller
           : new User;
         $section = $request->input('section');
         $allRules = [
-            'basic' => [
-                'first_name' => 'required|string|max:255|min:2',
-                'last_name' => 'nullable|string|max:255',
-                'contact' => 'required|string|max:20',
-                'picture' => $uuid ? 'nullable|image|max:5120' : 'required|image|max:5120',
-            ],
+                'basic' => [
+                    'first_name' => 'required|string|max:255|min:2',
+                    'last_name' => 'nullable|string|max:255',
+                    'contact' => 'required|string|max:20',
+                    'picture' => 'nullable|image|max:5120',
+                ],
             'security' => [
                 'password' => $uuid
                   ? 'nullable|string|min:8|confirmed'
@@ -202,11 +219,11 @@ class UsersController extends Controller
                     Rule::unique('users', 'cnic_passport')->ignore($uuid, 'uuid'),
                 ],
                 'gender' => 'required|in:male,female,other',
-                'marital_status' => 'required|in:married,un-married',
+                'marital_status' => 'nullable|in:married,un-married',
                 'profession' => 'required|string|max:100',
-                'emergency_contact' => 'required|string|max:20',
-                'present_address' => 'required|string|min:15',
-                'permanent_address' => 'required|string|min:15',
+                'emergency_contact' => 'nullable|string|max:20',
+                'present_address' => 'nullable|string',
+                'permanent_address' => 'nullable|string',
             ],
             'meta' => [
                 'email' => [
@@ -259,12 +276,18 @@ class UsersController extends Controller
             }
 
             if ($slug === 'society_members') {
-                $request->validate([
-                    'society' => 'required|exists:societies,id',
-                ]);
-                $user->memberSocieties()->syncWithoutDetaching([
-                    $request->society,
-                ]);
+                // Society is only assignable when creating a member; the edit forms
+                // (Basic/Security/Other/Roles) do not submit a society field.
+                if (! $uuid) {
+                    $request->validate([
+                        'society' => 'required|exists:societies,id',
+                    ]);
+                }
+                if ($request->filled('society')) {
+                    $user->memberSocieties()->syncWithoutDetaching([
+                        $request->society,
+                    ]);
+                }
             }
 
             if ($uuid) {

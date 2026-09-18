@@ -9,14 +9,19 @@ document.addEventListener('DOMContentLoaded', function () {
   forms.forEach(form => {
     const fields = {};
 
-    // EMAIL
+    // EMAIL (login form also accepts a contact number)
     if (form.querySelector('[name="email"]')) {
       fields.email = {
         validators: {
-          notEmpty: { message: 'Please enter your email' },
-          emailAddress: { message: 'Please enter a valid email address' }
+          notEmpty: { message: 'Please enter your email or contact number' }
         }
       };
+
+      // Forgot / reset password forms are email-only, so require a real email.
+      // The login form must NOT validate as email because it accepts contact numbers too.
+      if (!form.matches('#formAuthentication')) {
+        fields.email.validators.emailAddress = { message: 'Please enter a valid email address' };
+      }
     }
 
     // PASSWORD

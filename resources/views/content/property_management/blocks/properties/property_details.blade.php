@@ -1066,7 +1066,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
     </div>
     {{-- TAB 3: Payments --}}
     <div class="tab-pane fade" id="payments" role="tabpanel">
-      @include('components.property.payments')
+      @include('components.property.payments', ['property' => $property])
     </div>
   </div>
   @include('_partials._modals.edit_property')

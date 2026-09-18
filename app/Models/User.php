@@ -107,6 +107,12 @@ class User extends Authenticatable
         return $this->hasMany(PropertyUnit::class, 'owner_id');
     }
 
+    // Ownership records where this user is the owner (via property_owners table)
+    public function propertyOwnerships()
+    {
+        return $this->hasMany(PropertyOwner::class, 'owner_id');
+    }
+
     public function imports()
     {
         return $this->hasMany(Import::class);

@@ -1,0 +1,522 @@
+@page {
+  size: A4 portrait;
+  margin: 8mm 0 0 0;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .navbar,
+  .layout-navbar,
+  .layout-menu,
+  .main-menu,
+  .footer,
+  .layout-footer,
+  .content-footer,
+  .app-content-footer,
+  .print-toolbar {
+    display: none !important;
+  }
+
+  .layout-wrapper,
+  .layout-page,
+  .layout-content-wrapper,
+  .content-wrapper,
+  .container-fluid {
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible;
+  }
+
+  .invoice-print {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8mm;
+    font-family: Arial, sans-serif;
+    font-size: 10px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Continuation pages flow below the 8mm container padding; only a
+     small top pad is needed because browsers may drop the container
+     padding after a page break. */
+  .invoice-print .installment-page {
+    page-break-before: always;
+    padding-top: 2mm !important;
+    margin-top: 0 !important;
+  }
+
+  /* First installment page flows naturally after the Final Amount */
+  .invoice-print .installment-page.first {
+    page-break-before: auto;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  .invoice-print .table-responsive {
+    overflow: visible !important;
+  }
+
+  .invoice-print .text-nowrap {
+    white-space: normal !important;
+  }
+
+  .invoice-print thead {
+    display: table-header-group;
+  }
+
+  /* Compact receipt sizing — small, clear, fits A4 */
+  .invoice-print .table {
+    width: 100% !important;
+    font-size: 0.68rem;
+  }
+
+  .invoice-print .table th,
+  .invoice-print .table td {
+    padding: 0.28rem 0.45rem;
+  }
+
+  .invoice-print .table th {
+    font-size: 0.58rem;
+  }
+
+  .invoice-print .table-sm th,
+  .invoice-print .table-sm td {
+    padding: 0.14rem 0.3rem;
+  }
+
+  .invoice-print .table-sm {
+    font-size: 0.56rem;
+  }
+
+  /* Gross / Remaining / Final rows share the table font size */
+  .invoice-print .amount-summary {
+    font-size: 0.68rem;
+  }
+
+  /* Shrink the header/charges block so the installment details get more room */
+  .invoice-print .print-summary-block h5 {
+    font-size: 0.8rem !important;
+  }
+
+  .invoice-print .print-summary-block h6 {
+    font-size: 0.66rem !important;
+    margin-bottom: 0.1rem !important;
+  }
+
+  .invoice-print .print-summary-block .table {
+    font-size: 0.55rem !important;
+  }
+
+  .invoice-print .print-summary-block .table th,
+  .invoice-print .print-summary-block .table td {
+    padding: 0.12rem 0.3rem !important;
+  }
+
+  .invoice-print .print-summary-block .table th {
+    font-size: 0.48rem !important;
+  }
+
+  .invoice-print .print-summary-block .amount-summary {
+    font-size: 0.58rem !important;
+    padding: 0.15rem 0.5rem !important;
+  }
+
+  .invoice-print .print-summary-block > div {
+    margin-bottom: 0.3rem !important;
+  }
+
+  /* Small gap before the one-time charges and smaller charge headings */
+  .invoice-print .one-time-charges {
+    margin-top: 0.5rem !important;
+  }
+
+  .invoice-print .one-time-charges .fw-semibold,
+  .invoice-print .one-time-charges h6 {
+    font-size: 0.58rem !important;
+    margin-bottom: 0.18rem !important;
+  }
+
+  .invoice-print .installment-heading {
+    font-size: 0.7rem !important;
+  }
+
+  .invoice-print h5 {
+    font-size: 1rem !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  .invoice-print h6 {
+    font-size: 0.8rem !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  .invoice-print .app-brand-text {
+    font-size: 1.4rem !important;
+  }
+
+  .invoice-print .mb-6,
+  .invoice-print .mb-4,
+  .invoice-print .mb-3,
+  .invoice-print .mb-2,
+  .invoice-print .mb-1 {
+    margin-bottom: 0.1rem !important;
+  }
+
+  .invoice-print .mt-4 {
+    margin-top: 0.4rem !important;
+  }
+
+  .invoice-print .py-2 {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  .invoice-print .pt-2 {
+    padding-top: 0.25rem !important;
+  }
+
+  .invoice-print .fs-5 {
+    font-size: 0.95rem !important;
+  }
+
+  .invoice-print .rounded,
+  .invoice-print .rounded-3 {
+    border-radius: 0 !important;
+  }
+
+  .invoice-print .badge {
+    font-size: 0.55rem;
+    padding: 0.2em 0.4em;
+  }
+
+  .invoice-print .brief-card {
+    border: 1px solid #d9dee3 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .invoice-print .brief-card .px-3 {
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+  }
+
+  .invoice-print .brief-card .py-2 {
+    padding-top: 0.12rem !important;
+    padding-bottom: 0.12rem !important;
+  }
+
+  .invoice-print .brief-card .table-sm th,
+  .invoice-print .brief-card .table-sm td {
+    padding: 0.08rem 0.25rem;
+  }
+
+  .invoice-print .brief-card .table {
+    line-height: 1.1;
+  }
+
+  .invoice-print .brief-card .text-muted.small {
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.03rem !important;
+    line-height: 1.1;
+    font-size: 0.55rem !important;
+  }
+
+  .invoice-print .brief-card .table-responsive {
+    margin-top: 0rem;
+  }
+
+  /* Keep the header/property/charges block together, and keep the
+     closing note on the same page instead of spilling to a new one */
+  .invoice-print > div:first-of-type,
+  .invoice-print .mt-4.pt-2.border-top {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Three plans per row so everything stays compact and on one page */
+  .brief-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .brief-row.one {
+    grid-template-columns: 1fr;
+  }
+
+  .brief-row.two {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .invoice-print .brief-card-total {
+    padding: 0.28rem 0.5rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .invoice-print .plan-sub-items {
+    margin-left: 0.3rem;
+    padding-left: 0.5rem;
+  }
+
+  .invoice-print .plan-sub-item {
+    font-size: 0.56rem !important;
+    padding-left: 0.6rem;
+  }
+
+  /* Ensure row/column layout works in print across pages */
+  .invoice-print .row {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    width: 100%;
+    page-break-inside: auto;
+  }
+
+  .invoice-print .row.g-2 {
+    gap: 8px !important;
+  }
+
+  .invoice-print .col-md-4 {
+    width: auto !important;
+    flex: 1 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Add top margin to cards that break to new pages */
+  .invoice-print .brief-card:nth-of-type(n+2) {
+    margin-top: 4mm !important;
+  }
+
+  /* Table page break handling - allow tables to break across pages */
+  .table-responsive {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  .table-responsive tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+.invoice-print {
+  box-sizing: border-box;
+  font-size: 12px;
+}
+
+.invoice-print h5 {
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+}
+
+.invoice-print h6 {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.invoice-print .app-brand-text {
+  font-size: 1rem;
+}
+
+.invoice-print .mb-4,
+.invoice-print .mb-3,
+.invoice-print .mb-2,
+.invoice-print .mb-1 {
+  margin-bottom: 0.35rem !important;
+}
+
+.invoice-print .mt-4,
+.invoice-print .mt-2,
+.invoice-print .mt-1 {
+  margin-top: 0.35rem !important;
+}
+
+.invoice-print .table {
+  font-size: 0.7rem;
+}
+
+.invoice-print .table th,
+.invoice-print .table td {
+  padding: 0.1rem 0.5rem;
+}
+
+.invoice-print .table th {
+  font-size: 0.6rem;
+}
+
+.invoice-print .table-sm th,
+.invoice-print .table-sm td {
+  padding: 0.2rem 0.4rem;
+}
+
+.invoice-print .table-sm {
+  font-size: 0.62rem;
+}
+
+/* Gross / Remaining / Final rows share the table font size */
+.invoice-print .amount-summary {
+  font-size: 0.7rem;
+}
+
+.col-seq-sm {
+  width: 30px;
+}
+
+.invoice-print .px-3 {
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+}
+
+.invoice-print .py-2 {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+.invoice-print .pt-2 {
+  padding-top: 0.25rem !important;
+}
+
+.invoice-print .pb-1 {
+  padding-bottom: 0.15rem !important;
+}
+
+.invoice-print .fs-5 {
+  font-size: 0.95rem !important;
+}
+
+.brief-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+  align-items: stretch;
+}
+
+.brief-row.one {
+  grid-template-columns: 1fr;
+}
+
+.brief-row.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 575.98px) {
+  .brief-row,
+  .brief-row.one,
+  .brief-row.two {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card layout: header + subtext + schedule grow naturally, Total
+   Payable is pushed to the bottom of the card with margin-top: auto
+   so every card in a row ends on the same line regardless of how
+   many installment rows it has. */
+.brief-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  background: #fff;
+}
+
+.brief-card .table-responsive {
+  flex: 0 0 auto;
+}
+
+.brief-card-total {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0.75rem;
+  background-color: rgba(105, 108, 255, 0.08);
+  border-top: 1px solid #d9dee3;
+  font-weight: 700;
+}
+
+.brief-card-total .label {
+  color: #566a7f;
+}
+
+.brief-card-total .value {
+  color: #696cff;
+}
+
+/* Plan sub-items (Total Balloon / Total Installment lines) */
+.plan-sub-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-left: 0.5rem !important;
+  font-size: 0.62rem !important;
+  line-height: 1.3;
+  margin-bottom: 0.08rem;
+  color: #566a7f;
+}
+
+.plan-sub-item i {
+  flex-shrink: 0;
+  font-size: 0.45rem;
+  margin-right: 0.35rem;
+}
+
+.plan-sub-item::before {
+  display: none;
+}
+
+/* Reduce font size for subtitle and extra charges to match other small text */
+.brief-card-subtitle {
+  font-size: 0.62rem !important;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.brief-card-extra {
+  font-size: 0.62rem !important;
+  line-height: 1.3;
+  margin-bottom: 0 !important;
+}
+
+.brief-card-extra::before {
+  content: '·';
+  margin: 0 0.4rem;
+}
+
+.installment-page {
+  page-break-before: always;
+  padding-top: 0;
+}
+
+.installment-page.first {
+  page-break-before: auto;
+  padding-top: 2mm;
+  margin-top: 0;
+}

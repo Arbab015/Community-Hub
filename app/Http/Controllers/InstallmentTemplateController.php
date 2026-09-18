@@ -177,11 +177,6 @@ class InstallmentTemplateController extends Controller
                 if (! InstallmentPlanCalculator::balloonFrequencyValid($validated['installment_frequency'], $validated['balloon_payment_frequency'])) {
                     return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
                 }
-
-                $ipp = InstallmentPlanCalculator::installmentsPerYear($validated['installment_frequency']);
-                if ($validated['number_of_installments'] % $ipp !== 0) {
-                    return back()->withErrors(['number_of_installments' => 'With a balloon payment the number of installments must be a whole multiple of '.$ipp.' ('.ucfirst($validated['installment_frequency']).')'])->withInput();
-                }
             }
 
             $data = [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\SocietyAccessResolver;
 use App\Models\Floor;
 use App\Models\InstallmentTemplate;
 use App\Models\PaymentTemplate;
@@ -29,8 +30,8 @@ class PropertyUnitController extends Controller
                 'attachments',
                 'rooms.dimensions',
                 'listing',
-                'plan.paymentTemplate',
-                'plan.installmentAttachments.installmentTemplate',
+                'paymentPlan.paymentTemplate',
+                'paymentPlan.installmentAttachments.installmentTemplate',
             ])
             ->firstOrFail();
         $society = $unit->floor->property->block->society ?? null;
@@ -304,14 +305,19 @@ class PropertyUnitController extends Controller
                 $newAttachmentIds = [];
                 $mainPicId = null;
 
+                $userScope = SocietyAccessResolver::resolver(auth()->user());
+                $scopedUploadUserId = ($userScope['isSocietyScoped'] ?? false)
+                    ? ($userScope['ownerId'] ?? auth()->id())
+                    : auth()->id();
+
                 if ($request->hasFile('main_pic')) {
-                    $ids = app(FileServices::class)->compressAndStore($request->file('main_pic'), $unit, true, true);
+                    $ids = app(FileServices::class)->compressAndStore($request->file('main_pic'), $unit, true, true, $scopedUploadUserId);
                     $mainPicId = $ids[0] ?? null;
                     $newAttachmentIds = array_merge($newAttachmentIds, is_array($ids) ? $ids : []);
                 }
 
                 if ($request->hasFile('documents')) {
-                    $ids = app(FileServices::class)->compressAndStore($request->file('documents'), $unit, false);
+                    $ids = app(FileServices::class)->compressAndStore($request->file('documents'), $unit, false, false, $scopedUploadUserId);
                     $newAttachmentIds = array_merge($newAttachmentIds, is_array($ids) ? $ids : []);
                 }
 

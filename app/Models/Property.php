@@ -47,6 +47,11 @@ class Property extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    public function ownerships()
+    {
+        return $this->morphMany(PropertyOwner::class, 'property_ownerable');
+    }
+
     public function listing()
     {
         return $this->morphOne(PropertyListing::class, 'listable');
@@ -60,5 +65,15 @@ class Property extends Model
     public function paymentPlan()
     {
         return $this->morphOne(PropertyPaymentPlan::class, 'planable');
+    }
+
+    public function paymentPlans()
+    {
+        return $this->morphMany(PropertyPaymentPlan::class, 'planable');
+    }
+
+    public function ownershipPaymentPlans()
+    {
+        return $this->morphMany(PropertyOwnershipPaymentPlan::class, 'property_ownerable');
     }
 }

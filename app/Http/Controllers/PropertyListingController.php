@@ -42,6 +42,7 @@ class PropertyListingController extends Controller
             'show_contact_no' => $request->boolean('show_contact_no'),
             'email' => $request->email,
             'description' => $request->description,
+            'closed' => false,
         ]);
 
         return back()->with('success', 'Listed successfully.');
@@ -50,7 +51,9 @@ class PropertyListingController extends Controller
     public function blockStore(Request $request)
     {
         $request->validate([
-            'block_uuid' => 'required|exists:blocks,uuid',
+            'block_uuid' => 'nullable|string',
+            'block_uuids' => 'nullable|array',
+            'block_uuids.*' => 'string',
             'listing_type' => 'required|in:sell,rent',
             'size_range' => 'nullable|string',
             'price' => 'required_if:listing_type,sell|nullable|numeric|min:0',
@@ -60,61 +63,77 @@ class PropertyListingController extends Controller
             'description' => 'required',
         ]);
 
+        $uuids = collect($request->block_uuids ?? [])
+            ->merge($request->block_uuid ? [$request->block_uuid] : [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($uuids->isEmpty()) {
+            return back()->with('error', 'No block(s) specified.');
+        }
+
+        $blocks = Block::whereIn('uuid', $uuids)->get();
+
+        if ($blocks->isEmpty()) {
+            return back()->with('error', 'No matching blocks found.');
+        }
+
         try {
-            $block = Block::where('uuid', $request->block_uuid)->firstOrFail();
-            $query = Property::where('block_id', $block->id)->whereNull('owner_id');
-
-            if ($request->listing_type === 'sell' && $request->filled('size_range')) {
-                [$min, $max] = $this->parseSizeRange($request->size_range);
-                BlockPriceRange::updateOrCreate(
-                    ['block_id' => $block->id, 'min_size' => $min, 'max_size' => $max],
-                    ['price' => $request->price, 'price_unit' => $request->price_unit]
-                );
-
-                $properties = $query->with(['dimensions', 'block.society'])
-                    ->get()
-                    ->filter(fn ($property) => $this->areaInRange($property, $min, $max));
-            } else {
-                $properties = $query->get();
-            }
-
-            if ($properties->isEmpty()) {
-                return back()->with('error', 'No matching properties found.');
-            }
-
             $total = 0;
 
-            foreach ($properties as $property) {
-                if ($request->listing_type === 'sell') {
-                    $calculatedPrice = $this->calculatePrice($property, $request->price, $request->price_unit);
+            foreach ($blocks as $block) {
+                $query = Property::where('block_id', $block->id)->whereNull('owner_id');
 
-                    $property->listing()->updateOrCreate([], [
-                        'listing_type' => $request->listing_type,
-                        'price' => $calculatedPrice,
-                        'unit' => $request->price_unit,
-                        'show_price' => $request->boolean('show_price'),
-                        'contact_no' => $request->contact_no,
-                        'show_contact_no' => $request->boolean('show_contact_no'),
-                        'email' => $request->email,
-                        'description' => $request->description,
-                    ]);
+                if ($request->listing_type === 'sell' && $request->filled('size_range')) {
+                    [$min, $max] = $this->parseSizeRange($request->size_range);
+
+                    BlockPriceRange::updateOrCreate(
+                        ['block_id' => $block->id, 'min_size' => $min, 'max_size' => $max],
+                        ['price' => $request->price, 'price_unit' => $request->price_unit]
+                    );
+
+                    $properties = $query->with(['dimensions', 'block.society'])
+                        ->get()
+                        ->filter(fn ($property) => $this->areaInRange($property, $min, $max));
                 } else {
-                    $property->listing()->updateOrCreate([], [
-                        'listing_type' => $request->listing_type,
-                        'price' => 0,
-                        'unit' => 'PKR',
-                        'show_price' => $request->boolean('show_price'),
-                        'contact_no' => $request->contact_no,
-                        'show_contact_no' => $request->boolean('show_contact_no'),
-                        'email' => $request->email,
-                        'description' => $request->description,
-                    ]);
+                    $properties = $query->get();
                 }
 
-                $total++;
+                foreach ($properties as $property) {
+                    if ($request->listing_type === 'sell') {
+                        $calculatedPrice = $this->calculatePrice($property, $request->price, $request->price_unit);
+
+                        $property->listing()->updateOrCreate([], [
+                            'listing_type' => $request->listing_type,
+                            'price' => $calculatedPrice,
+                            'unit' => $request->price_unit,
+                            'show_price' => $request->boolean('show_price'),
+                            'contact_no' => $request->contact_no,
+                            'show_contact_no' => $request->boolean('show_contact_no'),
+                            'email' => $request->email,
+                            'description' => $request->description,
+                            'closed' => false,
+                        ]);
+                    } else {
+                        $property->listing()->updateOrCreate([], [
+                            'listing_type' => $request->listing_type,
+                            'price' => 0,
+                            'unit' => 'PKR',
+                            'show_price' => $request->boolean('show_price'),
+                            'contact_no' => $request->contact_no,
+                            'show_contact_no' => $request->boolean('show_contact_no'),
+                            'email' => $request->email,
+                            'description' => $request->description,
+                            'closed' => false,
+                        ]);
+                    }
+
+                    $total++;
+                }
             }
 
-            return back()->with('success', "Listing applied to {$total} property(ies).");
+            return back()->with('success', "Listing applied to {$total} property(ies) across {$blocks->count()} block(s).");
         } catch (\Exception $e) {
             return back()->with('error', 'An error occurred while applying the listing: '.$e->getMessage());
         }

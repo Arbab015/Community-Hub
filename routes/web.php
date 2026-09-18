@@ -49,6 +49,7 @@ Route::controller(\App\Http\Controllers\PropertyInquiryController::class)->group
     Route::get('inquiries/index', 'index')->name('inquiry.index');
     Route::post('property-inquiry', 'storeOrUpdate')->name('inquiry.store');
     Route::get('/inquiries/{listing:uuid}', 'inquiriesWithListing')->name('inquiries.show');
+    Route::get('/inquiries/{listing:uuid}/search', 'search')->name('inquiries.search');
     Route::get('societies/{user_type}/society/{society_uuid}/inquiries/{listing:uuid}', 'propertyInquiriesFromSociety')->name('society.property.inquiries.show');
     Route::get('/{type}/details/{property_uuid}/{uuid}', 'propertyInquiries')
         ->name('property.inquiries.show')
@@ -57,6 +58,7 @@ Route::controller(\App\Http\Controllers\PropertyInquiryController::class)->group
             'uuid' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
         ]);
     Route::delete('/inquiries/dismiss/{inquiry}', 'dismiss')->name('inquiries.dismiss');
+    Route::delete('inquiries/clear/{listing:uuid}', 'clearInquiries')->name('inquiries.clear');
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -70,6 +72,32 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/users/bulk-delete', 'bulkDelete')->name('users.bulk_delete')->middleware('permission:delete_user');
         Route::get('/users/template-download', 'downloadTemplate')->name('users_import_template.download');
         Route::post('users/import', 'importUsers')->name('users.import')->middleware('permission:import_user');
+    });
+
+    Route::controller(\App\Http\Controllers\PropertyOwnerController::class)->group(function () {
+        Route::get('property-owners/societies', 'societies')->name('property_owners.societies');
+        Route::get('property-owners/lookup', 'lookup')->name('property_owners.lookup');
+        Route::post('property-owners', 'store')->name('property_owners.store');
+        Route::delete('property-owners/unlink', 'unlinkOwner')->name('property_owners.unlink');
+        Route::get('property-owners/plan-print/{snapshot:uuid}', 'printOwnerPlan')->name('property_owners.plan.print');
+
+        Route::put('ownership-payment-plans/{snapshot:uuid}', 'updateOwnershipPlan')->name('ownership_payment_plans.update')->middleware('permission:payment_plan_edit');
+        Route::post('ownership-payment-plans/{snapshot:uuid}/installment', 'addOwnershipInstallment')->name('ownership_payment_plans.installment.store')->middleware('permission:installment_plan_add');
+        Route::put('ownership-payment-plans/{snapshot:uuid}/installment', 'updateOwnershipInstallment')->name('ownership_payment_plans.installment.update')->middleware('permission:installment_plan_edit');
+        Route::delete('ownership-payment-plans/{snapshot:uuid}/installment', 'removeInstallment')->name('ownership_payment_plans.installment.remove')->middleware('permission:installment_plan_delete');
+    });
+
+    Route::controller(\App\Http\Controllers\PaymentTransactionController::class)->group(function () {
+        Route::post('ownership-payment-plans/{snapshot:uuid}/payments', 'store')
+            ->name('ownership_payment_plans.payments.store')
+            ->middleware('permission:payment_collect');
+
+        Route::post('ownership-payment-plans/{snapshot:uuid}/payments/initiate', 'initiate')
+            ->name('ownership_payment_plans.payments.initiate')
+            ->middleware('permission:payment_collect');
+        Route::post('payments/{row:uuid}/unpay', 'unpay')
+            ->name('ownership_payment_plans.payments.unpay')
+            ->middleware('permission:payment_collect');
     });
 
     Route::controller(RolesController::class)->group(function () {
@@ -189,6 +217,18 @@ Route::middleware(['auth'])->group(function () {
         Route::get('blocks/{block:uuid}/properties/all-ids', 'allIds')
             ->name('block.properties.all_ids');
 
+        Route::get('blocks/{block:uuid}/details', 'details')
+            ->name('blocks.details');
+
+        Route::get('blocks/{block:uuid}/print-plan/available', 'printBlockPlanAvailable')
+            ->name('blocks.print_plan_available');
+
+        Route::get('blocks/{block:uuid}/print-plan', 'printBlockPlan')
+            ->name('blocks.print_plan');
+
+        Route::post('blocks/apply-plan', 'applyBlockPlan')
+            ->name('blocks.apply_plan');
+
         Route::get('{user_type}/societies/{society:uuid}/blocks/{block:uuid}/properties/all-ids', 'allIds')->name('society.block.properties.all_ids');
 
         //        Route::get('blocks/{uuid}/payment-plan-templates', 'paymentPlanTemplates')
@@ -235,6 +275,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('blocks/{block_uuid}/import-errors-files', 'findImportErrorsFiles')->name('properties.import_errors_files');
 
         Route::post('/construction/bulk-delete', 'bulkDelete')->name('construction.bulk_delete');
+
+        Route::post('properties/bulk-delete', 'bulkDeleteProperties')->name('properties.bulk_delete')->middleware('permission:delete_property');
 
         Route::get('/floor/{floor_id}/units', 'unitsByFloor')->name('floor.units');
         Route::get('/floor/{floor_id}/rooms', 'roomsByFloor');

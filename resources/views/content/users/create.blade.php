@@ -274,12 +274,11 @@
           </div>
 
           <div class="col-md-6">
-            <label for="picture" class="form-label fw-semibold small text-uppercase text-muted required">Profile
+            <label for="picture" class="form-label fw-semibold small text-uppercase text-muted">Profile
               Picture</label>
             <div class="input-group">
               <span class="input-group-text bg-light border-end-0"><i class="ti tabler-photo text-muted"></i></span>
               <input type="file" id="picture" name="picture" accept="image/*"
-                     {{ !isset($user) ? 'required' : '' }}
                      class="form-control border-start-0 @error('picture') is-invalid @enderror">
             </div>
             @error('picture')
@@ -302,12 +301,12 @@
           </div>
 
           <div class="col-md-6">
-            <label for="emergency_contact" class="form-label fw-semibold small text-uppercase text-muted required">Emergency
+            <label for="emergency_contact" class="form-label fw-semibold small text-uppercase text-muted">Emergency
               Contact</label>
             <div class="input-group">
               <span class="input-group-text bg-light border-end-0"><i
                   class="ti tabler-phone-call text-muted"></i></span>
-              <input type="tel" id="emergency_contact" name="emergency_contact" required
+              <input type="tel" id="emergency_contact" name="emergency_contact"
                      value="{{ old('emergency_contact') }}"
                      class="form-control border-start-0 phone-input @error('emergency_contact') is-invalid @enderror"
                      placeholder="0300 1234567">
@@ -353,7 +352,7 @@
 
           {{-- Marital Status --}}
           <div class="col-md-6">
-            <label class="form-label fw-semibold small text-uppercase text-muted required">Marital Status</label>
+            <label class="form-label fw-semibold small text-uppercase text-muted">Marital Status</label>
             <div class="d-flex gap-3">
               <label for="married" class="const_labels">
                 <input type="radio" id="married" name="marital_status" value="married" hidden
@@ -379,11 +378,11 @@
 
           {{-- Addresses --}}
           <div class="col-md-6">
-            <label for="present_address" class="form-label fw-semibold small text-uppercase text-muted required">Present
+            <label for="present_address" class="form-label fw-semibold small text-uppercase text-muted">Present
               Address</label>
             <div class="input-group">
               <span class="input-group-text bg-light border-end-0"><i class="ti tabler-map-pin text-muted"></i></span>
-              <textarea id="present_address" name="present_address" required rows="1"
+              <textarea id="present_address" name="present_address" rows="1"
                         class="form-control border-start-0 @error('present_address') is-invalid @enderror"
                         placeholder="25-B, Street 12, Block C, Karachi">{{ old('present_address') }}</textarea>
             </div>
@@ -393,11 +392,11 @@
           </div>
 
           <div class="col-md-6">
-            <label for="permanent_address" class="form-label fw-semibold small text-uppercase text-muted required">Permanent
+            <label for="permanent_address" class="form-label fw-semibold small text-uppercase text-muted">Permanent
               Address</label>
             <div class="input-group">
               <span class="input-group-text bg-light border-end-0"><i class="ti tabler-map-pins text-muted"></i></span>
-              <textarea id="permanent_address" name="permanent_address" required rows="1"
+              <textarea id="permanent_address" name="permanent_address" rows="1"
                         class="form-control border-start-0 @error('permanent_address') is-invalid @enderror"
                         placeholder="25-B, Street 12, Block C, Karachi">{{ old('permanent_address') }}</textarea>
             </div>

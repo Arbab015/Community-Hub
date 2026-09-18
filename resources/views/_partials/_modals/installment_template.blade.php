@@ -230,10 +230,6 @@
 
         if (!InstallmentCalculator.balloonFrequencyValid(installmentFrequency, balloonFrequency)) {
           errors.balloon_payment_frequency = 'Balloon frequency must be less frequent than the installment frequency';
-        } else if (!isNaN(installmentCount) && installmentCount % InstallmentCalculator.installmentsPerYear(installmentFrequency) !== 0) {
-          const perYear = InstallmentCalculator.installmentsPerYear(installmentFrequency);
-          const frequencyLabel = installmentFrequency.charAt(0).toUpperCase() + installmentFrequency.slice(1);
-          errors.number_of_installments = `With a balloon payment the number of installments must be a whole multiple of ${perYear} (${frequencyLabel})`;
         }
 
         return errors;

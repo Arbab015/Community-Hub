@@ -89,9 +89,9 @@ final class InstallmentPlanCalculator
      */
     public static function balloonCount(int $numberOfInstallments, string $installmentFrequency, string $balloonFrequency): int
     {
-        $years = intdiv($numberOfInstallments, self::installmentsPerYear($installmentFrequency));
+        $years = $numberOfInstallments / self::installmentsPerYear($installmentFrequency);
 
-        return max(0, ($years * self::balloonsPerYear($balloonFrequency)) - 1);
+        return max(0, (int) ceil($years * self::balloonsPerYear($balloonFrequency)) - 1);
     }
 
     /**
@@ -152,8 +152,6 @@ final class InstallmentPlanCalculator
                 $errors[] = 'Balloon frequency is required when balloon payment is set';
             } elseif (! self::balloonFrequencyValid($installmentFrequency, $balloonFrequency)) {
                 $errors[] = 'Balloon frequency must be less frequent than the installment frequency';
-            } elseif ($num % $ipp !== 0) {
-                $errors[] = 'With a balloon payment the number of installments must be a whole multiple of '.$ipp.' ('.ucfirst($installmentFrequency).')';
             }
         }
 

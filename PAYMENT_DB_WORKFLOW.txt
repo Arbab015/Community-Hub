@@ -1,0 +1,612 @@
+================================================================================
+COMMUNITY_HUB - PAYMENT SYSTEM: COMPLETE DATABASE WORKFLOW & MIGRATIONS
+================================================================================
+Prepared for handoff to a payment-planning engineering engine.
+Stack: Laravel (Eloquent) + MySQL. Currency/locale context: PKR / Pakistan real estate
+(marla = plot-size unit; 1 marla = societies.marla_size sqft, fallback 272.25 sqft).
+
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. High-level data flow
+2. Payment-related migrations (chronological inventory)
+3. Final table schemas (current DB state)
+4. Full DB workflows (end-to-end scenarios)
+5. Rules / invariants to preserve
+
+
+================================================================================
+1. HIGH-LEVEL DATA FLOW
+================================================================================
+
+Block/society setup  -->  block_price_ranges (price per marla / size range)
+        |
+Listing (property/unit) -->  property_listings (sell/rent, price, unit, closed)
+        |
+Applying a payment plan -->  property_payment_plans (one row per property/unit)
+        |                       |-- payment_template_id (nullable: link OR snapshot)
+        |                       |-- snapshotted fee/premium values
+        |                       |-- listed_price / listed_unit (price snapshot)
+        |                       `-- listing_id (legacy link, nullable)
+        |
+        `-->  property_installment_plans (pivot: one row per attached installment plan)
+              (each row is a full snapshot of the installment template's values)
+        |
+Owner assignment  -->  property_owners (ownership history)
+        |              properties.owner_id / property_units.owner_id (current owner)
+        |
+        |-->  property_ownership_payment_plans  (ONE immutable committed-plan
+        |     snapshot per ownership: all payment fields + installment fields +
+        |     listed_price/listed_unit + final_price/price_unit; no FK to the
+        |     seller's option, so templates/source plans can never alter it)
+        |
+        `-->  listing marked closed (closed = 1) instead of deleted
+              (plan survives via its listed_price snapshot)
+
+KEY MENTAL MODEL:
+  - Templates (payment_templates, installment_templates) are NEVER mutated.
+  - When a plan or installment is attached/edited, its values are SNAPSHOTTED
+    onto the plan row (property_payment_plans) or the pivot row
+    (property_installment_plans).
+  - At display/calculation time the priority is always:
+        plan/pivot row value  -->  linked template value  -->  default/zero
+
+
+================================================================================
+2. PAYMENT-RELATED MIGRATIONS (CHRONOLOGICAL INVENTORY - ALL APPLIED)
+================================================================================
+
+Core payment templates + plans:
+  1. 2026_07_20_210320_create_payment_templates_table.php
+       Creates payment_templates (reusable fee/premium templates, per user).
+  2. 2026_07_29_195408_create_installment_templates_table.php
+       Creates installment_templates (reusable installment schedule templates).
+  3. 2026_07_30_171646_create_property_payment_plans_table.php
+       Creates property_payment_plans AND the original pivot table
+       property_payment_plan_installment_templates.
+  4. 2026_08_03_100001_add_installment_snapshot_fields_to_property_payment_plan_installment_templates_table.php
+       Adds snapshot columns (name, number_of_installments, frequency,
+       additional amount, balloon fields) to the pivot table so each attached
+       installment keeps its own per-plan values.
+  5. 2026_08_03_100002_remove_installment_fields_from_property_payment_plans_table.php
+       Copies plan-level installment values into every pivot row, backfills
+       pivot name from source template, DROPS installment columns from
+       property_payment_plans, and ADDS corner/park/boulevard premium columns
+       to property_payment_plans.
+  6. 2026_08_04_000001_make_installment_template_id_nullable_on_plan_pivot_table.php
+       Makes installment_template_id nullable on pivot (customized installments
+       keep their values on the pivot row with the template link nulled).
+  7. 2026_08_04_000002_restore_foreign_keys_on_payment_plan_pivot_table.php
+       Removes orphaned pivot rows and restores FK constraints:
+         - plan delete  ->  pivot rows cascade delete
+         - installment template delete -> pivot reference set null
+  8. 2026_08_11_000001_add_uuid_to_property_payment_plan_installment_templates_table.php
+       Adds uuid to pivot rows (public URLs never expose auto-increment id).
+  9. 2026_08_20_170354_add_is_commercial_fields_in_payment_planning_templates_tables.php
+       Adds is_commercial flag to payment_templates and installment_templates
+       (commercial vs non-commercial plans).
+
+Block pricing / print support:
+ 10. 2026_08_19_181358_create_block_price_ranges_table.php
+       Creates block_price_ranges (per-block price per size range).
+ 11. 2026_09_03_000001_add_listed_price_to_property_payment_plans_table.php
+       Adds listed_price + listed_unit snapshot columns to property_payment_plans
+       so calculations keep working even after a listing is removed/closed.
+ 12. 2026_09_04_000001_create_block_payment_plans_table.php
+       Creates block_payment_plans (per-block default plan per commercial flag).
+ 13. 2026_09_11_160727_rename_property_payment_plan_installment_templates_table_name_to_property_installment_plans.php
+       Renames pivot table to property_installment_plans (old name removed).
+
+Ownership:
+  14. 2026_09_02_000001_create_property_owners_table.php
+        Creates property_owners (ownership history).
+  15. 2026_09_02_000002_drop_current_owner_id_from_property_tables.php
+        Drops legacy current_owner_id from properties and property_units;
+        the normal owner_id FK column remains as the current-owner column.
+  18. 2026_09_11_170000_create_property_ownership_payment_plans_table.php
+        Creates property_ownership_payment_plans: ONE immutable committed-plan
+        snapshot per ownership. Morphs to property/unit (property_ownerable),
+        unique FK -> property_owners.id, all payment + installment fields,
+        listed_price/listed_unit and final_price/price_unit. NO FK to the
+        seller's option, so templates/source plans can never alter the owner's
+        contract.
+
+Listing:
+ 16. 2026_06_05_195502_create_property_listings_table.php
+       Creates property_listings (sell/rent listing per property/unit).
+ 17. 2026_09_11_165522_add_closed_to_property_listings_table.php
+       Adds boolean closed (default false) to property_listings; close a
+       listing instead of deleting it when ownership is assigned.
+
+NOTE ON OLD MIGRATION NAMES:
+  The pivot table was created as property_payment_plan_installment_templates
+  and later renamed (migration 13) to property_installment_plans. Older
+  migrations still reference the old name by design - they run BEFORE the
+  rename on a fresh install (create -> add columns -> ... -> rename), so they
+  must NOT be edited.
+  The Eloquent model PropertyPaymentPlanInstallmentTemplate maps to the table
+  property_installment_plans (its $table property), and
+  PropertyPaymentPlan::installmentTemplates() belongsToMany uses
+  'property_installment_plans'.
+
+
+================================================================================
+3. FINAL TABLE SCHEMAS (CURRENT DB STATE)
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 payment_templates  --  reusable fee/premium templates (per user)
+--------------------------------------------------------------------------------
+| column                             | type                          | notes                            |
+|------------------------------------|-------------------------------|----------------------------------|
+| id                                 | bigint unsigned PK            |                                  |
+| uuid                               | char(36) UNIQUE               |                                  |
+| owner_id                           | FK -> users (cascadeOnDelete) | creator                          |
+| name                               | string                        |                                  |
+| is_commercial                      | boolean default false         | added by migration 9             |
+| booking_fee                        | double NULL                   |                                  |
+| booking_fee_in_per                 | boolean NULL default false    | true = value is a percentage     |
+| development_fee                    | double NULL                   |                                  |
+| development_fee_in_per             | boolean NULL default false    |                                  |
+| development_fee_surplus            | boolean NULL default false    | true = excluded (added on top)   |
+| down_payment                       | double NULL                   |                                  |
+| down_payment_in_per                | boolean NULL default false    |                                  |
+| transfer_fee                       | double NULL                   |                                  |
+| transfer_fee_in_per                | boolean NULL default false    |                                  |
+| transfer_fee_surplus               | boolean NULL default true     | excluded by default              |
+| confirmation_fee                   | double NULL                   |                                  |
+| confirmation_fee_in_per            | boolean NULL default false    |                                  |
+| possession_fee                     | double NULL                   |                                  |
+| possession_fee_in_per              | boolean NULL default false    |                                  |
+| possession_fee_surplus             | boolean NULL default false    |                                  |
+| corner_premium                     | double NULL                   | % of listed price                |
+| corner_premium_in_per              | boolean NULL default true     |                                  |
+| park_facing_premium                | double NULL                   |                                  |
+| park_facing_premium_in_per         | boolean NULL default true     |                                  |
+| main_boulevard_premium             | double NULL                   |                                  |
+| main_boulevard_premium_in_per      | boolean NULL default true     |                                  |
+| created_at / updated_at            | timestamp                     |                                  |
+
+  - 6 fees: booking_fee, development_fee, down_payment, transfer_fee,
+            confirmation_fee, possession_fee.
+  - 3 premiums: corner_premium, park_facing_premium, main_boulevard_premium
+            (always percentage-based).
+
+--------------------------------------------------------------------------------
+3.2 installment_templates  --  reusable installment schedule templates (per user)
+--------------------------------------------------------------------------------
+| column                              | type                                            | notes                            |
+|-------------------------------------|-------------------------------------------------|----------------------------------|
+| id                                  | bigint unsigned PK                              |                                  |
+| uuid                                | char(36) UNIQUE                                 |                                  |
+| owner_id                            | FK -> users (cascadeOnDelete)                   | creator                          |
+| name                                | string                                          |                                  |
+| is_commercial                       | boolean default false                           | added by migration 9             |
+| number_of_installments              | unsignedInteger (NOT NULL)                      | total installments               |
+| additional_installment_amount       | double (NOT NULL)                               | extra markup per plan            |
+| additional_installment_amount_in_per| boolean default false                           | true = % of gross                |
+| installment_frequency               | enum(monthly,quarterly,biannually,annually) NULL|                                  |
+| balloon_payment                     | double NULL                                     |                                  |
+| balloon_payment_in_per              | boolean NULL default false                      |                                  |
+| balloon_payment_frequency           | enum(quarterly,biannually,annually) NULL        |                                  |
+| created_at / updated_at             | timestamp                                       |                                  |
+
+--------------------------------------------------------------------------------
+3.3 property_payment_plans  --  the actual plan, ONE row per property/unit
+--------------------------------------------------------------------------------
+| column                             | type                          | notes                                |
+|------------------------------------|-------------------------------|--------------------------------------|
+| id                                 | bigint unsigned PK            |                                      |
+| uuid                               | char(36) UNIQUE               |                                      |
+| planable_type / planable_id        | morphs                        | App\Models\Property OR App\Models\PropertyUnit |
+| listing_id                         | FK->property_listings NULL nullOnDelete | legacy link (plan works without listing) |
+| payment_template_id                | FK->payment_templates NULL nullOnDelete | NULLED when values are snapshotted   |
+| listed_price                       | decimal(15,2) NULL            | price snapshot (added migration 11)  |
+| listed_unit                        | varchar(20) NULL              | currency snapshot (PKR/USD/AED/SAR)  |
+| booking_fee / booking_fee_in_per   | double NULL / bool            | same 6-fee set as payment_templates  |
+| development_fee / _in_per / _surplus|                             |                                      |
+| down_payment / down_payment_in_per |                              |                                      |
+| transfer_fee / _in_per / _surplus(default true)|                   |                                      |
+| confirmation_fee / _in_per         |                              |                                      |
+| possession_fee / _in_per / _surplus|                              |                                      |
+| corner_premium / corner_premium_in_per(default true)|             |                                      |
+| park_facing_premium / _in_per(default true)|                     |                                      |
+| main_boulevard_premium / _in_per(default true)|                 |                                      |
+| created_at / updated_at            | timestamp                     |                                      |
+
+  NOTE: Installment fields (number_of_installments, frequency, balloon, etc.)
+        DO NOT live here anymore - they live on the pivot (3.4).
+
+--------------------------------------------------------------------------------
+3.4 property_installment_plans  --  pivot / snapshot rows
+    (renamed from property_payment_plan_installment_templates on 2026-09-11)
+--------------------------------------------------------------------------------
+| column                             | type                                          | notes                    |
+|------------------------------------|-----------------------------------------------|--------------------------|
+| id                                 | bigint unsigned PK                            |                          |
+| uuid                               | char(36) UNIQUE                               | public URL / route key   |
+| property_payment_plan_id           | FK -> property_payment_plans cascadeOnDelete (fk_ppp_id) |             |
+| installment_template_id            | FK -> installment_templates NULL nullOnDelete (fk_inst_template_id) | NULL = customized row |
+| name                               | string NULL                                   | snapshot of template name|
+| number_of_installments             | unsignedInteger NULL                          | snapshot                 |
+| installment_frequency              | enum(...) NULL                                | snapshot                 |
+| additional_installment_amount      | double NULL                                   | snapshot                 |
+| additional_installment_amount_in_per| boolean NULL default false                  | snapshot                 |
+| balloon_payment                    | double NULL                                   | snapshot                 |
+| balloon_payment_in_per             | boolean NULL default false                    | snapshot                 |
+| balloon_payment_frequency          | enum(quarterly,biannually,annually) NULL      | snapshot                 |
+| created_at / updated_at            | timestamp                                     |                          |
+
+  UNIQUE (property_payment_plan_id, installment_template_id).
+
+  IMPORTANT:
+    - Installment values live ONLY on this pivot, never on property_payment_plans.
+    - Editing an attached installment sets installment_template_id = NULL and
+      writes the edited values directly onto the pivot row (customized).
+    - Deleting a payment plan deletes its pivot rows (cascade + model hook).
+
+--------------------------------------------------------------------------------
+3.5 block_price_ranges  --  per-block price per size range
+--------------------------------------------------------------------------------
+| column      | type                                    | notes                       |
+|-------------|-----------------------------------------|-----------------------------|
+| id          | bigint unsigned PK                      |                             |
+| block_id    | FK -> blocks (cascadeOnDelete)          |                             |
+| min_size    | integer NULL                            |                             |
+| max_size    | integer NULL                            |                             |
+| price       | integer (NOT NULL)                      | price per size              |
+| price_unit  | enum(marla, square_yard)                |                             |
+| created_at / updated_at | timestamp                     |                             |
+
+UNIQUE (block_id, min_size, max_size).
+
+--------------------------------------------------------------------------------
+3.6 block_payment_plans  --  per-block default plan (commercial / non)
+--------------------------------------------------------------------------------
+| column                      | type                                          | notes                       |
+|-----------------------------|-----------------------------------------------|-----------------------------|
+| id                          | bigint unsigned PK                            |                             |
+| block_id                    | FK -> blocks (cascadeOnDelete)                |                             |
+| is_commercial               | boolean (NOT NULL)                            | true=commercial / false=non |
+| payment_template_id         | FK->payment_templates NULL nullOnDelete       |                             |
+| installment_template_ids    | json NULL                                     | array of ids to attach later|
+| min_size / max_size         | integer NULL                                  |                             |
+| size_unit                   | enum(marla, square_yard) default marla        |                             |
+| apply_to_units              | boolean default false                         | also apply to owner-less units |
+| created_at / updated_at     | timestamp                                     |                             |
+
+UNIQUE (block_id, is_commercial).
+
+--------------------------------------------------------------------------------
+3.7 property_listings  --  current sell/rent listing per property/unit
+--------------------------------------------------------------------------------
+| column             | type                        | notes                          |
+|--------------------|-----------------------------|--------------------------------|
+| id                 | bigint unsigned PK          |                                |
+| uuid               | char(36)                    |                                |
+| listable_type / listable_id | morphs             | App\Models\Property OR PropertyUnit |
+| contact_no         | string (NOT NULL)           |                                |
+| show_contact_no    | boolean default true        |                                |
+| email              | string (NOT NULL)           |                                |
+| listing_type       | string (NOT NULL)           | sell | rent                    |
+| price              | integer (NOT NULL)          | see note below                 |
+| show_price         | boolean default true        |                                |
+| unit               | string (NOT NULL)           | see note below                 |
+| description        | text NULL                   |                                |
+| closed             | boolean default false       | added migration 17 (2026-09-11)|
+| created_at / updated_at | timestamp            |                                |
+
+  unit note:
+    - Single property/unit listing: unit = currency (PKR, USD, AED, SAR).
+    - Block listing (sell): price = rate x area, unit = area unit
+      (marla / square_yard).
+    - Rent listing: price = 0, unit = PKR.
+
+--------------------------------------------------------------------------------
+3.8 property_owners  --  ownership history (paid/transfer lifecycle)
+--------------------------------------------------------------------------------
+| column                    | type                                     | notes                 |
+|---------------------------|------------------------------------------|-----------------------|
+| id                        | bigint unsigned PK                       |                       |
+| ownerable_type / ownerable_id | morphs (property | property_unit)    |                       |
+| owner_id                  | FK -> users (restrictOnDelete)           |                       |
+| start_date                | date (NOT NULL)                          |                       |
+| end_date                  | date NULL                                | NULL = ACTIVE ownership |
+| created_at / updated_at   | timestamp                                |                       |
+
+--------------------------------------------------------------------------------
+3.9 property_ownership_payment_plans  --  committed-plan snapshot (per ownership)
+--------------------------------------------------------------------------------
+| column                                | type                          | notes                         |
+|---------------------------------------|-------------------------------|-------------------------------|
+| id                                    | bigint unsigned PK            |                               |
+| uuid                                  | char(36) UNIQUE               | public URLs never use id     |
+| property_ownerable_type / id          | morphs (property | property_unit) | po_ownable_idx             |
+| property_owner_id                     | FK -> property_owners UNIQUE  | ONE committed plan per owner   |
+| listed_price                          | decimal(15,2) NULL            |                               |
+| listed_unit                           | string NULL                   | PKR/marla/square_yard         |
+| booking_fee (+_in_per)                | double + boolean              |                               |
+| development_fee (+_in_per,+_surplus)  | double + booleans             |                               |
+| down_payment (+_in_per)               | double + boolean              |                               |
+| transfer_fee (+_in_per,+_surplus)     | double + booleans             |                               |
+| confirmation_fee (+_in_per)           | double + boolean              |                               |
+| possession_fee (+_in_per,+_surplus)   | double + booleans             |                               |
+| corner_premium (+_in_per)             | double + boolean(default true)|                               |
+| park_facing_premium (+_in_per)        | double + boolean(default true)|                               |
+| main_boulevard_premium (+_in_per)     | double + boolean(default true)|                               |
+| with_installment                      | boolean default false         |                               |
+| name                                  | string NULL                   | committed installment name    |
+| number_of_installments                | unsignedInteger NULL          |                               |
+| installment_frequency                 | enum(monthly,quarterly,biannually,annually) NULL |            |
+| additional_installment_amount (+_in_per) | double + boolean          |                               |
+| balloon_payment (+_in_per)            | double + boolean              |                               |
+| balloon_payment_frequency             | enum(quarterly,biannually,annually) NULL |                    |
+| final_price                           | decimal(15,2) NULL            | presenter total_price (gross + excluded) |
+| price_unit                            | string NULL                   | same unit as listed_unit      |
+| created_at / updated_at               | timestamp                     |                               |
+
+NO FK to property_payment_plans / property_installment_plans => deleting
+templates or the seller's option can never alter an owner's committed contract.
+
+--------------------------------------------------------------------------------
+3.10 Supporting application tables
+--------------------------------------------------------------------------------
+properties:
+  id, uuid, owner_id (FK -> users NULL = CURRENT owner), block_id (FK -> blocks),
+  property_no, name, type,
+  category enum(residential, commercial, other),
+  is_corner, is_park_facing, is_main_boulevard_facing (premium triggers),
+  construction_status enum(constructed, in_progress, pending),
+  street, landmark, isLocked, created_at, updated_at.
+  -> NO price column. Price always comes from the listing or the plan snapshot.
+
+property_units:
+  id, uuid, owner_id (FK -> users NULL = CURRENT owner), floor_id (FK -> floors),
+  unit_name, unit_type, amenities (json), created_at, updated_at, deleted_at
+  (SOFT DELETES enabled; owner assignment still allowed while closed listings
+   are preserved).
+
+societies:
+  id, uuid, ..., marla_size decimal(3,2) default 0 (fallback 272.25 sqft in code).
+
+
+================================================================================
+4. FULL DB WORKFLOWS (END-TO-END)
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 BLOCK PRICING SETUP
+--------------------------------------------------------------------------------
+1. Each block gets one or more block_price_ranges rows:
+      block_id | min_size | max_size | price | price_unit
+   These define "this block sells at Rs. X per marla/square-yard for plots of
+   size Y".
+2. Used by:
+   - "Apply listing to block" (auto-compute price from area).
+   - "Print payment plan" for a given size/type (availability + pricing).
+
+--------------------------------------------------------------------------------
+4.2 LISTING A PROPERTY / UNIT
+--------------------------------------------------------------------------------
+A) Single listing (PropertyListingController::store):
+   UPDATE/INSERT into property_listings via listing()->updateOrCreate([], [...]):
+     listing_type (sell|rent), price, unit (currency), show_price,
+     contact_no, show_contact_no, email, description, closed = false.
+   -> Re-listing a CLOSED property resets closed = false (it becomes public again).
+
+B) Block listing (PropertyListingController::blockStore):
+   For every owner-less property in the block (optionally filtered by size range):
+     - Creates/updates block_price_ranges for the price/range.
+     - sell: price = rate x area (marla or square_yard), unit = area unit.
+     - rent: price = 0, unit = PKR.
+     - closed = false.
+
+--------------------------------------------------------------------------------
+4.3 APPLYING A PAYMENT PLAN
+--------------------------------------------------------------------------------
+A) Single property/unit (PropertyPaymentPlanController::applySingle):
+   1. Resolve model by uuid (property or unit).
+   2. upsertPaymentPlan():
+      - listedPriceValues() snapshots listing.price -> listed_price,
+        listing.unit -> listed_unit.
+      - If payment_template_id supplied and submitted charges EXACTLY match the
+        template -> keep the link (template supplies values at display).
+      - If anything differs -> SNAPSHOT every charge/premium onto the plan row
+        and set payment_template_id = NULL.
+      - Attach installment templates via sync() into pivot
+        (property_installment_plans), snapshoting every field.
+
+B) Bulk / block / society apply (PropertyPaymentPlanController::store):
+   1. getEligibleProperties(ids, society|block|property, sizeRange, isCommercial):
+        query Property whereNull('owner_id'), classify into:
+          applied, category_skipped (commercial mismatch), size_skipped (marla).
+   2. applyPlan(propertyIds, apply_to_units, paymentTemplateId, installmentIds):
+        - each applied property -> upsertPaymentPlan.
+        - if apply_to_units -> each unit under those properties whereNull('owner_id').
+
+C) Block default plan (BlocksController::applyBlockPlan):
+   BlockPaymentPlan::updateOrCreate(block_id + is_commercial) stores the default.
+   Later "apply listing/payment" to the block reuses it.
+
+--------------------------------------------------------------------------------
+4.4 EDITING A PLAN / INSTALLMENT (DB side)
+--------------------------------------------------------------------------------
+A) Plan update (PropertyPaymentPlanController::update):
+   - same snapshot-or-link logic as 4.3-A step 2.
+   - premiums always snapshotted (never link-only).
+   - listed_price / listed_unit re-snapshotted from the current listing.
+
+B) Installment edit (updateInstallment):
+   - Sets installment_template_id = NULL.
+   - Writes edited values directly onto the pivot row (customized attachment).
+   - Source template is untouched.
+
+C) Deleting a plan:
+   - PropertyPaymentPlan::deleting() hook deletes its pivot rows first.
+   - DB FK also cascades (fk_ppp_id).
+
+--------------------------------------------------------------------------------
+4.5 OWNER ASSIGNMENT (PropertyOwnerController::store)
+--------------------------------------------------------------------------------
+1. Resolve member (existing user or create new Society Member user).
+2. Ownership history:
+   - Close current open ownerships: property_owners.end_date = today
+     (rows where end_date IS NULL).
+   - Create new row: start_date = today, end_date = NULL.
+3. Set current owner (denormalized):
+   - properties.owner_id = user id   (or property_units.owner_id = user id).
+4. Snapshot the committed plan (snapshotPaymentPlan, 2026-09-11 change):
+   - The seller's plan is NEVER mutated or deleted. "Other plans" and
+     "non-given installments" are no longer removed.
+   - Create ONE property_ownership_payment_plans row for the new ownership:
+     property_ownerable morph (property/unit) + property_owner_id FK (unique) +
+     snapshotted payment fields, installment fields, listed_price/listed_unit,
+     final_price (= presenter total_price) and price_unit.
+   - Values copy rule (2026-09-11): if the plan row (or pivot row) is
+     template-linked (payment_template_id / installment_template_id NOT NULL),
+     the snapshot is copied from the TEMPLATE first; otherwise the snapshot is
+     copied from the plan/pivot row's own values. Blank source values fall back
+     to the other source. final_price (= presenter total_price) and price_unit
+     are snapshotted too.
+     Initially the table has no FK to property_payment_plans / installments so
+     deleting templates or source plans can never affect the owner's contract.
+5. Listing lifecycle:
+   - property_listings.closed = 1   (previously the listing row was DELETED).
+   - The payment plan survives because it holds its own listed_price snapshot
+     and its listing_id still points at the (closed) listing row.
+   - Public front-end queries exclude closed listings
+     (whereHas('listing', closed=false) + constrained eager loads), so an owned
+     property/unit is no longer shown "for sale".
+
+--------------------------------------------------------------------------------
+4.6 DISPLAY / CALCULATION (how stored values are consumed)
+--------------------------------------------------------------------------------
+PaymentPlanPresenter::build($property) then InstallmentPlanCalculator::calculate().
+
+Value-resolution priority (always):  plan/pivot row  ->  linked template  -> 0.
+
+1) listing_price = plan.listed_price ?? listing.price ?? 0
+   listing_unit  = plan.listed_unit ?? listing.unit ?? 'PKR'
+
+2) Premiums (corner / park-facing / boulevard):
+   - APPLY ONLY IF the matching feature flag is true on the property
+     (is_corner / is_park_facing / is_main_boulevard_facing).
+     For a unit, read the flags from its parent property.
+   - premium amount = listing_price x premium% / 100.
+
+3) gross = listed_price + premiums_total
+
+4) SURPLUS fees (development, transfer, possession) -> EXCLUDED:
+     amount = gross x %/100   (or fixed value);  added ON TOP of the price.
+     excluded_total = sum of these.
+
+5) NON-SURPLUS fees (booking, down payment, confirmation) -> INCLUDED:
+     base = gross + excluded_total;
+     amount = base x %/100 (or fixed value);  part OF the total price.
+     included_total = sum of these.
+
+6) total_price   = gross + excluded_total
+   remaining     = total_price - included_total   (amount actually financed)
+
+7) Per installment attachment (pivot row property_installment_plans):
+   - extra = additional_installment_amount
+             (% of gross if additional_installment_amount_in_per, else fixed)
+   - grand_total = remaining + extra
+   - balloons:
+       - balloon frequency must be LESS frequent than installment frequency
+         (monthly < quarterly < biannually < annually). Enforced.
+       - total_balloon = % of grand_total (if in_per) OR fixed.
+       - balloon_count from frequency math (last event is always a normal
+         installment, hence the standard '-1' rule).
+       - per_balloon   = ceil(total_balloon / balloon_count)
+       - per_installment = ceil((grand_total - total_balloon) / normal_count)
+     (ceil = amounts always whole; no fractional payment decimals.)
+   - Output: full interleaved schedule (installment/balloon events) with
+     running cumulative totals.
+
+FREQUENCY CONSTANTS (InstallmentPlanCalculator):
+   installments/year: monthly=12, quarterly=4, biannually=2, annually=1
+   balloons/year:     quarterly=4, biannually=2, annually=1
+
+
+================================================================================
+5. RULES / INVARIANTS TO PRESERVE FOR NEXT PAYMENT PLANNING
+================================================================================
+1. Templates are immutable:
+   - Any edit snapshot values onto the plan/pivot and DETACHES the template link.
+2. Installment values live on the pivot (property_installment_plans), never on
+   property_payment_plans.
+3. No fractional payments: per-installment / per-balloon always rounded UP
+   (ceil).
+4. Balloon frequency must be strictly less frequent than installment frequency.
+5. Current owner = denormalized properties.owner_id / property_units.owner_id;
+   History       = property_owners (active = end_date IS NULL).
+6. Plans apply only to owner-less (whereNull('owner_id')) properties/units.
+7. Closed listings (closed=1) are hidden from the public front-end; re-listing
+   sets closed=0; owner assignment sets closed=1.
+8. A property/unit has no intrinsic price - price is always the listing price
+   or the plan's listed_price snapshot.
+9. Currency: singular listing unit = currency (PKR/USD/AED/SAR); block listing
+   unit = area unit (marla/square_yard). Currency conversion uses
+   listed_unit ?? 'PKR'.
+10. A plan is linked to a listing by listing_id (nullable) but does not depend
+   on it because of the listed_price/listed_unit snapshots.
+11. Payment templates and installment templates are scoped per owner_id (user).
+    Commercial templates are flagged with is_commercial.
+12. property_units use SOFT DELETES; properties do not. Handle both when
+    writing future ownership/plan queries.
+13. One committed plan per ownership:
+    - property_ownership_payment_plans.property_owner_id is UNIQUE.
+    - ONE immutable snapshot row per ownership assignment (no FK to the seller's
+      option, so source plans, templates, and pivots can be modified or deleted
+      without affecting the owner's committed contract).
+14. Source plans are never mutated on assignment:
+    - snapshotPaymentPlan copies values; it does NOT delete sibling plans or
+      prune non-selected installment attachments.  Un-assigning an owner leaves
+      the seller's option fully intact for re-use.
+15. Template deletion cannot affect ownership payment plans:
+    - all fee/premium/installment values are stored as concrete values on the
+      snapshot row; the only FKs (to property_owners, property_ownerable morph)
+      never depend on templates.
+16. Un-link owner (PropertyOwnerController::unlinkOwner, property_owners.unlink):
+    - Ends the CURRENT (open) ownership (end_date = today).
+    - Deletes its property_ownership_payment_plans snapshot row.
+    - Sets properties.owner_id / property_units.owner_id = NULL.
+    - Reopens the listing (closed = 0), so it is public again.
+    - The seller's source plan + installment pivots are NEVER touched; the
+      re-listed property is exactly as it was before the failed sale.
+    - UI: "Unlink Owner" shows while the current snapshot's status is
+      active / in-progress. "Sold Out" badge shows when it is 'completed'
+      (final sale - no unlink, no owner assignment).
+
+
+17. Committed-plan edits never touch the seller's source plan:
+    - updateOwnershipPlan (ownership_payment_plans.update) rewrites only the
+      charge/premium/listed values and as a side effect recomputes final_price
+      from the new snapshot (gross + excluded + extra in case of installment).
+    - addOwnershipInstallment (ownership_payment_plans.installment.store)
+      attaches ONE installment template by copying its values onto the snapshot
+      and sets with_installment = true.
+    - updateOwnershipInstallment (ownership_payment_plans.installment.update)
+      rewrites the snapshot's single installment block directly.
+    - Only a SINGLE installment plan is allowed per committed ownership plan.
+    - Balloon frequency must be strictly less frequent than the installment
+      frequency (InstallmentPlanCalculator::balloonFrequencyValid).
+    - All three routes are permission-gated (payment_plan_edit /
+      installment_plan_add / installment_plan_edit).
+18. Ownership payment plan tab UI (components/property/ownership-payment-plans):
+    - Shown in the Payment Plan tab whenever the current open ownership has a
+      committed snapshot with status != 'completed'; the "for sale" planner is
+      then hidden and the committed plan is shown instead.
+    - Single "Print Owner Plan" button (brief mode only).
+    - Summary side shows the whole committed plan; there is NO
+      with/without-installment toggle - the installment is appended when present.
+    - "Edit Values" opens the whole-plan modal; "Edit Installment Values" opens
+      the single-installment modal (with an optional "Load from Template"
+      dropdown); "Add Installment Plan" appears only when no installment exists.
+
+
+===============================================================================
+END OF DOCUMENT
+===============================================================================

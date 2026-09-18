@@ -763,7 +763,7 @@
     </div>
     {{-- TAB 3: Payments --}}
     <div class="tab-pane fade" id="unit_payments" role="tabpanel">
-      @include('components.property.payments')
+      @include('components.property.payments', ['property' => $unit])
     </div>
   </div>
 

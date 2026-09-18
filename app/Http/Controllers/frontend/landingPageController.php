@@ -156,7 +156,7 @@ class landingPageController
                 'floor.property.floors',
             ])
             ->where('unit_type', $request->unit_type)
-            ->whereHas('listing', fn ($q) => $q->where('listing_type', $listingTypeValue));
+            ->whereHas('listing', fn ($q) => $q->where('listing_type', $listingTypeValue)->where('closed', false));
 
         $this->applyUnitFilters($query, $request, $rate);
 
@@ -170,7 +170,7 @@ class landingPageController
                 'block.society', 'attachment', 'dimensions', 'listing',
                 'floors.rooms', 'floors.units.rooms',
             ])
-            ->whereHas('listing', fn ($q) => $q->where('listing_type', $listingTypeValue));
+            ->whereHas('listing', fn ($q) => $q->where('listing_type', $listingTypeValue)->where('closed', false));
 
         $this->applyPropertyFilters($propQuery, $request, $rate);
         $properties = $propQuery->get();
@@ -182,10 +182,10 @@ class landingPageController
         $unitQuery = PropertyUnit::query()
             ->with([
                 'attachment', 'listing', 'dimensions', 'rooms',
-                'floor.property', 'floor.property.block.society', 'floor.property.dimensions', 'floor.property.listing',
+                'floor.property', 'floor.property.block.society', 'floor.property.dimensions', 'floor.property.listing' => fn ($q) => $q->where('closed', false),
                 'floor.property.floors',
             ])
-            ->whereHas('listing', fn ($l) => $l->where('listing_type', $listingTypeValue));
+            ->whereHas('listing', fn ($l) => $l->where('listing_type', $listingTypeValue)->where('closed', false));
         $this->applyUnitFilters($unitQuery, $request, $rate);
 
         $unitProperties = $unitQuery->get()->map(fn ($unit) => $this->mapUnit($unit))->filter()->values();
@@ -309,10 +309,10 @@ class landingPageController
             $query->whereHas('block.society', fn ($q) => $q->where('country', 'LIKE', '%'.$request->country.'%'));
         }
         if ($request->filled('min_price')) {
-            $query->whereHas('listing', fn ($q) => $q->where('price', '>=', $request->min_price * $rate));
+            $query->whereHas('listing', fn ($q) => $q->where('price', '>=', $request->min_price * $rate)->where('closed', false));
         }
         if ($request->filled('max_price')) {
-            $query->whereHas('listing', fn ($q) => $q->where('price', '<=', $request->max_price * $rate));
+            $query->whereHas('listing', fn ($q) => $q->where('price', '<=', $request->max_price * $rate)->where('closed', false));
         }
         if ($request->filled('location')) {
             $query->where(fn ($q) => $q
@@ -345,10 +345,10 @@ class landingPageController
             $query->whereHas('floor.property.block.society', fn ($q) => $q->where('country', 'LIKE', '%'.$request->country.'%'));
         }
         if ($request->filled('min_price')) {
-            $query->whereHas('listing', fn ($q) => $q->where('price', '>=', $request->min_price * $rate));
+            $query->whereHas('listing', fn ($q) => $q->where('price', '>=', $request->min_price * $rate)->where('closed', false));
         }
         if ($request->filled('max_price')) {
-            $query->whereHas('listing', fn ($q) => $q->where('price', '<=', $request->max_price * $rate));
+            $query->whereHas('listing', fn ($q) => $q->where('price', '<=', $request->max_price * $rate)->where('closed', false));
         }
         if ($request->filled('location')) {
             $query->whereHas('floor.property', fn ($q) => $q
@@ -502,7 +502,7 @@ class landingPageController
         $visitor = $this->getOrCreateVisitor();
 
         $property = Property::where('uuid', $uuid)
-            ->with(['block.society', 'attachments', 'dimensions', 'listing', 'floors.units.dimensions', 'floors.units.rooms', 'floors.rooms'])
+            ->with(['block.society', 'attachments', 'dimensions', 'listing' => fn ($q) => $q->where('closed', false), 'floors.units.dimensions', 'floors.units.rooms', 'floors.rooms'])
             ->firstOrFail();
 
         $allRooms = $property->floors->flatMap(fn ($f) => $f->rooms)->merge($property->floors->flatMap(fn ($f) => $f->units->flatMap(fn ($u) => $u->rooms)));
@@ -539,7 +539,7 @@ class landingPageController
         $visitor = $this->getOrCreateVisitor();
 
         $unit = PropertyUnit::where('uuid', $uuid)
-            ->with(['floor.property.block.society', 'floor.property.floors', 'attachments', 'dimensions', 'listing', 'rooms.dimensions'])
+            ->with(['floor.property.block.society', 'floor.property.floors', 'attachments', 'dimensions', 'listing' => fn ($q) => $q->where('closed', false), 'rooms.dimensions'])
             ->firstOrFail();
 
         $unitAmenityIds = is_array($unit->amenities) ? $unit->amenities : json_decode($unit->amenities ?? '[]', true);
@@ -612,7 +612,7 @@ class landingPageController
         $unitIds = $favourites->where('favouritable_type', PropertyUnit::class)->pluck('favouritable_id');
 
         $properties = Property::whereIn('id', $propertyIds)
-            ->with(['block.society', 'attachment', 'dimensions', 'listing', 'floors'])
+            ->with(['block.society', 'attachment', 'dimensions', 'listing' => fn ($q) => $q->where('closed', false), 'floors'])
             ->get();
 
         $properties->each(function ($property) {
@@ -621,7 +621,7 @@ class landingPageController
 
         $units = PropertyUnit::whereIn('id', $unitIds)
             ->with([
-                'attachment', 'listing', 'dimensions', 'rooms',
+                'attachment', 'listing' => fn ($q) => $q->where('closed', false), 'dimensions', 'rooms',
                 'floor.property', 'floor.property.block.society', 'floor.property.dimensions', 'floor.property.floors',
             ])
             ->get()

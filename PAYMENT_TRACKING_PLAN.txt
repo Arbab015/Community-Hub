@@ -1,0 +1,897 @@
+================================================================================
+         PAYMENT TRACKING SYSTEM — COMPLETE PLANNING DOCUMENT
+         Community Hub (Laravel + Spatie Permissions)
+================================================================================
+
+
+TABLE OF CONTENTS
+-----------------
+  1. Current System Overview
+  2. The Problem
+  3. What We Need to Track
+  4. Database Schema (Normalized Tables)
+  5. Entity Relationship Diagram
+  6. How Data Flows (Step by Step)
+  7. Models & Relationships
+  8. Migration Plan
+  9. Controller Logic
+  10. UI / Blade Views
+  11. Summary Dashboard
+  12. Edge Cases & Rules
+  13. Implementation Order
+
+
+================================================================================
+1. CURRENT SYSTEM OVERVIEW
+================================================================================
+
+Your system has these payment-related tables RIGHT NOW:
+
+  payment_templates
+  -----------------
+  Reusable fee configurations. Example:
+    Name: "Commercial Plan A"
+    booking_fee: 50000 (fixed)
+    development_fee: 5 (% of gross)
+    down_payment: 200000 (fixed)
+    corner_premium: 2 (% of listed price)
+    ...etc
+
+  installment_templates
+  ---------------------
+  Reusable installment structures. Example:
+    Name: "24 Monthly Installments"
+    number_of_installments: 24
+    installment_frequency: monthly
+    additional_installment_amount: 50000 (fixed extra)
+    balloon_payment: 10 (% of remaining)
+    balloon_payment_frequency: quarterly
+
+  property_payment_plans
+  ----------------------
+  The ACTUAL plan assigned to a specific property/unit.
+  - Links to a payment_template (or custom values)
+  - Stores SNAPSHOT values (copied from template at time of apply)
+  - Has: listed_price, listed_unit, all fee columns
+  - Polymorphic: belongs to Property OR PropertyUnit
+
+  property_payment_plan_installment_templates
+  -------------------------------------------
+  Pivot table. Each row = one installment plan attached to a payment plan.
+  - Links property_payment_plan_id -> installment_template_id
+  - Stores SNAPSHOT values (number_of_installments, frequency, etc.)
+  - Can be custom (installment_template_id = null)
+
+  property_owners
+  ---------------
+  Who owns the property. Links owner_id (user) to property via polymorphic.
+  - start_date, end_date (null = current owner)
+
+
+  CURRENT FLOW:
+  ┌──────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+  │   Property   │────>│ payment_plan     │────>│ installment         │
+  │   (owner_id) │     │ (fees snapshot)  │     │ attachments (pivot) │
+  └──────────────┘     └──────────────────┘     └─────────────────────┘
+
+  *** NOTHING TRACKS ACTUAL PAYMENTS ***
+
+
+================================================================================
+2. THE PROBLEM
+================================================================================
+
+When an owner is assigned:
+  - The property's payment plan is used
+  - Installment schedule is calculated on-the-fly (not stored)
+  - There is NO way to record:
+      * "Booking fee was paid on 2026-10-15"
+      * "Installment #3 was paid 25,000 on 2026-12-01"
+      * "Development fee still pending"
+      * "Installment #5 is overdue"
+
+  The entire system is PLANNING only. No PAYMENT TRACKING.
+
+
+================================================================================
+3. WHAT WE NEED TO TRACK
+================================================================================
+
+A. ONE-TIME CHARGES (paid upfront, not in installments)
+   - Booking Fee, Development Fee, Down Payment, Transfer Fee,
+     Confirmation Fee, Possession Fee, Premiums
+   - For each: total amount, how much paid, when, by whom, receipt
+
+B. INSTALLMENT PAYMENTS (paid over time)
+   - Each installment in the schedule needs:
+     * Due date
+     * Amount due
+     * Amount paid
+     * Status (pending / partial / paid / overdue)
+   - Individual payment records against each installment
+
+C. OVERALL SUMMARY
+   - Total plan amount
+   - Total paid (charges + installments)
+   - Total remaining
+   - Next upcoming payment
+   - Overdue count
+
+
+================================================================================
+4. DATABASE SCHEMA (NORMALIZED TABLES)
+================================================================================
+
+Three new tables. All use UUID for public identifiers.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TABLE: charge_payments
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE: Records each payment made against a one-time charge.
+
+  Column              | Type                  | Nullable | Notes
+  --------------------|-----------------------|----------|---------------------------
+  id                  | BIGINT UNSIGNED PK    | NO       | Auto-increment
+  uuid                | CHAR(36)              | NO       | Unique, for public use
+  payment_plan_id     | FK -> property_       | NO       | Which plan this is for
+                      |   payment_plans.id    |          |   (CASCADE on delete)
+  charge_type         | ENUM(...)             | NO       | Which charge (see below)
+  amount              | DECIMAL(15,2)         | NO       | How much was paid
+  payment_method      | ENUM(...)             | YES      | cash/bank/cheque/online
+  receipt_no          | VARCHAR(50)           | YES      | Manual receipt reference
+  notes               | TEXT                  | YES      | Extra info
+  paid_by             | FK -> users.id        | YES      | Who paid (SET NULL on delete)
+  paid_at             | TIMESTAMP             | YES      | When payment was made
+  created_at          | TIMESTAMP             | NO       | Record creation
+  updated_at          | TIMESTAMP             | NO       | Last update
+
+  charge_type ENUM values:
+    'booking_fee', 'development_fee', 'down_payment',
+    'transfer_fee', 'confirmation_fee', 'possession_fee',
+    'corner_premium', 'park_facing_premium', 'main_boulevard_premium',
+    'other'
+
+  INDEX: (payment_plan_id, charge_type) — fast lookup per plan per charge
+
+  EXAMPLE DATA:
+  ┌────┬─────────────────┬───────────────┬──────────┬────────────┐
+  │ id │ payment_plan_id │ charge_type   │ amount   │ paid_at    │
+  ├────┼─────────────────┼───────────────┼──────────┼────────────┤
+  │ 1  │ 5               │ booking_fee   │ 50000.00 │ 2026-10-15 │
+  │ 2  │ 5               │ down_payment  │ 100000.00│ 2026-10-20 │
+  │ 3  │ 5               │ down_payment  │ 100000.00│ 2026-11-01 │
+  └────┴─────────────────┴───────────────┴──────────┴────────────┘
+  (Down payment of 200,000 paid in 2 installments of 100,000 each)
+
+
+────────────────────────────────────────────────────────────────────────────────
+TABLE: installment_schedules
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE: Stores the generated installment plan (one row per installment).
+         Created when a plan is applied with installments.
+
+  Column                    | Type                  | Nullable | Notes
+  --------------------------|-----------------------|----------|---------------------------
+  id                        | BIGINT UNSIGNED PK    | NO       | Auto-increment
+  uuid                      | CHAR(36)              | NO       | Unique
+  installment_attachment_id | FK -> property_       | NO       | Which installment plan
+                            |   payment_plan_       |          |   (CASCADE on delete)
+                            |   installment_        |          |
+                            |   templates.id        |          |
+  sequence_no               | SMALLINT UNSIGNED     | NO       | 1, 2, 3... (order)
+  type                      | ENUM('installment',   | NO       | Regular or balloon
+                            |        'balloon')     |          |
+  balloon_no                | SMALLINT UNSIGNED     | YES      | Only for balloon type
+  amount                    | DECIMAL(15,2)         | NO       | What's due this period
+  cumulative                | DECIMAL(15,2)         | NO       | Running total
+  due_date                  | DATE                  | NO       | When payment is expected
+  status                    | ENUM('pending',       | NO       | Current status
+                            |        'partial',     | DEFAULT  |
+                            |        'paid',        | 'pending'|
+                            |        'overdue')     |          |
+  amount_paid               | DECIMAL(15,2)         | NO       | Sum of payments made
+                            |                       | DEFAULT  |
+                            |                       | 0.00     |
+  created_at                | TIMESTAMP             | NO       |
+  updated_at                | TIMESTAMP             | NO       |
+
+  UNIQUE: (installment_attachment_id, sequence_no)
+  INDEX:  (due_date)       — for overdue checks
+  INDEX:  (status)         — for filtering
+
+  EXAMPLE DATA (24 monthly installments, first 4 shown):
+  ┌────┬─────┬────────────┬──────────┬────────────┬──────────┬──────────┬─────────┐
+  │ id │ seq │ type       │ balloon# │ amount     │ cumul.   │ due_date │ status  │
+  ├────┼─────┼────────────┼──────────┼────────────┼──────────┼──────────┼─────────┤
+  │ 1  │ 1   │ installment│ NULL     │ 25000.00   │ 25000.00 │2026-10-01│ paid    │
+  │ 2  │ 2   │ installment│ NULL     │ 25000.00   │ 50000.00 │2026-11-01│ partial │
+  │ 3  │ 3   │ balloon    │ 1        │ 100000.00  │150000.00 │2026-12-01│ pending │
+  │ 4  │ 4   │ installment│ NULL     │ 25000.00   │175000.00 │2027-01-01│ pending │
+  └────┴─────┴────────────┴──────────┴────────────┴──────────┴──────────┴─────────┘
+
+
+────────────────────────────────────────────────────────────────────────────────
+TABLE: installment_payments
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE: Records each individual payment against a specific installment.
+
+  Column              | Type                  | Nullable | Notes
+  --------------------|-----------------------|----------|---------------------------
+  id                  | BIGINT UNSIGNED PK    | NO       | Auto-increment
+  uuid                | CHAR(36)              | NO       | Unique
+  schedule_id         | FK -> installment_    | NO       | Which installment row
+                      |   schedules.id        |          |   (CASCADE on delete)
+  amount              | DECIMAL(15,2)         | NO       | How much was paid
+  payment_method      | ENUM(...)             | YES      | cash/bank/cheque/online
+  receipt_no          | VARCHAR(50)           | YES      | Receipt reference
+  notes               | TEXT                  | YES      |
+  paid_by             | FK -> users.id        | YES      | (SET NULL on delete)
+  paid_at             | TIMESTAMP             | YES      | When payment was made
+  created_at          | TIMESTAMP             | NO       |
+  updated_at          | TIMESTAMP             | NO       |
+
+  INDEX: (schedule_id)
+
+  EXAMPLE DATA:
+  ┌────┬─────────────┬──────────┬────────────┬────────────┐
+  │ id │ schedule_id │ amount   │ paid_at    │ receipt_no │
+  ├────┼─────────────┼──────────┼────────────┼────────────┤
+  │ 1  │ 1           │ 25000.00 │ 2026-10-01 │ RCP-001    │
+  │ 2  │ 2           │ 10000.00 │ 2026-11-05 │ RCP-002    │
+  └────┴─────────────┴──────────┴────────────┴────────────┘
+  (Installment #2 still has 15,000 remaining — status = partial)
+
+
+================================================================================
+5. ENTITY RELATIONSHIP DIAGRAM
+================================================================================
+
+  EXISTING TABLES:
+  ═══════════════
+
+  users ─────────────┐
+                      │
+  property_owners ────┤  (owner_id -> users.id)
+  (polymorphic)       │
+                      │
+  properties ─────────┤── property_payment_plans ──┐
+  property_units ─────┘   (planable morph)         │
+                                                   │
+                            payment_templates ─────┤
+                            (payment_template_id)  │
+                                                   │
+                            property_payment_plan_  │
+                            installment_templates ─┘
+                            (pivot with snapshots)
+
+
+  NEW TABLES:
+  ═══════════
+
+  property_payment_plans ──┬── charge_payments
+                           │   (payment_plan_id)
+                           │
+                           └── installment_schedules
+                               (installment_attachment_id)
+                                   │
+                                   └── installment_payments
+                                       (schedule_id)
+
+
+  FULL RELATIONSHIP MAP:
+  ══════════════════════
+
+  Property/Unit
+    ├── owner (User) via property_owners
+    ├── paymentPlan (PropertyPaymentPlan)
+    │     ├── paymentTemplate (PaymentTemplate)
+    │     ├── installmentAttachments (PropertyPaymentPlanInstallmentTemplate[])
+    │     │     └── installmentTemplate (InstallmentTemplate)
+    │     ├── chargePayments (ChargePayment[])          ← NEW
+    │     └── installmentSchedules (InstallmentSchedule[]) ← NEW
+    │           └── payments (InstallmentPayment[])      ← NEW
+    └── ownerships (PropertyOwner[])
+
+
+================================================================================
+6. HOW DATA FLOWS (STEP BY STEP)
+================================================================================
+
+SCENARIO: Property has a payment plan with:
+  - Booking Fee: 50,000 (fixed)
+  - Development Fee: 5% of gross
+  - Down Payment: 200,000 (fixed)
+  - 24 monthly installments of 25,000 each
+  - Listed Price: 1,000,000
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1: Admin applies payment plan to property
+────────────────────────────────────────────────────────────────────────────────
+
+  Creates: property_payment_plans row
+    listed_price: 1000000
+    booking_fee: 50000
+    development_fee: 5
+    development_fee_in_per: 1
+    down_payment: 200000
+    ...etc
+
+  Creates: property_payment_plan_installment_templates row
+    number_of_installments: 24
+    installment_frequency: monthly
+    ...etc
+
+  NOTHING ELSE HAPPENS. No schedules generated yet. No payments tracked.
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2: Owner is assigned to property
+────────────────────────────────────────────────────────────────────────────────
+
+  Creates: property_owners row (owner_id, start_date)
+  Updates: property.owner_id
+
+  STILL no schedules. The installment plan is just "attached" — not activated.
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3: Admin generates installment schedule (NEW FEATURE)
+────────────────────────────────────────────────────────────────────────────────
+
+  When owner is assigned (or admin clicks "Generate Schedule"):
+
+  Controller reads the installment attachment:
+    number_of_installments: 24
+    frequency: monthly
+    additional_amount: 50000 (extra one-time)
+    balloon: 10% quarterly
+
+  Calls InstallmentPlanCalculator::calculate() with:
+    listing_price: 1000000
+    excluded_charges_total: (development_fee amount)
+    included_charges_total: (booking + down_payment amounts)
+    additional_amount: 50000
+    number_of_installments: 24
+    installment_frequency: monthly
+    balloon_payment: 10
+    balloon_payment_in_per: true
+    balloon_payment_frequency: quarterly
+
+  Calculator returns schedule[]:
+    [{seq:1, type:'installment', amount:25000, cumulative:25000},
+     {seq:2, type:'installment', amount:25000, cumulative:50000},
+     {seq:3, type:'balloon', balloon_no:1, amount:100000, cumulative:150000},
+     ...]
+
+  Controller creates installment_schedules rows:
+    Row 1: seq=1, type=installment, amount=25000, due_date=2026-10-01, status=pending
+    Row 2: seq=2, type=installment, amount=25000, due_date=2026-11-01, status=pending
+    Row 3: seq=3, type=balloon, amount=100000, due_date=2026-12-01, status=pending
+    ...
+
+  Due dates are calculated:
+    Start date = today (or next month first)
+    Monthly: +1 month each
+    Quarterly: +3 months each
+    etc.
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4: Owner pays booking fee
+────────────────────────────────────────────────────────────────────────────────
+
+  Admin records: "Booking fee 50,000 paid via bank transfer"
+
+  Creates: charge_payments row
+    payment_plan_id: 5
+    charge_type: booking_fee
+    amount: 50000.00
+    payment_method: bank_transfer
+    receipt_no: RCP-001
+    paid_by: (admin user id)
+    paid_at: 2026-10-15
+
+  NEXT TIME QUERIED:
+    SUM(charge_payments.amount WHERE charge_type='booking_fee') = 50000
+    Template says booking_fee = 50000
+    50000 >= 50000 → Status: PAID
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5: Owner pays first installment
+────────────────────────────────────────────────────────────────────────────────
+
+  Admin records: "Installment #1 — 25,000 paid via cash"
+
+  Creates: installment_payments row
+    schedule_id: 1
+    amount: 25000.00
+    payment_method: cash
+    paid_at: 2026-10-01
+
+  Updates: installment_schedules row #1
+    amount_paid: 25000.00
+    status: 'paid'  (25000 >= 25000)
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 6: Owner pays partial installment #2
+────────────────────────────────────────────────────────────────────────────────
+
+  Admin records: "Installment #2 — 10,000 paid via online"
+
+  Creates: installment_payments row
+    schedule_id: 2
+    amount: 10000.00
+    paid_at: 2026-11-05
+
+  Updates: installment_schedules row #2
+    amount_paid: 10000.00
+    status: 'partial'  (10000 < 25000)
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 7: Overdue check (cron job or on page load)
+────────────────────────────────────────────────────────────────────────────────
+
+  Query: WHERE due_date < CURDATE() AND status IN ('pending', 'partial')
+
+  If any rows found → update status to 'overdue'
+
+  This runs:
+    - On dashboard page load
+    - Via scheduled artisan command (daily)
+    - Or calculated at query time without updating (preferred)
+
+
+================================================================================
+7. MODELS & RELATIONSHIPS
+================================================================================
+
+MODEL: ChargePayment
+────────────────────
+  class ChargePayment extends Model
+  {
+      use HasUuids;
+      protected $guarded = [];
+
+      // Relationships
+      public function paymentPlan()
+      {
+          return $this->belongsTo(PropertyPaymentPlan::class, 'payment_plan_id');
+      }
+
+      public function paidByUser()
+      {
+          return $this->belongsTo(User::class, 'paid_by');
+      }
+  }
+
+
+MODEL: InstallmentSchedule
+──────────────────────────
+  class InstallmentSchedule extends Model
+  {
+      use HasUuids;
+      protected $guarded = [];
+
+      protected $casts = [
+          'amount'      => 'decimal:2',
+          'cumulative'  => 'decimal:2',
+          'amount_paid' => 'decimal:2',
+          'due_date'    => 'date',
+      ];
+
+      // Relationships
+      public function installmentAttachment()
+      {
+          return $this->belongsTo(
+              PropertyPaymentPlanInstallmentTemplate::class,
+              'installment_attachment_id'
+          );
+      }
+
+      public function payments()
+      {
+          return $this->hasMany(InstallmentPayment::class, 'schedule_id');
+      }
+
+      // Helper: is this overdue?
+      public function isOverdue(): bool
+      {
+          return $this->due_date->isPast() && $this->status !== 'paid';
+      }
+
+      // Helper: remaining amount
+      public function remaining(): float
+      {
+          return (float) $this->amount - (float) $this->amount_paid;
+      }
+  }
+
+
+MODEL: InstallmentPayment
+─────────────────────────
+  class InstallmentPayment extends Model
+  {
+      use HasUuids;
+      protected $guarded = [];
+
+      // Relationships
+      public function schedule()
+      {
+          return $this->belongsTo(InstallmentSchedule::class, 'schedule_id');
+      }
+
+      public function paidByUser()
+      {
+          return $this->belongsTo(User::class, 'paid_by');
+      }
+  }
+
+
+ADDED TO: PropertyPaymentPlan (existing model)
+───────────────────────────────────────────────
+  // NEW relationships to add:
+  public function chargePayments()
+  {
+      return $this->hasMany(ChargePayment::class, 'payment_plan_id');
+  }
+
+  public function installmentSchedules()
+  {
+      return $this->hasManyThrough(
+          InstallmentSchedule::class,
+          PropertyPaymentPlanInstallmentTemplate::class,
+          'property_payment_plan_id',   // foreign key on pivot
+          'installment_attachment_id',  // foreign key on schedule
+          'id',                         // local key on plan
+          'id'                          // local key on pivot
+      );
+  }
+
+
+================================================================================
+8. MIGRATION PLAN
+================================================================================
+
+Create 3 migration files:
+
+  1. database/migrations/2026_09_10_000001_create_charge_payments_table.php
+  2. database/migrations/2026_09_10_000002_create_installment_schedules_table.php
+  3. database/migrations/2026_09_10_000003_create_installment_payments_table.php
+
+Migration 1 — charge_payments:
+  Schema::create('charge_payments', function (Blueprint $table) {
+      $table->id();
+      $table->uuid('uuid')->unique();
+      $table->foreignId('payment_plan_id')
+            ->constrained('property_payment_plans')
+            ->cascadeOnDelete();
+      $table->enum('charge_type', [
+          'booking_fee', 'development_fee', 'down_payment',
+          'transfer_fee', 'confirmation_fee', 'possession_fee',
+          'corner_premium', 'park_facing_premium', 'main_boulevard_premium',
+          'other',
+      ]);
+      $table->decimal('amount', 15, 2);
+      $table->enum('payment_method', [
+          'cash', 'bank_transfer', 'cheque', 'online', 'other',
+      ])->nullable();
+      $table->string('receipt_no', 50)->nullable();
+      $table->text('notes')->nullable();
+      $table->foreignId('paid_by')->nullable()
+            ->constrained('users')->nullOnDelete();
+      $table->timestamp('paid_at')->nullable();
+      $table->timestamps();
+
+      $table->index(['payment_plan_id', 'charge_type']);
+  });
+
+Migration 2 — installment_schedules:
+  Schema::create('installment_schedules', function (Blueprint $table) {
+      $table->id();
+      $table->uuid('uuid')->unique();
+      $table->foreignId('installment_attachment_id')
+            ->constrained('property_payment_plan_installment_templates')
+            ->cascadeOnDelete();
+      $table->unsignedSmallInteger('sequence_no');
+      $table->enum('type', ['installment', 'balloon']);
+      $table->unsignedSmallInteger('balloon_no')->nullable();
+      $table->decimal('amount', 15, 2);
+      $table->decimal('cumulative', 15, 2);
+      $table->date('due_date');
+      $table->enum('status', ['pending', 'partial', 'paid', 'overdue'])
+            ->default('pending');
+      $table->decimal('amount_paid', 15, 2)->default(0);
+      $table->timestamps();
+
+      $table->unique(['installment_attachment_id', 'sequence_no']);
+      $table->index('due_date');
+      $table->index('status');
+  });
+
+Migration 3 — installment_payments:
+  Schema::create('installment_payments', function (Blueprint $table) {
+      $table->id();
+      $table->uuid('uuid')->unique();
+      $table->foreignId('schedule_id')
+            ->constrained('installment_schedules')
+            ->cascadeOnDelete();
+      $table->decimal('amount', 15, 2);
+      $table->enum('payment_method', [
+          'cash', 'bank_transfer', 'cheque', 'online', 'other',
+      ])->nullable();
+      $table->string('receipt_no', 50)->nullable();
+      $table->text('notes')->nullable();
+      $table->foreignId('paid_by')->nullable()
+            ->constrained('users')->nullOnDelete();
+      $table->timestamp('paid_at')->nullable();
+      $table->timestamps();
+
+      $table->index('schedule_id');
+  });
+
+
+================================================================================
+9. CONTROLLER LOGIC
+================================================================================
+
+NEW CONTROLLER: app/Http/Controllers/ChargePaymentController.php
+─────────────────────────────────────────────────────────────────
+
+  Methods:
+    store(Request $request)     — Record a charge payment
+    destroy(ChargePayment $cp)  — Delete a payment record
+
+  store() logic:
+    1. Validate: payment_plan_id, charge_type, amount, payment_method, paid_at
+    2. Find the payment plan
+    3. Calculate total charged for this type:
+         $totalCharged = $plan->{charge_type} (from plan or template)
+         If percentage: compute actual amount
+    4. Calculate total already paid:
+         $totalPaid = ChargePayment::where(payment_plan_id, charge_type)
+                       ->sum('amount')
+    5. If ($totalPaid + $thisAmount) > $totalCharged → reject (overpay)
+    6. Create ChargePayment record
+    7. Return back with success
+
+
+NEW CONTROLLER: app/Http/Controllers/InstallmentPaymentController.php
+─────────────────────────────────────────────────────────────────────
+
+  Methods:
+    store(Request $request)              — Record payment against an installment
+    destroy(InstallmentPayment $ip)      — Delete a payment record
+
+  store() logic:
+    1. Validate: schedule_id, amount, payment_method, paid_at
+    2. Find the schedule row
+    3. Calculate remaining: $schedule->amount - $schedule->amount_paid
+    4. If $thisAmount > $remaining → reject (overpay)
+    5. Create InstallmentPayment record
+    6. Update schedule:
+         amount_paid += thisAmount
+         status = (amount_paid >= amount) ? 'paid' : 'partial'
+    7. Return back with success
+
+
+NEW CONTROLLER: app/Http/Controllers/ScheduleController.php
+───────────────────────────────────────────────────────────
+
+  Methods:
+    generate(PropertyPaymentPlan $plan)  — Generate installment schedule
+
+  generate() logic:
+    1. Check if schedule already exists → skip or regenerate
+    2. For each installment attachment on the plan:
+         a. Call InstallmentPlanCalculator::calculate() with snapshot values
+         b. Calculate due dates starting from today/next month
+         c. Create installment_schedules rows for each schedule item
+    3. Return back with success
+
+
+MODIFIED: PropertyOwnerController::store()
+──────────────────────────────────────────
+  After assigning owner, optionally auto-generate schedule:
+    // Inside the DB::transaction, after setting owner:
+    if ($request->boolean('with_installment') && $request->filled('installment_attachment_id')) {
+        // Schedule will be generated when admin visits the payment page
+        // OR auto-generate here
+    }
+
+
+================================================================================
+10. UI / BLADE VIEWS
+================================================================================
+
+MODIFIED: payments-planning.blade.php
+──────────────────────────────────────
+
+  ADD NEW SECTIONS below the existing "Installment Plans" section:
+
+  A. CHARGES PAYMENT TRACKING
+     ─────────────────────────
+     For each charge in the plan, show a row:
+
+     ┌──────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+     │ Charge       │ Total    │ Paid     │ Remaining│ Status   │ Action   │
+     ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+     │ Booking Fee  │ 50,000   │ 50,000   │ 0        │ ● Paid   │          │
+     │ Dev Fee      │ 50,000   │ 0        │ 50,000   │ ○ Pending│ Record   │
+     │ Down Payment │ 200,000  │ 100,000  │ 100,000  │ ◐ Partial│ Record   │
+     │ Corner Prem. │ 20,000   │ 0        │ 20,000   │ ○ Pending│ Record   │
+     └──────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+     "Record" button opens a small modal:
+       - Amount (pre-filled with remaining)
+       - Payment Method (dropdown)
+       - Receipt No (optional)
+       - Paid At (date, defaults to today)
+       - Notes (optional)
+       - Submit
+
+  B. INSTALLMENT SCHEDULE TABLE
+     ──────────────────────────
+     Shows the persisted schedule:
+
+     ┌─────┬────────────┬──────────┬────────────┬──────────┬──────────┬──────────┐
+     │ #   │ Type       │ Amount   │ Due Date   │ Paid     │ Status   │ Action   │
+     ├─────┼────────────┼──────────┼────────────┼──────────┼──────────┼──────────┤
+     │ 1   │ Installment│ 25,000   │ 2026-10-01 │ 25,000   │ ● Paid   │          │
+     │ 2   │ Installment│ 25,000   │ 2026-11-01 │ 10,000   │ ◐ Partial│ Record   │
+     │ 3   │ Balloon #1 │100,000   │ 2026-12-01 │ 0        │ ○ Pending│ Record   │
+     │ 4   │ Installment│ 25,000   │ 2027-01-01 │ 0        │ ○ Overdue│ Record   │
+     └─────┴────────────┴──────────┴────────────┴──────────┴──────────┴──────────┘
+
+     "Record" button opens a small modal (same as charges).
+
+     Below the table, show payment history for selected row:
+       ┌────────────┬──────────┬────────────┬──────────┐
+       │ Date       │ Amount   │ Method     │ Receipt  │
+       ├────────────┼──────────┼────────────┼──────────┤
+       │ 2026-11-05 │ 10,000   │ Online     │ RCP-002  │
+       └────────────┴──────────┴────────────┴──────────┘
+
+  C. SUMMARY SIDEBAR (MODIFIED)
+     ────────────────────────────
+     Add to existing sidebar:
+
+     ┌─────────────────────────────────────┐
+     │       PAYMENT SUMMARY               │
+     ├─────────────────────────────────────┤
+     │ Total Plan Amount:     1,270,000    │
+     │                                     │
+     │ CHARGES:                            │
+     │   Total:         320,000            │
+     │   Paid:          150,000            │
+     │   Remaining:     170,000            │
+     │                                     │
+     │ INSTALLMENTS:                       │
+     │   Total:         950,000            │
+     │   Paid:          35,000             │
+     │   Remaining:     915,000            │
+     │   Overdue:       1 installment      │
+     │                                     │
+     │ ═══════════════════════════════════  │
+     │ GRAND TOTAL:                        │
+     │   Total:         1,270,000          │
+     │   Paid:          185,000            │
+     │   Remaining:     1,085,000          │
+     │                                     │
+     │ Next Due: 25,000 on 2026-11-01      │
+     └─────────────────────────────────────┘
+
+
+================================================================================
+11. SUMMARY DASHBOARD (OPTIONAL - FUTURE)
+================================================================================
+
+  A separate page showing ALL properties and their payment status:
+
+  ┌──────────────┬──────────────┬──────────┬──────────┬──────────┬──────────┐
+  │ Property     │ Owner        │ Total    │ Paid     │ Status   │ Overdue  │
+  ├──────────────┼──────────────┼──────────┼──────────┼──────────┼──────────┤
+  │ Plot #12     │ Ahmed Khan   │ 1,270,000│ 185,000  │ Active   │ 1        │
+  │ Plot #15     │ Sara Ali     │ 980,000  │ 980,000  │ Complete │ 0        │
+  │ Unit 3-B     │ Muhammad Ram │ 750,000  │ 200,000  │ Active   │ 3        │
+  └──────────────┴──────────────┴──────────┴──────────┴──────────┴──────────┘
+
+  Filter by: Society, Block, Status (all/paid/partial/overdue)
+
+
+================================================================================
+12. EDGE CASES & RULES
+================================================================================
+
+  RULE 1: OVERPAY PROTECTION
+  ───────────────────────────
+  Cannot pay more than the remaining amount for any charge or installment.
+  Validation: SUM(payments) + new_payment <= total_amount
+
+  RULE 2: PAYMENT ORDER
+  ──────────────────────
+  Charges and installments are independent.
+  A user can pay booking fee before installments start.
+  Installments have their own due dates regardless of charge payments.
+
+  RULE 3: PARTIAL PAYMENTS
+  ─────────────────────────
+  Allowed for both charges and installments.
+  Status logic:
+    paid:    SUM(payments) >= total_amount
+    partial: SUM(payments) > 0 AND SUM(payments) < total_amount
+    pending: SUM(payments) = 0 AND due_date >= today
+    overdue: SUM(payments) = 0 AND due_date < today
+
+  RULE 4: PAYMENT DELETION
+  ─────────────────────────
+  When a payment record is deleted:
+    - For charges: no cascade needed (status recalculated on query)
+    - For installments: update schedule.amount_paid and recalculate status
+
+  RULE 5: SCHEDULE REGENERATION
+  ──────────────────────────────
+  If the installment plan is modified (e.g., frequency changed):
+    - Existing schedules with payments CANNOT be deleted
+    - New schedules are appended
+    - Or: admin must clear payments first (with confirmation)
+
+  RULE 6: OWNER TRANSFER
+  ───────────────────────
+  When ownership changes (old owner removed, new owner assigned):
+    - Payment records are KEPT (they belong to the plan, not the owner)
+    - New owner sees full payment history
+    - Old owner's payment records remain linked via paid_by user
+
+  RULE 7: CURRENCY
+  ─────────────────
+  All amounts in DECIMAL(15,2) — supports up to 999,999,999,999.99
+  Currency is from property_payment_plans.listed_unit (e.g., PKR)
+
+
+================================================================================
+13. IMPLEMENTATION ORDER
+================================================================================
+
+  PHASE 1: DATABASE (do first)
+  ────────────────────────────
+  1. Create migration: charge_payments
+  2. Create migration: installment_schedules
+  3. Create migration: installment_payments
+  4. Run: php artisan migrate
+
+  PHASE 2: MODELS
+  ────────────────
+  5. Create ChargePayment model
+  6. Create InstallmentSchedule model
+  7. Create InstallmentPayment model
+  8. Add relationships to PropertyPaymentPlan model
+
+  PHASE 3: CONTROLLERS
+  ─────────────────────
+  9.  Create ChargePaymentController (store, destroy)
+  10. Create InstallmentPaymentController (store, destroy)
+  11. Create ScheduleController (generate)
+  12. Add routes for new controllers
+
+  PHASE 4: UI
+  ────────────
+  13. Add "Record Payment" modal to payments-planning.blade.php
+  14. Add charge payment tracking table
+  15. Add installment schedule table (persisted, not computed)
+  16. Modify summary sidebar to show payment totals
+  17. Add payment history view
+
+  PHASE 5: AUTO-GENERATION
+  ─────────────────────────
+  18. Auto-generate schedule when owner is assigned
+  19. Overdue detection (daily command or query-time check)
+
+  PHASE 6: POLISH
+  ────────────────
+  20. Receipt/download functionality
+  21. Payment receipt PDF
+  22. Dashboard with all properties overview
+  23. Filters (by society, block, status)
+
+
+================================================================================
+END OF PLAN
+================================================================================

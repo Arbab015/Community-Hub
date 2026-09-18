@@ -5,6 +5,7 @@
       @csrf
 
       <input type="hidden" name="block_uuid" id="listing_block_uuid">
+      <input type="hidden" name="block_uuids[]" id="listing_block_uuids">
 
       <div class="modal-header">
         <h5 class="modal-title">Apply Listing</h5>

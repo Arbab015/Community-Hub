@@ -36,7 +36,6 @@ class PropertyPaymentPlanController extends Controller
 
     public function store(Request $request)
     {
-        dd($request->all());
         $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'string',
@@ -53,8 +52,7 @@ class PropertyPaymentPlanController extends Controller
             return back()->with('error', 'Please select at least one payment or installment template.');
         }
 
-        // Ids may arrive as separate entries or comma-joined strings
-        // (e.g. societies page sends "uuid1,uuid2" in a single input).
+        // filter ids.
         $ids = collect($request->ids)
             ->flatMap(fn ($id) => explode(',', $id))
             ->map(fn ($id) => trim($id))
@@ -168,17 +166,17 @@ class PropertyPaymentPlanController extends Controller
      */
     private function upsertPaymentPlan($model, string $modelClass, ?int $paymentTemplateId, array $installmentTemplateIds, array $values = []): int
     {
+        $values = array_merge($this->listedPriceValues($model), $values);
+
         // Check if plan already exists
         $existingPlan = $model->paymentPlan()->first();
 
         if ($existingPlan) {
-            // Update existing plan
             $existingPlan->update(array_merge([
                 'payment_template_id' => $paymentTemplateId,
             ], $values));
             $plan = $existingPlan;
         } else {
-            // Create new plan
             $plan = $model->paymentPlan()->create(array_merge([
                 'uuid' => Str::uuid(),
                 'payment_template_id' => $paymentTemplateId,
@@ -279,7 +277,7 @@ class PropertyPaymentPlanController extends Controller
 
             $paymentPlan->update(array_merge([
                 'payment_template_id' => $paymentTemplateId,
-            ], $chargeValues));
+            ], $this->listedPriceValues($paymentPlan->planable), $chargeValues));
 
             return back()->with('success', 'Payment plan values updated.');
         } catch (\Exception $e) {
@@ -519,6 +517,20 @@ class PropertyPaymentPlanController extends Controller
     }
 
     /**
+     * Snapshots the property/unit's listed price + unit onto the plan so
+     * calculations survive the listing being removed later (e.g. owner assign).
+     */
+    private function listedPriceValues($model): array
+    {
+        $listing = $model->listing;
+
+        return [
+            'listed_price' => $listing?->price,
+            'listed_unit' => $listing?->unit ?? 'PKR',
+        ];
+    }
+
+    /**
      * Deletes the entire payment plan (and its installment attachments).
      */
     public function destroy(PropertyPaymentPlan $paymentPlan)
@@ -563,11 +575,6 @@ class PropertyPaymentPlanController extends Controller
         if ($request->filled('balloon_payment') && $request->filled('balloon_payment_frequency')) {
             if (! InstallmentPlanCalculator::balloonFrequencyValid($request->input('installment_frequency'), $request->input('balloon_payment_frequency'))) {
                 return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
-            }
-
-            $ipp = InstallmentPlanCalculator::installmentsPerYear($request->input('installment_frequency'));
-            if ((int) $request->input('number_of_installments') % $ipp !== 0) {
-                return back()->withErrors(['number_of_installments' => 'With a balloon payment the number of installments must be a whole multiple of '.$ipp.' ('.ucfirst($request->input('installment_frequency')).')'])->withInput();
             }
         }
 
@@ -744,6 +751,5 @@ class PropertyPaymentPlanController extends Controller
                 $query->whereIn('payment_template_id', $request->plan_ids);
             })->get();
 
-        dd($properties_with_templates);
     }
 }
