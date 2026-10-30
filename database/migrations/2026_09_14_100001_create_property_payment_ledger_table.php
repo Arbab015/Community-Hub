@@ -34,7 +34,7 @@ return new class extends Migration
                 'booking_fee',
                 'development_fee',
                 'down_payment',
-                'transfer_fee',
+                '',
                 'confirmation_fee',
                 'possession_fee',
                 'installment',

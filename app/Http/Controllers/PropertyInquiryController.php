@@ -27,8 +27,8 @@ class PropertyInquiryController extends Controller
             $query = PropertyListing::query()
                 ->with(['listable' => function ($morphTo) {
                     $morphTo->morphWith([
-                        Property::class => ['block.society', 'ownershipPaymentPlans.propertyOwner'],
-                        PropertyUnit::class => ['floor.property.block.society', 'ownershipPaymentPlans.propertyOwner'],
+                        Property::class => ['block.society', 'reservedPaymentPlans.propertyOwner'],
+                        PropertyUnit::class => ['floor.property.block.society', 'reservedPaymentPlans.propertyOwner'],
                     ]);
                 }])
                 ->withCount('inquiries')
@@ -84,8 +84,8 @@ class PropertyInquiryController extends Controller
 
                     $shortName = Str::limit($name, 55, '...');
 
-                    $soldOut = $listing->listable->ownershipPaymentPlans
-                        ->contains(fn ($plan) => $plan->propertyOwner?->end_date === null);
+                    $soldOut = $listing->listable->reservedPaymentPlans
+                        ->contains(fn ($plan) => $plan->propertyOwner?->isCurrent());
 
                     $soldBadge = $soldOut
                       ? ' <span class="badge bg-success"><i class="ti tabler-shopping-cart-x me-1"></i>Sold Out</span>'
@@ -219,8 +219,8 @@ class PropertyInquiryController extends Controller
         $ownerContext = $this->ownerContextForListing($listing);
 
         $isSoldOut = $listing->listable
-          && $listing->listable->ownershipPaymentPlans()
-              ->whereHas('propertyOwner', fn ($q) => $q->whereNull('end_date'))
+          && $listing->listable->reservedPaymentPlans()
+              ->whereHas('propertyOwner', fn ($q) => $q->active())
               ->latest('id')
               ->exists();
 
@@ -364,17 +364,18 @@ class PropertyInquiryController extends Controller
         $ownerContext = $this->ownerContextForListing($listing);
 
         // Current committed-plan snapshot for the listing's ownerable (if the
-        // open ownership has one). 'completed' means the sale is final.
-        $ownershipPlan = null;
+        // open reserved has one). 'completed' means the sale is final.
+        $reservedPlan = null;
         $isSoldOut = false;
-        $canUnlinkOwner = false;
+        $canCancelReservation = false;
         if ($listing?->listable) {
-            $ownershipPlan = $listing->listable->ownershipPaymentPlans()
-                ->whereHas('propertyOwner', fn ($q) => $q->whereNull('end_date'))
+            $reservedPlan = $listing->listable->reservedPaymentPlans()
+                ->whereHas('propertyOwner', fn ($q) => $q->active())
                 ->latest('id')
                 ->first();
-            $isSoldOut = $ownershipPlan !== null;
-            $canUnlinkOwner = $ownershipPlan !== null && $ownershipPlan->status !== 'completed';
+            $isSoldOut = $reservedPlan !== null;
+            $canCancelReservation = $reservedPlan !== null
+                && ! in_array($reservedPlan->status, ['completed', 'reversed', 'cancelled'], true);
         }
 
         $canClearInquiries = $inquiries !== null && $inquiries->isNotEmpty();
@@ -382,7 +383,7 @@ class PropertyInquiryController extends Controller
         return view('content.property_management.inquiries.show', compact(
             'listing', 'block', 'isOwner', 'property', 'unit', 'propertyName', 'user_type', 'society',
             'inquiries', 'memberInquiryIds', 'ownerContext',
-            'ownershipPlan', 'isSoldOut', 'canUnlinkOwner', 'canClearInquiries'
+            'reservedPlan', 'isSoldOut', 'canCancelReservation', 'canClearInquiries'
         ));
     }
 

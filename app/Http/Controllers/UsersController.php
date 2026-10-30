@@ -198,12 +198,12 @@ class UsersController extends Controller
           : new User;
         $section = $request->input('section');
         $allRules = [
-                'basic' => [
-                    'first_name' => 'required|string|max:255|min:2',
-                    'last_name' => 'nullable|string|max:255',
-                    'contact' => 'required|string|max:20',
-                    'picture' => 'nullable|image|max:5120',
-                ],
+            'basic' => [
+                'first_name' => 'required|string|max:255|min:2',
+                'last_name' => 'nullable|string|max:255',
+                'contact' => 'required|string|max:20',
+                'picture' => 'nullable|image|max:5120',
+            ],
             'security' => [
                 'password' => $uuid
                   ? 'nullable|string|min:8|confirmed'
@@ -220,6 +220,7 @@ class UsersController extends Controller
                 ],
                 'gender' => 'required|in:male,female,other',
                 'marital_status' => 'nullable|in:married,un-married',
+                'is_filer' => 'nullable|boolean',
                 'profession' => 'required|string|max:100',
                 'emergency_contact' => 'nullable|string|max:20',
                 'present_address' => 'nullable|string',

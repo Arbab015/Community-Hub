@@ -59,11 +59,11 @@
       $onetimeRows = $allFeeRows->where('note', 'Included')->values()->all();
 
       $premiumRows = $data['premium_rows'] ?? [];
-
       $additionalTotal = $data['excluded_total'];
       $onetimeTotal = $data['included_total'];
       $grossAmount = $data['gross_amount'];
-      $remainingAmount = $grossAmount + $additionalTotal - $onetimeTotal;
+      $totalOneTime = $additionalTotal + $onetimeTotal;
+      $remainingAmount = $grossAmount - $onetimeTotal;
       $finalAmount = $grossAmount + $additionalTotal;
 
       $installments = collect($data['installment_rows']);
@@ -100,6 +100,9 @@
           Category:
           <span class="badge {{ $data['is_commercial'] ? 'bg-label-success' : 'bg-label-primary' }}">
             {{ $data['is_commercial'] ? 'Commercial' : 'Non-Commercial' }}
+          </span>
+          <span class="badge {{ $data['is_constructed'] ? 'bg-label-dark' : 'bg-label-info' }}">
+            {{ $data['is_constructed'] ? 'Constructed' : 'Non-Constructed' }}
           </span>
           @if($blockPlan->min_size !== null || $blockPlan->max_size !== null)
             <span class="badge bg-label-secondary">
@@ -182,7 +185,7 @@
 
           @if(count($additionalRows))
             {{-- EXCLUDED CHARGES --}}
-            <span class="fw-semibold text-heading d-block mb-1">Excluded Charges <span class="text-muted fw-normal">(on top of gross)</span></span>
+            <span class="fw-semibold text-heading d-block mb-1">Excluded Charges <span class="text-muted fw-normal">(extra / billed on top of plan)</span></span>
             <div class="table-responsive border rounded mb-2">
               <table class="table m-0">
                 <thead>
@@ -260,7 +263,7 @@
           <span class="fw-bold text-dark">{{ number_format($remainingAmount, 2) }} {{ $data['listing_unit'] }}</span>
         </span>
         <span class="d-flex justify-content-between align-items-center ">
-          <span class="fw-bold text-heading">Final Amount</span>
+          <span class="fw-bold text-heading">Final Amount (Without Installments)</span>
           <span class="fw-bold text-dark">{{ number_format($finalAmount, 2) }} {{ $data['listing_unit'] }}</span>
         </span>
       </div>
@@ -274,7 +277,15 @@
     {{-- INSTALLMENT PLANS --}}
     @if(count($data['installment_rows']))
       <div class="plan-schedules-container">
-        @foreach($data['installment_rows'] as $plan)
+        @php
+          // Same ordering as the property/unit payment plan print: the plans
+          // with the most installments come first, shorter plans follow after.
+          $sortedPlans = collect($data['installment_rows'])
+              ->sortByDesc(fn($plan) => count($plan['schedule']))
+              ->values()
+              ->all();
+        @endphp
+        @foreach($sortedPlans as $plan)
           @php
             // Build the 3-column schedule: split the schedule into 3 equal chunks
             $schedule = collect($plan['schedule']);
@@ -367,12 +378,34 @@
 
             {{-- Total Payable (at the end of the whole schedule) --}}
             <div class="brief-card-total">
-              <span class="label">Total Payable</span>
+              <span class="label">Final Amount (With Installments)</span>
               <span
-                class="value">{{ number_format($data['gross_amount'] + $data['excluded_total'] + $plan['additional_amount'], 2) }} {{ $data['listing_unit'] }}</span>
+                class="value">{{ number_format($data['gross_amount'] + $plan['additional_amount'] + $data['excluded_total'], 2) }} {{ $data['listing_unit'] }}</span>
             </div>
           </div>
         @endforeach
+      </div>
+    @endif
+
+    {{-- OTHER FEATURE PREMIUMS NOTE (before the closing footer) --}}
+    @php
+      $notAppliedPremiums = collect($data['premium_options'] ?? [])
+          ->where('selected', false)
+          ->values()
+          ->all();
+    @endphp
+
+    @if(count($notAppliedPremiums))
+      <div class="mt-3 pt-2 border-top">
+        <p class="mb-1 fw-semibold text-heading">Other Feature Premiums (not included in this plan):</p>
+        @foreach($notAppliedPremiums as $prem)
+          <p class="text-heading mb-0">{{ $prem['label'] }} — {{ $prem['percent'] }}% of listed price
+            ({{ number_format($prem['amount'], 2) }} {{ $data['listing_unit'] }})</p>
+        @endforeach
+        <p class="text-muted mt-1 mb-0">Including these premiums will increase the Gross Amount along with all other
+          charges @if(count($data['installment_rows']))
+            and installments of this plan
+          @endif .</p>
       </div>
     @endif
 
@@ -388,7 +421,8 @@
 @push('scripts')
   <script>
     window.addEventListener('load', function() {
-      window.print();
+      // Inside the app's hidden print frame the parent triggers printing.
+      if (window.self === window.top) window.print();
     });
   </script>
 @endpush

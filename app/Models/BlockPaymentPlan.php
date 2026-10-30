@@ -11,6 +11,7 @@ class BlockPaymentPlan extends Model
     protected $casts = [
         'installment_template_ids' => 'array',
         'is_commercial' => 'boolean',
+        'is_constructed' => 'boolean',
         'apply_to_units' => 'boolean',
     ];
 

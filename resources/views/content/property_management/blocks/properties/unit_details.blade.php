@@ -8,6 +8,8 @@
   $unit_amenities = is_array($unit->amenities)
     ? $unit->amenities
     : json_decode($unit->amenities ?? '[]', true);
+  $unit_amenities = $unit_amenities ?? [];
+  $showSpecsModal = !$hasRooms && ($hasDimensions || count($unit_amenities) > 0);
 @endphp
 
 @section('vendor-style')
@@ -168,11 +170,13 @@
     </ul>
   </div>
 
+  {{-- ALL tab panes live inside ONE tab-content --}}
   <div class="tab-content mt-3 p-0 mt-5">
 
-    {{-- TAB 1: UNIT INFO --}}
+    {{-- TAB 1: UNIT INFO (left + right column are both inside this pane) --}}
     <div class="tab-pane fade show active" id="unit_info" role="tabpanel">
       <div class="row g-4">
+
         {{-- LEFT COLUMN --}}
         <div class="col-xl-4 col-lg-4 col-md-5">
           <div class="card mb-4 shadow-sm rounded-3">
@@ -210,14 +214,14 @@
                     class="rounded-3 px-3 py-2 mb-3 border {{ $unit->listing ? 'border-success border-opacity-50 bg-success bg-opacity-10' : 'border-dashed' }}">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                       <div class="d-flex align-items-center gap-2">
-                      <span
-                        class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 listing-status-icon {{ $unit->listing ? 'bg-success bg-opacity-25' : '' }}">
-                        <i
-                          class="ti {{ $unit->listing ? 'tabler-tag text-success' : 'tabler-tag-off listing-status-icon-i' }}"></i>
-                      </span>
+                        <span
+                          class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 listing-status-icon {{ $unit->listing ? 'bg-success bg-opacity-25' : '' }}">
+                          <i
+                            class="ti {{ $unit->listing ? 'tabler-tag text-success' : 'tabler-tag-off listing-status-icon-i' }}"></i>
+                        </span>
                         <span class="fw-semibold small {{ $unit->listing ? 'text-success' : 'text-primary' }}">
-                        {{ $unit->listing ? 'Listed' : 'Not Listed' }}
-                      </span>
+                          {{ $unit->listing ? 'Listed' : 'Not Listed' }}
+                        </span>
                       </div>
                       @if($unit->listing)
                         <a href="{{ route('listing.destroy', $unit->listing->uuid) }}" onclick="confirmDelete(event)"
@@ -256,9 +260,9 @@
               @else
                 <div class="mt-4 pt-4 border-top text-center">
                   <div class="avatar avatar-sm mb-2 mx-auto">
-                   <span class="avatar-initial rounded bg-label-primary">
-                   <i class="fa-regular fa-calendar"></i>
-                  </span>
+                    <span class="avatar-initial rounded bg-label-primary">
+                      <i class="fa-regular fa-calendar"></i>
+                    </span>
                   </div>
                   <small class="text-muted d-block">Created</small>
                   <h6 class="mb-0">{{ $unit->created_at->format('M d, Y') }}</h6>
@@ -279,7 +283,6 @@
                   <label class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 mb-0">
                     <i class="fa-solid fa-plus"></i> Add File
                     <input type="file" class="file_trigger" multiple hidden>
-
                   </label>
                   <form id="unit_add_files_form" method="POST" action="{{ route('unit.store') }}"
                         enctype="multipart/form-data" class="d-flex align-items-center gap-2 m-0">
@@ -307,8 +310,8 @@
                 </div>
                 <span data-url="{{ route('attachments.bulk_delete') }}" id="bulk_btn"
                       class="btn btn-xs btn-outline-danger waves-effect d-none bulk_delete_btn d-flex align-items-center gap-1 bulk_btn">
-              <i class="fa-solid fa-trash fa-sm"></i> Delete
-             </span>
+                  <i class="fa-solid fa-trash fa-sm"></i> Delete
+                </span>
               </div>
             @endif
             @php
@@ -373,7 +376,6 @@
               @endif
             </div>
           </div>
-
         </div>
 
         {{-- RIGHT COLUMN --}}
@@ -483,7 +485,6 @@
                       <small class="text-muted">{{ $unit->updated_at->diffForHumans() }}</small>
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
@@ -508,17 +509,16 @@
             <h5 class="fw-bold mb-0 d-flex align-items-center gap-2 flex-wrap">
               <span class="d-inline-block bg-primary rounded hr_bar"></span>Room Details
               <span class="badge bg-primary bg-opacity-10 text-primary fw-normal">
-            {{ $unit->rooms->count() }} {{ \Illuminate\Support\Str::plural('room', $unit->rooms->count()) }}
-          </span>
+                {{ $unit->rooms->count() }} {{ \Illuminate\Support\Str::plural('room', $unit->rooms->count()) }}
+              </span>
             </h5>
             @can('edit_property')
               <span class="cursor-pointer btn btn-primary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#room_modal"
                     data-floor-id="{{ $unit->floor_id }}" data-unit-id="{{ $unit->id }}">
-                    <i class="ti tabler-plus me-1"></i> Add Room
+                <i class="ti tabler-plus me-1"></i> Add Room
               </span>
             @endcan
-
           </div>
           <div class="room-grid">
             @foreach($unit->rooms as $room)
@@ -618,7 +618,7 @@
         </div>
 
       @else
-        {{-- Has dimensions or amenities — show specs + edit modal --}}
+        {{-- Has dimensions or amenities — show specs (edit modal is rendered below, outside the tabs) --}}
         <div class="card border-0 shadow-sm rounded-3 p-4">
           <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
             <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
@@ -628,8 +628,8 @@
               <span class="text-primary cursor-pointer" data-bs-toggle="modal"
                     data-bs-target="#edit_specs_modal"
                     title="Edit Specifications">
-            <i class="fa-solid fa-pen-to-square"></i>
-          </span>
+                <i class="fa-solid fa-pen-to-square"></i>
+              </span>
             @endcan
           </div>
 
@@ -640,11 +640,11 @@
                 @php $val = app()->make(\App\Http\Controllers\PropertiesController::class)->convertForUser($dim->size, $dim->unit); @endphp
                 <div class="col-sm-6 col-lg-4">
                   <div class="bg-light rounded-3 p-3 h-100 d-flex align-items-center gap-3">
-                <span
-                  class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
-                  style="width:36px;height:36px;">
-                  <i class="ti tabler-ruler-2 text-primary"></i>
-                </span>
+                    <span
+                      class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
+                      style="width:36px;height:36px;">
+                      <i class="ti tabler-ruler-2 text-primary"></i>
+                    </span>
                     <div>
                       <p class="text-muted fw-semibold mb-0 card_label">{{ ucfirst($dim->name) }}</p>
                       <p class="fw-bold text-dark mb-0">
@@ -659,11 +659,11 @@
             <div
               class="rounded-3 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2 bg-primary">
               <div class="d-flex align-items-center gap-3">
-            <span
-              class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center flex-shrink-0"
-              style="width:36px;height:36px;">
-              <i class="ti tabler-square text-white"></i>
-            </span>
+                <span
+                  class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center flex-shrink-0"
+                  style="width:36px;height:36px;">
+                  <i class="ti tabler-square text-white"></i>
+                </span>
                 <div>
                   <span class="d-block fw-semibold text-white">Total Area</span>
                   <small class="text-white text-opacity-75">Combined area of all dimensions</small>
@@ -689,11 +689,11 @@
               @foreach($amenities->whereIn('id', $unit_amenities) as $a)
                 <div class="col-sm-6 col-lg-4 col-xl-3">
                   <div class="bg-light rounded-3 p-2 px-3 d-flex align-items-center gap-2">
-                <span
-                  class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
-                  style="width:28px;height:28px;">
-                  <i class="ti tabler-check text-success" style="font-size:.8rem;"></i>
-                </span>
+                    <span
+                      class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
+                      style="width:28px;height:28px;">
+                      <i class="ti tabler-check text-success" style="font-size:.8rem;"></i>
+                    </span>
                     <span class="fw-semibold small text-dark">{{ ucwords($a->title) }}</span>
                   </div>
                 </div>
@@ -701,9 +701,34 @@
             </div>
           @endif
         </div>
+      @endif
+    </div>{{-- /#unit_specs --}}
+
+    {{-- TAB 4: PAYMENTS PLANNING --}}
+    <div class="tab-pane fade" id="unit_payment_planning" role="tabpanel">
+      @php
+        $ownershipPlan = $unit->reservedPaymentPlans()
+            ->whereHas('propertyOwner', fn ($q) => $q->active())
+            ->latest('id')
+            ->first();
+      @endphp
+      @if($ownershipPlan)
+        @include('components.property.reserved-payment-plans', ['property' => $unit])
+      @else
+        @include('components.property.payments-planning', ['property' => $unit])
+      @endif
     </div>
-    {{-- Edit Specifications Modal --}}
-    @can('edit_property')
+
+    {{-- TAB 5: PAYMENTS --}}
+    <div class="tab-pane fade" id="unit_payments" role="tabpanel">
+      @include('components.property.payments', ['property' => $unit])
+    </div>
+
+  </div>{{-- /.tab-content --}}
+
+  {{-- Edit Specifications Modal (outside the tab panes) --}}
+  @can('edit_property')
+    @if($showSpecsModal)
       <div class="modal fade" id="edit_specs_modal" tabindex="-1" aria-labelledby="editSpecsModalLabel"
            aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -754,18 +779,8 @@
           </div>
         </div>
       </div>
-    @endcan
     @endif
-
-
-    <div class="tab-pane fade" id="unit_payment_planning" role="tabpanel">
-      @include('components.property.payments-planning' , ['property' => $unit])
-    </div>
-    {{-- TAB 3: Payments --}}
-    <div class="tab-pane fade" id="unit_payments" role="tabpanel">
-      @include('components.property.payments', ['property' => $unit])
-    </div>
-  </div>
+  @endcan
 
   {{-- Edit Basic Unit Modal --}}
   @can('edit_property')
@@ -774,7 +789,7 @@
         <div class="modal-content">
 
           <div class="modal-header border-0 pb-0">
-            <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="editSpecsModalLabel">
+            <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="editBasicUnitModalLabel">
               <span class="d-inline-block bg-primary rounded " style="width:3px;height:18px;"></span>
               Edit Unit
             </h5>
@@ -889,16 +904,17 @@
       });
     }
 
-
     // Specs tab — unit-type choice
     document.getElementById('btn_unit_is_room')?.addEventListener('click', function() {
-      document.getElementById('specs_choice_screen').classList.add('d-none');
-      document.getElementById('specs_unit_form').classList.remove('d-none');
+      document.getElementById('specs_choice_screen')?.classList.add('d-none');
+      document.getElementById('specs_unit_form')?.classList.remove('d-none');
     });
 
     document.getElementById('btn_unit_has_rooms')?.addEventListener('click', function() {
-      document.getElementById('specs_choice_screen').classList.add('d-none');
-      document.getElementById('specs_rooms_section').classList.remove('d-none');
+      document.getElementById('specs_choice_screen')?.classList.add('d-none');
+      document.getElementById('specs_rooms_section')?.classList.remove('d-none');
     });
   </script>
+
+  @include('components.property._tab-activator')
 @endpush

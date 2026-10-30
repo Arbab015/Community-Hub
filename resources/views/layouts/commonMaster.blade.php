@@ -121,6 +121,15 @@
 @yield('layoutContent')
 <!--/ Layout Content -->
 
+{{--
+  The property search modal lives directly under the body: inside the navbar it
+  would be trapped in the stacking context of `.layout-navbar` (z-index 2) and
+  the bootstrap backdrop (z-index 1040) would cover the whole modal.
+--}}
+@auth
+  @include('_partials._modals.property_search')
+@endauth
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- Include Scripts -->
 {{-- intel cdn  --}}

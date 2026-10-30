@@ -10,6 +10,7 @@ use App\Models\InstallmentTemplate;
 use App\Models\PaymentTemplate;
 use App\Models\Property;
 use App\Models\Society;
+use App\Services\PropertyRangeService;
 use App\Support\BlockPaymentPlanPresenter;
 use Exception;
 use Illuminate\Database\QueryException;
@@ -53,7 +54,7 @@ class BlocksController extends Controller
                     </i>";
                     }
                     if ($login_user->can('payment_plan_print')) {
-                        $print = "<i class='fa-solid fa-print text-success cursor-pointer me-2 block_print_plan_btn'
+                        $print = "<i class='fa-solid fa-print text-success cursor-pointer me-2 print_plan_btn'
                         title='Print Payment Plan'
                         data-uuid='{$block->uuid}'
                         data-name='".e($block->name)."'>
@@ -264,6 +265,7 @@ class BlocksController extends Controller
                 'size' => $plan['size'],
                 'unit' => $plan['unit'],
                 'isCommercial' => $plan['isCommercial'],
+                'isConstructed' => $plan['isConstructed'],
                 'printedByName' => $printedByName,
                 'printedByRole' => $printedByRole,
             ]);
@@ -280,19 +282,21 @@ class BlocksController extends Controller
     {
         $request->validate([
             'type' => 'required|in:commercial,non_commercial',
+            'constructed' => 'required|in:0,1',
             'size' => 'required|numeric|min:0',
             'unit' => 'required|in:marla,square_yard',
         ]);
 
         $plan = [
             'isCommercial' => $request->input('type') === 'commercial',
+            'isConstructed' => (bool) $request->input('constructed'),
             'size' => (float) $request->input('size'),
             'unit' => $request->input('unit'),
             'features' => $this->parseFeatures($request->input('features')),
         ];
         $size = $plan['size'];
         $unit = $plan['unit'];
-        $typeLabel = $plan['isCommercial'] ? 'Commercial' : 'Non-Commercial';
+        $typeLabel = ($plan['isCommercial'] ? 'Commercial' : 'Non-Commercial').'/'.($plan['isConstructed'] ? 'Constructed' : 'Non-Constructed');
 
         try {
             $range = BlockPriceRange::where('block_id', $block->id)->where('price_unit', $unit)->get()
@@ -302,7 +306,10 @@ class BlocksController extends Controller
                 return $plan + ['ok' => false, 'message' => "Payment plan not available for this size ({$size} ".ucwords($unit).').'];
             }
 
-            $blockPlan = $block->blockPaymentPlans()->where('is_commercial', $plan['isCommercial'])->first();
+            $blockPlan = $block->blockPaymentPlans()
+                ->where('is_commercial', $plan['isCommercial'])
+                ->where('is_constructed', $plan['isConstructed'])
+                ->first();
             if (! $blockPlan || (! $blockPlan->payment_template_id && empty($blockPlan->installment_template_ids))) {
                 return $plan + ['ok' => false, 'message' => "No payment plan is configured for {$typeLabel} properties in this block yet."];
             }
@@ -310,7 +317,7 @@ class BlocksController extends Controller
             $inRange = ($blockPlan->min_size === null || $size >= (float) $blockPlan->min_size)
               && ($blockPlan->max_size === null || $size <= (float) $blockPlan->max_size);
             if (! $inRange) {
-                return $plan + ['ok' => false, 'message' => "The configured {$typeLabel} payment plan does not cover this size ({$size} ".ucwords($unit).').'];
+                return $plan + ['ok' => false, 'message' => "The configured payment plan ({$typeLabel}) does not cover this size ({$size} ".ucwords($unit).').'];
             }
 
             return $plan + ['ok' => true, 'message' => 'Plan available for this size.', 'range' => $range, 'blockPlan' => $blockPlan];
@@ -356,6 +363,7 @@ class BlocksController extends Controller
                     'max_size' => $plan->max_size,
                     'size_unit' => $plan->size_unit,
                     'is_commercial' => $plan->is_commercial,
+                    'is_constructed' => $plan->is_constructed,
                     'payment_template' => $plan->paymentTemplate ? [
                         'id' => $plan->paymentTemplate->id,
                         'name' => $plan->paymentTemplate->name,
@@ -379,33 +387,32 @@ class BlocksController extends Controller
     }
 
     /**
-     * Applies a commercial and/or non-commercial payment plan to every selected block.
+     * Applies a payment plan for a single category combo
+     * (commercial/non-commercial × constructed/non-constructed) to every selected block.
+     *
+     * The plan configuration is saved per block per category combo and then
+     * actually applied to the matching properties (and units when requested).
      */
-    public function applyBlockPlan(Request $request)
+    public function applyPaymentPlan(Request $request)
     {
+        //    dd($request->all());
         $request->validate([
             'block_ids' => 'required|array|min:1',
             'block_ids.*' => 'integer',
-            'commercial_enabled' => 'nullable|boolean',
-            'commercial_payment_template_id' => 'nullable|exists:payment_templates,id',
-            'commercial_installment_template_ids' => 'nullable|array',
-            'commercial_installment_template_ids.*' => 'exists:installment_templates,id',
-            'commercial_size_range' => 'nullable|string',
-            'commercial_size_unit' => 'nullable|in:marla,square_yard',
-            'commercial_apply_to_units' => 'nullable|boolean',
-            'non_commercial_enabled' => 'nullable|boolean',
-            'non_commercial_payment_template_id' => 'nullable|exists:payment_templates,id',
-            'non_commercial_installment_template_ids' => 'nullable|array',
-            'non_commercial_installment_template_ids.*' => 'exists:installment_templates,id',
-            'non_commercial_size_range' => 'nullable|string',
-            'non_commercial_size_unit' => 'nullable|in:marla,square_yard',
-            'non_commercial_apply_to_units' => 'nullable|boolean',
+            'commercial' => 'required|in:0,1',
+            'constructed' => 'required|in:0,1',
+            'payment_template_id' => 'nullable|exists:payment_templates,id',
+            'installment_template_ids' => 'nullable|array',
+            'installment_template_ids.*' => 'exists:installment_templates,id',
+            'size_range' => 'nullable|string',
+            'size_unit' => 'nullable|in:marla,square_yard',
+            'apply_to_units' => 'nullable|boolean',
         ]);
 
-        if (! $request->boolean('commercial_enabled') && ! $request->boolean('non_commercial_enabled')) {
-            return back()->with('error', 'Please enable at least one section (Commercial or Non-Commercial).');
-        }
+        $isCommercial = (bool) $request->input('commercial');
+        $isConstructed = (bool) $request->input('constructed');
 
+        $service = app(PropertyRangeService::class);
         try {
             DB::beginTransaction();
 
@@ -419,26 +426,33 @@ class BlocksController extends Controller
 
                     continue;
                 }
+                $blockPlanData = $this->buildBlockPlanData(
+                    $block,
+                    $isCommercial,
+                    $isConstructed,
+                    $request->input('payment_template_id'),
+                    $request->input('installment_template_ids', []),
+                    $request->input('size_range'),
+                    $request->input('size_unit', 'marla'),
+                    $request->boolean('apply_to_units')
+                );
+                logger($blockPlanData);
+                $blockApplied = 0;
 
-                foreach (['commercial' => true, 'non_commercial' => false] as $section => $isCommercial) {
-                    if (! $request->boolean("{$section}_enabled")) {
-                        continue;
-                    }
-
-                    $applied += $this->applyBlockPlanForType(
-                        $block,
-                        $isCommercial,
-                        $request->input("{$section}_payment_template_id"),
-                        $request->input("{$section}_installment_template_ids", []),
-                        $request->input("{$section}_size_range"),
-                        $request->input("{$section}_size_unit", 'marla'),
-                        $request->boolean("{$section}_apply_to_units")
-                    );
+                if ($blockPlanData['payment_template_id'] !== null || ! empty($blockPlanData['installment_template_ids'])) {
+                    $blockApplied = $service->applyBlockPaymentPlan($block, new BlockPaymentPlan($blockPlanData));
                 }
+
+                if ($blockApplied > 0) {
+                    $this->saveBlockPaymentPlan($block, $blockPlanData);
+                }
+
+                $applied += $blockApplied;
             }
-
             DB::commit();
-
+            if ($applied === 0) {
+                return back()->with('error', 'No matching properties found for the selected category and size range.');
+            }
             $msg = "Payment plan applied to {$applied} record(s) across ".count($request->block_ids).' block(s).';
             if (! empty($skippedBlocks)) {
                 $msg .= ' Skipped '.count($skippedBlocks).' invalid block(s).';
@@ -454,11 +468,12 @@ class BlocksController extends Controller
         }
     }
 
-    private function applyBlockPlanForType(Block $block, bool $isCommercial, ?int $paymentTemplateId, array $installmentTemplateIds, ?string $sizeRange, string $sizeUnit, bool $applyToUnits): int
+    private function buildBlockPlanData(Block $block, bool $isCommercial, bool $isConstructed, ?int $paymentTemplateId, array $installmentTemplateIds, ?string $sizeRange, string $sizeUnit, bool $applyToUnits): array
     {
         $planData = [
             'block_id' => $block->id,
             'is_commercial' => $isCommercial,
+            'is_constructed' => $isConstructed,
             'payment_template_id' => $paymentTemplateId,
             'installment_template_ids' => $installmentTemplateIds,
             'size_unit' => $sizeUnit,
@@ -471,12 +486,19 @@ class BlocksController extends Controller
             [$planData['min_size'], $planData['max_size']] = $this->parseSizeRange($sizeRange);
         }
 
+        return $planData;
+    }
+
+    /**
+     * Persists the block payment-plan configuration for a category combo. Called
+     * only after the plan has been applied to at least one property.
+     */
+    private function saveBlockPaymentPlan(Block $block, array $planData): void
+    {
         BlockPaymentPlan::updateOrCreate(
-            ['block_id' => $block->id, 'is_commercial' => $isCommercial],
+            ['block_id' => $block->id, 'is_commercial' => $planData['is_commercial'], 'is_constructed' => $planData['is_constructed']],
             $planData
         );
-
-        return 1;
     }
 
     /**

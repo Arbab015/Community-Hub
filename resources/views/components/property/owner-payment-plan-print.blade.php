@@ -133,7 +133,7 @@
         <div class="mb-2 one-time-charges">
           @if(count($additionalRows))
             <span class="fw-semibold text-heading d-block mb-1 mt-1">One Time Excluded Charges <span
-                class="text-muted fw-normal">(on top of gross)</span></span>
+                class="text-muted fw-normal">(Extra / On Top Of Gross)</span></span>
             <div class="table-responsive border rounded mb-2">
               <table class="table m-0">
                 <thead>
@@ -166,7 +166,7 @@
           @endif
 
           <span class="fw-semibold text-heading d-block mb-2 mt-1">One Time Included Charges <span
-              class="text-muted fw-normal">(in gross)</span></span>
+              class="text-muted fw-normal">(In Gross)</span></span>
           <div class="table-responsive border rounded">
             <table class="table m-0">
               <thead>
@@ -183,7 +183,8 @@
                   <td class="text-nowrap text-heading">{{ $row['label'] }}</td>
                   <td class="text-nowrap">Included <span class="text-muted">({{ $row['detail'] }})</span></td>
                   <td class="text-nowrap">{{ $row['detail'] }}</td>
-                  <td class="text-end fw-semibold">{{ number_format($row['amount'], 2) }} {{ $data['listing_unit'] }}</td>
+                  <td
+                    class="text-end fw-semibold">{{ number_format($row['amount'], 2) }} {{ $data['listing_unit'] }}</td>
                 </tr>
               @empty
                 <tr>
@@ -193,7 +194,8 @@
               @if(count($onetimeRows) > 0)
                 <tr class="table-light fw-bold">
                   <td colspan="3" class="text-heading">Total Included Charges</td>
-                  <td class="text-end text-heading">{{ number_format($onetimeTotal, 2) }} {{ $data['listing_unit'] }}</td>
+                  <td
+                    class="text-end text-heading">{{ number_format($onetimeTotal, 2) }} {{ $data['listing_unit'] }}</td>
                 </tr>
               @endif
               </tbody>
@@ -243,30 +245,30 @@
         }
       @endphp
 
-        @foreach($pages as $pageIndex => $plansOnPage)
-          <div class="installment-page {{ $pageIndex === 0 ? 'first' : 'mt-5' }}">
-            <h6 class="mb-2 fw-semibold installment-heading">
-              {{ $pageIndex === 0 ? 'Installment Details' : 'Installment Details (Continued)' }}
-            </h6>
-            @foreach($plansOnPage as $plan)
-              @php
-                $schedule = collect($plan['schedule']);
-                $chunkSize = max(1, (int) ceil($schedule->count() / 3));
-                $chunks = $schedule->chunk($chunkSize);
-              @endphp
-              <div class="brief-card border rounded-3 overflow-hidden mb-4">
-                <div class="d-flex align-items-center justify-content-between gap-2 px-3 py-2 bg-primary bg-opacity-10">
+      @foreach($pages as $pageIndex => $plansOnPage)
+        <div class="installment-page {{ $pageIndex === 0 ? 'first' : 'mt-5' }}">
+          <h6 class="mb-2 fw-semibold installment-heading">
+            {{ $pageIndex === 0 ? 'Installment Details' : 'Installment Details (Continued)' }}
+          </h6>
+          @foreach($plansOnPage as $plan)
+            @php
+              $schedule = collect($plan['schedule']);
+              $chunkSize = max(1, (int) ceil($schedule->count() / 3));
+              $chunks = $schedule->chunk($chunkSize);
+            @endphp
+            <div class="brief-card border rounded-3 overflow-hidden mb-4">
+              <div class="d-flex align-items-center justify-content-between gap-2 px-3 py-2 bg-primary bg-opacity-10">
                   <span class="fw-semibold text-primary">
                     <i class="ti tabler-calendar-stats me-1"></i>{{ ucwords($plan['name']) }}
                   </span>
-                  <span class="badge bg-label-primary flex-shrink-0">
+                <span class="badge bg-label-primary flex-shrink-0">
                     {{ $plan['num'] }} {{ $plan['num'] > 1 ? 'Installments' : 'Installment' }}
                   </span>
-                </div>
+              </div>
 
-                <div class="brief-card-subtitle text-muted px-3 pt-2 mb-0">
+              <div class="brief-card-subtitle text-muted px-3 pt-2 mb-0">
                   <span>
-                    {{ $plan['num'] }} installments ({{ $plan['frequency'] }})
+                    {{ $plan['num'] }} Installments ({{ ucfirst($plan['frequency']) }})
                     @if($plan['balloon_count'])
                       · {{ $plan['balloon_count'] }} balloon{{ $plan['balloon_count'] > 1 ? 's' : '' }}
                       @if($plan['balloon_frequency'])
@@ -275,77 +277,77 @@
                     @endif
                   </span>
 
-                  @if($plan['additional_amount'] > 0)
-                    <span class="brief-card-extra">Extra in case of Installment:
+                @if($plan['additional_amount'] > 0)
+                  <span class="brief-card-extra">Extra in case of Installment:
                       <span
                         class="fw-semibold">{{ number_format($plan['additional_amount'], 2) }} {{ $data['listing_unit'] }}</span>
                     </span>
-                  @endif
-                </div>
+                @endif
+              </div>
 
-                <div class="plan-sub-items px-3">
-                  @if($plan['balloon'] > 0)
-                    <div class="plan-sub-item text-muted">
-                      <i class="ti tabler-corner-down-right"></i>
-                      <span>Total Balloon: {{ number_format($plan['balloon'], 2) }} {{ $data['listing_unit'] }}</span>
-                    </div>
-                  @endif
+              <div class="plan-sub-items px-3">
+                @if($plan['balloon'] > 0)
                   <div class="plan-sub-item text-muted">
                     <i class="ti tabler-corner-down-right"></i>
-                    <span>Total Installment: {{ number_format($plan['per_installment'] * $plan['normal_count'], 2) }} {{ $data['listing_unit'] }}</span>
+                    <span>Total Balloon: {{ number_format($plan['balloon'], 2) }} {{ $data['listing_unit'] }}</span>
                   </div>
-                </div>
-
-                <div class="px-3 py-2">
-                  <div class="row g-2">
-                    @foreach($chunks as $chunk)
-                      <div class="col-md-4">
-                        <table class="table table-sm mb-0">
-                          <thead class="table-light">
-                          <tr>
-                            <th class="ps-3 col-seq-sm">#</th>
-                            <th class="align-middle">Type</th>
-                            <th class="align-middle text-end">Amount</th>
-                            <th class="align-middle text-end">Cumulative</th>
-                          </tr>
-                          </thead>
-                          <tbody>
-                          @foreach($chunk as $inst)
-                            <tr class="{{ $inst['type'] === 'balloon' ? 'bg-label-primary' : '' }}">
-                              <td class="ps-3">{{ $inst['no'] }}</td>
-                              <td class="align-middle">
-                                @if($inst['type'] === 'balloon')
-                                  Balloon {{ $inst['balloon_no'] }}
-                                @else
-                                  Installment {{ $inst['inst_no'] }}
-                                @endif
-                              </td>
-                              <td class="align-middle text-end">{{ number_format($inst['amount'], 0) }}</td>
-                              <td class="align-middle text-end">{{ number_format($inst['cumulative'], 0) }}</td>
-                            </tr>
-                          @endforeach
-                          </tbody>
-                        </table>
-                      </div>
-                    @endforeach
-                  </div>
-                </div>
-
-                <div class="brief-card-total">
-                  <span class="label">Total Payable</span>
-                  <span class="value">{{ number_format($data['final_price'], 2) }} {{ $data['listing_unit'] }}</span>
+                @endif
+                <div class="plan-sub-item text-muted">
+                  <i class="ti tabler-corner-down-right"></i>
+                  <span>Total Installment: {{ number_format($plan['per_installment'] * $plan['normal_count'], 2) }} {{ $data['listing_unit'] }}</span>
                 </div>
               </div>
-            @endforeach
-          </div>
-        @endforeach
-      @endif
+
+              <div class="px-3 py-2">
+                <div class="row g-2">
+                  @foreach($chunks as $chunk)
+                    <div class="col-md-4">
+                      <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                        <tr>
+                          <th class="ps-3 col-seq-sm">#</th>
+                          <th class="align-middle">Type</th>
+                          <th class="align-middle text-end">Amount</th>
+                          <th class="align-middle text-end">Cumulative</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($chunk as $inst)
+                          <tr class="{{ $inst['type'] === 'balloon' ? 'bg-label-primary' : '' }}">
+                            <td class="ps-3">{{ $inst['no'] }}</td>
+                            <td class="align-middle">
+                              @if($inst['type'] === 'balloon')
+                                Balloon {{ $inst['balloon_no'] }}
+                              @else
+                                Installment {{ $inst['inst_no'] }}
+                              @endif
+                            </td>
+                            <td class="align-middle text-end">{{ number_format($inst['amount'], 0) }}</td>
+                            <td class="align-middle text-end">{{ number_format($inst['cumulative'], 0) }}</td>
+                          </tr>
+                        @endforeach
+                        </tbody>
+                      </table>
+                    </div>
+                  @endforeach
+                </div>
+              </div>
+
+              <div class="brief-card-total">
+                <span class="label">Final Amount</span>
+                <span class="value">{{ number_format($data['final_price'], 2) }} {{ $data['listing_unit'] }}</span>
+              </div>
+            </div>
+          @endforeach
+        </div>
+      @endforeach
+    @endif
 
     {{-- NOTE / FOOTER --}}
     <div class="mt-4 pt-2 border-top">
       <p class="mb-0">Thank you for choosing us.</p>
       <p class="mb-0 text-muted"><span class="fw-medium text-heading">Note:</span> This is the committed payment plan
-        for the owner of the above property/unit and was issued at the time of ownership assignment.</p>
+        for the owner of the above property/unit and was issued at the time of the ownership reservation.</p>
     </div>
   </div>
 @endsection
@@ -353,7 +355,8 @@
 @push('scripts')
   <script>
     window.addEventListener('load', function() {
-      window.print();
+      // Inside the app's hidden print frame the parent triggers printing.
+      if (window.self === window.top) window.print();
     });
   </script>
 @endpush

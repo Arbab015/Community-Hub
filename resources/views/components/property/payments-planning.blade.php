@@ -1,875 +1,477 @@
 @php
-  $isUnit = $property instanceof \App\Models\PropertyUnit;
-  $entityLabel = $isUnit ? 'Unit' : 'Property';
-  $planableType = $isUnit ? 'unit' : 'property';
+  $paymentPlanStructure = app(\App\Services\Property\PaymentPlanStructureService::class)->build($property);
+  extract($paymentPlanStructure, EXTR_OVERWRITE);
 
-  // Owner-creation/link context for this property/unit (reuses create_member_owner modal).
-  $ownerableType = $property instanceof \App\Models\PropertyUnit ? 'App\\Models\\PropertyUnit' : 'App\\Models\\Property';
-  $ownerableId = $property->id;
-  $propertySocietyId = $isUnit
-      ? optional($property->floor?->property?->block)->society_id
-      : optional($property->block)->society_id;
-  $loginUser = auth()->user();
-  $loginScope = $loginUser ? \App\Helpers\SocietyAccessResolver::resolver($loginUser) : ['ownedSocietyIds' => collect()];
-  $ownedSocietyIds = $loginScope['ownedSocietyIds'] ?? collect();
-  $memberSocieties = $ownedSocietyIds->count()
-      ? \App\Models\Society::whereIn('id', $ownedSocietyIds)->get(['id', 'name'])
-      : collect();
-  $currentOwner = $property->owner;
-  $societyMembers = $propertySocietyId
-      ? \App\Models\Society::find($propertySocietyId)?->members()->with('attachment')->get()
-      : collect();
+  $feeValue = fn ($key) => $feeState[$key]['value'] ?? null;
+  $feeIsPer = fn ($key) => ! empty($feeState[$key]['is_per']);
+  $feeIsSurplus = fn ($key) => ! empty($feeState[$key]['surplus']);
 
-  // The committed-plan snapshot for the current (open) ownership.
-  $ownershipPlan = $property->ownershipPaymentPlans()
-      ->whereHas('propertyOwner', fn ($q) => $q->whereNull('end_date'))
-      ->latest('id')
-      ->first();
-  $isSoldOut = $ownershipPlan && $ownershipPlan->status === 'completed';
-  $canUnlinkOwner = $ownershipPlan && $ownershipPlan->status !== 'completed';
-
-  $plan = $property->paymentPlan;
-  $paymentTemplate = $plan?->paymentTemplate;
-
-  $listingPrice = $plan?->listed_price ?? optional($property->listing)->price ?? 0;
-  $listingUnit = $plan?->listed_unit ?? optional($property->listing)->unit ?? 'PKR';
-
-  $paymentTemplateOptions = $paymentsPlans ?? collect();
-
-  // Templates matching this property's category...
-  $allInstallmentTemplates = collect($installmentTemplates ?? collect())
-      ->filter(fn ($template) => (bool) $template->is_commercial === (($isUnit
-          ? optional($property->floor?->property)->category
-          : optional($property)->category) === 'commercial'))
-      ->values();
-
-  // ...minus the ones already attached to this payment plan.
-  $attachedTemplateIds = collect($plan?->installmentAttachments ?? [])
-      ->pluck('installment_template_id')
-      ->filter()
-      ->all();
-
-  $installmentTemplateOptions = $allInstallmentTemplates
-      ->reject(fn ($template) => in_array($template->id, $attachedTemplateIds))
-      ->values();
-
-  $feeKeys = [
-      ['key' => 'booking_fee',      'label' => 'Booking Fee',      'icon' => 'ti tabler-key'],
-      ['key' => 'development_fee',  'label' => 'Development Fee',  'icon' => 'ti tabler-building-community'],
-      ['key' => 'down_payment',     'label' => 'Down Payment',     'icon' => 'ti tabler-cash-banknote'],
-      ['key' => 'transfer_fee',     'label' => 'Transfer Fee',     'icon' => 'ti tabler-transfer-in'],
-      ['key' => 'confirmation_fee', 'label' => 'Confirmation Fee', 'icon' => 'ti tabler-file-check'],
-      ['key' => 'possession_fee',   'label' => 'Possession Fee',   'icon' => 'ti tabler-home-check'],
-  ];
-
-  $premiumKeys = [
-      ['key' => 'corner_premium',           'label' => 'Corner Premium',          'icon' => 'ti tabler-corner-down-right-double'],
-      ['key' => 'park_facing_premium',      'label' => 'Park Facing Premium',     'icon' => 'ti tabler-trees'],
-      ['key' => 'main_boulevard_premium',   'label' => 'Main Boulevard Premium',  'icon' => 'ti tabler-road'],
-  ];
-
-  $surplusKeys = ['development_fee', 'transfer_fee', 'possession_fee'];
-  $feeValue = fn ($key) => $plan?->{$key} ?? $paymentTemplate?->{$key};
-  $feeIsPer = fn ($key) => (bool) ($plan?->{$key} !== null
-      ? $plan->{$key.'_in_per'}
-      : ($paymentTemplate?->{$key.'_in_per'} ?? false));
-  $feeIsSurplus = fn ($key) => ! in_array($key, $surplusKeys)
-      ? false
-      : (bool) ($plan?->{$key} !== null
-          ? $plan->{$key.'_surplus'}
-          : ($paymentTemplate?->{$key.'_surplus'} ?? false));
-
-  // ── Step 1: Compute premiums (Premiums) — % of listed price ──
-  $premiumFeatureFlags = [
-      'corner_premium'         => 'is_corner',
-      'park_facing_premium'    => 'is_park_facing',
-      'main_boulevard_premium' => 'is_main_boulevard_facing',
-  ];
-  $premiumSource = $isUnit ? ($property->floor?->property ?? null) : $property;
-
-  $premiumCharges = [];
-  $premiumsTotal = 0;
-
-  foreach ($premiumKeys as $pk) {
-      $featureField = $premiumFeatureFlags[$pk['key']] ?? null;
-      if ($featureField && ! (bool) ($premiumSource->{$featureField} ?? false)) {
-          continue;
-      }
-      $raw = (float) ($feeValue($pk['key']) ?? 0);
-      if ($raw <= 0) continue;
-      $amount = $listingPrice * $raw / 100;
-      $premiumCharges[] = $pk + ['raw' => $raw, 'amount' => $amount];
-      $premiumsTotal += $amount;
-  }
-
-  // ── Step 2: Gross Amount = Listed + Premiums ──
-  $grossAmount = $listingPrice + $premiumsTotal;
-
-  // ── Step 3: Template fees — excluded (% of gross), included (% of gross+excluded) ──
-  $charges = [];
-  $includedCharges = [];
-  $excludedCharges = [];
-  $includedTotal = 0;
-  $excludedTotal = 0;
-
-  foreach ($feeKeys as $fk) {
-      $raw = (float) ($feeValue($fk['key']) ?? 0);
-      if ($raw <= 0) continue;
-      $isPer = $feeIsPer($fk['key']);
-      $surplus = $feeIsSurplus($fk['key']);
-      if (! $surplus) continue;
-
-      $amount = $isPer ? $grossAmount * $raw / 100 : $raw;
-      $item = $fk + ['raw' => $raw, 'amount' => $amount, 'is_per' => $isPer, 'surplus' => true];
-      $charges[] = $item;
-      $excludedCharges[] = $item;
-      $excludedTotal += $amount;
-  }
-
-  $includedBase = $grossAmount + $excludedTotal;
-  foreach ($feeKeys as $fk) {
-      $raw = (float) ($feeValue($fk['key']) ?? 0);
-      if ($raw <= 0) continue;
-      $isPer = $feeIsPer($fk['key']);
-      $surplus = $feeIsSurplus($fk['key']);
-      if ($surplus) continue;
-
-      $amount = $isPer ? $includedBase * $raw / 100 : $raw;
-      $item = $fk + ['raw' => $raw, 'amount' => $amount, 'is_per' => $isPer, 'surplus' => false];
-      $charges[] = $item;
-      $includedCharges[] = $item;
-      $includedTotal += $amount;
-  }
-
-  // ── Installment attachments via InstallmentPlanCalculator ──
-  $attachments = $plan?->installmentAttachments ?? collect();
-
-  $attValue = function ($att, $field) {
-      $value = $att->{$field} ?? null;
-      if ($value !== null) return $value;
-      return $att->installmentTemplate?->{$field} ?? null;
-  };
-  $attName = fn ($att) => (($att->name ?? '') ?: '') ?: ($att->installmentTemplate?->name ?: 'Installment Plan');
-
-  $installmentPlans = [];
-  foreach ($attachments as $idx => $att) {
-      $num = (int) $attValue($att, 'number_of_installments');
-      $frequency = $attValue($att, 'installment_frequency');
-
-      $addPer = (bool) $attValue($att, 'additional_installment_amount_in_per');
-      $addRaw = (float) ($attValue($att, 'additional_installment_amount') ?? 0);
-      $addAmount = $addPer ? $grossAmount * $addRaw / 100 : $addRaw;
-
-      $balloonPer = (bool) $attValue($att, 'balloon_payment_in_per');
-      $balloonRaw = (float) ($attValue($att, 'balloon_payment') ?? 0);
-      $balloonFrequency = $attValue($att, 'balloon_payment_frequency');
-
-      $calc = \App\Support\InstallmentPlanCalculator::calculate([
-          'listing_price' => $grossAmount,
-          'included_charges_total' => $includedTotal,
-          'excluded_charges_total' => $excludedTotal,
-          'additional_amount' => $addAmount,
-          'number_of_installments' => $num,
-          'installment_frequency' => $frequency,
-          'balloon_payment' => $balloonRaw,
-          'balloon_payment_in_per' => $balloonPer,
-          'balloon_payment_frequency' => $balloonFrequency,
-      ]);
-
-      $installmentPlans[] = [
-          'id'                     => $att->id,
-          'att'                    => $att,
-          'name'                   => $attName($att),
-          'from_template'          => $att->installment_template_id !== null,
-          'template_name'          => $att->installmentTemplate?->name,
-          'sequence'               => $idx + 1,
-          'number_of_installments' => $num,
-          'installment_frequency'  => $frequency,
-          'add_amount'             => $addAmount,
-          'add_raw'                => $addRaw,
-          'add_in_per'             => $addPer,
-          'balloon_amount'         => $calc['total_balloon'],
-          'balloon_raw'            => $balloonRaw,
-          'balloon_in_per'         => $balloonPer,
-          'balloon_frequency'      => $balloonFrequency,
-          'balloon_count'          => $calc['balloon_count'],
-          'per_balloon'            => $calc['per_balloon'],
-          'normal_count'           => $calc['normal_count'],
-          'grand_total'            => $calc['grand_total'],
-          'installment_remaining'  => $calc['installment_remaining'],
-          'per_installment'        => $calc['per_installment'],
-          'schedule'               => $calc['schedule'],
-          'total_years'            => $calc['total_years'],
-          'edit_payload'           => json_encode([
-              'name' => $attName($att),
-              'number_of_installments' => $num,
-              'installment_frequency' => $frequency,
-              'additional_installment_amount' => $addRaw,
-              'additional_installment_amount_in_per' => (int) $addPer,
-              'balloon_payment' => $balloonRaw,
-              'balloon_payment_in_per' => (int) $balloonPer,
-              'balloon_payment_frequency' => $balloonFrequency,
-          ]),
-      ];
-  }
-
-  $defaultPlan = $installmentPlans[0] ?? null;
-
-  // ── Summary calculations ──
-  $totalOneTime = $excludedTotal + $includedTotal;
-  $remainingAmount = $grossAmount + $excludedTotal - $includedTotal;
-  $extraInstallment = $defaultPlan ? $defaultPlan['add_amount'] : 0;
-  $summaryPerBalloon = $defaultPlan ? $defaultPlan['per_balloon'] : 0;
-  $summaryPerInstallment = $defaultPlan ? $defaultPlan['per_installment'] : 0;
-
+  $hasActiveOwnership = (bool) ($ownershipPlan ?? null);
 @endphp
 
-@if($ownershipPlan && $ownershipPlan->status !== 'completed')
-  @include('components.property.ownership-payment-plans', ['property' => $property])
-@else
-  <div class="planner">
-    <div class="row g-4">
+<div class="planner">
+  <div class="row g-4">
 
-      {{-- Main column --}}
-      <div class="col-lg-8 order-2 order-lg-1">
+    {{-- Main column --}}
+    <div class="col-lg-8 order-2 order-lg-1">
 
-        {{-- Owner / Member Section --}}
+      {{-- Owner / Member Section --}}
 
-        @if($currentOwner || $property->paymentPlan)
-          <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
-              <div class="d-flex align-items-center gap-2">
-                <i class="ti tabler-user text-primary fs-5"></i>
-                <h5 class="fw-bold mb-0">Owner / Member</h5>
-              </div>
-              @if($ownershipPlan)
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <a href="{{ route('property_owners.plan.print', $ownershipPlan) }}?mode=brief" target="_blank"
-                     class="btn btn-sm btn-outline-primary" title="Print the committed payment plan for this owner">
-                    <i class="ti tabler-printer me-1"></i> Print Owner Plan
-                  </a>
-                </div>
-              @endif
-            </div>
-
-            @if($currentOwner)
-              <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div class="d-flex align-items-center gap-2">
-                  <i class="ti tabler-user-check"></i>
-                  <span><b>Current Owner:</b> {{ $currentOwner->first_name }} {{ $currentOwner->last_name }} ({{ $currentOwner->email }})</span>
-                </div>
-                @if($canUnlinkOwner && Auth()->user()->can('property_assign_owner'))
-                  <form action="{{ route('property_owners.unlink') }}" method="POST"
-                        onsubmit="return confirmDelete(event, null)">
-                    @csrf
-                    @method('DELETE')
-                    <input type="hidden" name="ownerable_type" value="{{ $ownerableType }}">
-                    <input type="hidden" name="ownerable_id" value="{{ $ownerableId }}">
-                    <button type="submit" class="btn btn-sm btn-outline-danger"
-                            title="End this ownership and relist for sale">
-                      <i class="ti tabler-user-off me-1"></i> Unlink Owner
-                    </button>
-                  </form>
-                @endif
-              </div>
-            @elseif(Auth()->user()->can('property_assign_owner'))
-              <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3">
-                <i class="ti tabler-info-circle text-muted"></i>
-                <span class="small">No current owner linked yet. Use "Assign Owner" to pick an existing member or create a new one; the property's payment plan and owner are set together.</span>
-              </div>
-
-              <div
-                class="border rounded-3 p-3 d-flex flex-column flex-md-row align-items-md-center gap-2 justify-content-between">
-                <div>
-                  <div class="fw-semibold mb-1">Assign an owner</div>
-                  <div class="text-muted small">Pick an existing member or create a new one. The property's own payment
-                    plan (and optional single installment) is used, then the member is set as the current owner.
-                  </div>
-                </div>
-                <div class="flex-shrink-0">
-                  <button type="button" class="btn btn-sm btn-primary assign-member-btn"
-                          data-ownerable-type="{{ $ownerableType }}"
-                          data-ownerable-id="{{ $ownerableId }}">
-                    <i class="ti tabler-user-check me-1"></i> Assign Owner
-                  </button>
-                </div>
-              </div>
-            @else
-              <div class="alert alert-primary d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div class="d-flex align-items-center gap-2">
-                  <i class="ti tabler-user-check"></i>
-                  <span><b>Current Owner:</b> No Owner for this property yet</span>
-                </div>
-              </div>
-            @endif
-          </div>
-        @endif
-
-        {{-- Charges Section --}}
+      @if($owner || $property->paymentPlan)
         <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
             <div class="d-flex align-items-center gap-2">
-              <i class="ti tabler-receipt text-primary fs-5"></i>
-              <h5 class="fw-bold mb-0">Charges</h5>
+              <i class="ti tabler-user text-primary fs-5"></i>
+              <h5 class="fw-bold mb-0">Owner / Member</h5>
             </div>
-            @if($plan)
+            @if($ownershipPlan)
               <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="{{ route('property_owners.plan.print', $ownershipPlan) }}?mode=brief"
+                   onclick="event.preventDefault(); printDocument(this.href)"
+                   class="btn btn-sm btn-outline-primary" title="Print the committed payment plan for this owner">
+                  <i class="ti tabler-printer me-1"></i> Print Owner Plan
+                </a>
+              </div>
+            @endif
+          </div>
+
+          @if($owner)
+            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <i class="ti tabler-user-check"></i>
+                <span><b>Current Owner:</b> {{ $owner->first_name }} {{ $owner->last_name }} ({{ $owner->email }})</span>
+              </div>
+            </div>
+          @elseif(Auth()->user()->can('property_reserve_owner') && ! $hasActiveOwnership)
+            <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3">
+              <i class="ti tabler-info-circle icon-xl text-muted"></i>
+              <span class="small">
+                No reservation has been made yet. Use "Reserve Property" to
+                select an existing member or create a new one; the property's payment plan and reservation details are set together.
+                </span>
+            </div>
+            <div
+              class="border rounded-3 p-3 d-flex flex-column flex-md-row align-items-md-center gap-2 justify-content-between">
+              <div>
+                <div class="fw-semibold mb-1">Reserve Property</div>
+                <div class="text-muted small">
+                  Reserve this property for an existing member or create a new one.
+                  The property's own payment plan (and optional single installment) is used,
+                  and the member is reserved as the prospective owner.
+                </div>
+              </div>
+
+              <div class="flex-shrink-0">
+                <button type="button"
+                        class="btn btn-sm btn-primary reserve-property-btn"
+                        data-ownerable-type="{{ $ownerableType }}"
+                        data-ownerable-id="{{ $ownerableId }}">
+                  <i class="ti tabler-user-check me-1"></i> Reserve Property
+                </button>
+              </div>
+            </div>
+          @else
+            <div class="alert alert-primary d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <i class="ti tabler-user-check"></i>
+                <span><b>Reserved Owner:</b> No owner reserved yet.</span>
+              </div>
+            </div>
+          @endif
+        </div>
+      @endif
+
+      {{-- Charges Section --}}
+      <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="ti tabler-receipt text-primary fs-5"></i>
+            <h5 class="fw-bold mb-0">Charges</h5>
+          </div>
+          @if($plan)
+            <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="badge bg-label-success d-inline-flex align-items-center gap-1">
                 <i class="ti tabler-circle-check-filled"></i> Payment Plan Applied
               </span>
-                @can('payment_plan_edit')
+              @can('payment_plan_edit')
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#editPlanModal">
+                  <i class="ti tabler-edit me-1"></i> Edit Values
+                </button>
+              @endcan
+              @can('payment_plan_print')
+                @if(count($installmentPlans))
                   <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                          data-bs-target="#editPlanModal">
-                    <i class="ti tabler-edit me-1"></i> Edit Values
+                          data-bs-target="#printPlanModal">
+                    <i class="ti tabler-printer me-1"></i> Print Plan
                   </button>
-                @endcan
-                @can('payment_plan_print')
-                  @if(count($installmentPlans))
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                            data-bs-target="#printPlanModal">
-                      <i class="ti tabler-printer me-1"></i> Print Plan
-                    </button>
-                  @else
-                    <a href="{{ route('payment_plan.print', $property->uuid) }}?include_installments=0" target="_blank"
-                       class="btn btn-sm btn-outline-primary">
-                      <i class="ti tabler-printer me-1"></i> Print Plan
-                    </a>
-                  @endif
-                @endcan
-                @can('payment_plan_delete')
-                  <form action="{{ route('payment_plan.destroy', $plan) }}" method="POST"
-                        onsubmit="return confirmDelete(event, null)">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                      <i class="ti tabler-trash me-1"></i> Remove Plan
-                    </button>
-                  </form>
-                @endcan
-              </div>
-            @else
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge bg-label-secondary">No Plan Applied</span>
-                @can('payment_plan_apply')
-                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                          data-bs-target="#applyPlanModal">
-                    <i class="ti tabler-plus me-1"></i> Apply Plan
+                @else
+                  <a href="{{ route('payment_plan.print', $property->uuid) }}?include_installments=0"
+                     onclick="event.preventDefault(); printDocument(this.href)"
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="ti tabler-printer me-1"></i> Print Plan
+                  </a>
+                @endif
+              @endcan
+              @can('payment_plan_delete')
+                <form action="{{ route('payment_plan.destroy', $plan) }}" method="POST"
+                      onsubmit="return confirmDelete(event, null)">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="ti tabler-trash me-1"></i> Remove Plan
                   </button>
-                @endcan
-              </div>
-            @endif
-          </div>
-
-          {{-- Applied templates info --}}
-          @if($plan)
-            <div class="border rounded-3 p-3 mb-3 bg-label-secondary">
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <small class="micro-label text-muted text-uppercase d-block mb-1">Payment Template</small>
-                  @if($paymentTemplate)
-                    <div class="fw-semibold small">
-                      <i class="ti tabler-file-invoice text-primary me-1"></i>{{ $paymentTemplate->name }}
-                    </div>
-                  @else
-                    <div class="fw-semibold small">
-                      <i class="ti tabler-pencil text-info me-1"></i>Custom values
-                    </div>
-                  @endif
-                </div>
-                <div class="col-md-8">
-                  <small class="micro-label text-muted text-uppercase d-block mb-1">Installment Templates</small>
-                  @if(count($installmentPlans))
-                    <div class="d-flex flex-wrap gap-2">
-                      @foreach($installmentPlans as $planData)
-                        <span class="badge {{ $planData['from_template'] ? 'bg-label-primary' : 'bg-label-info' }}">
-                        @if($planData['from_template'])
-                            <i class="ti tabler-file-invoice me-1"></i>{{ $planData['template_name'] }}
-                          @else
-                            <i class="ti tabler-pencil me-1"></i>{{ $planData['name'] }} (Custom)
-                          @endif
-                      </span>
-                      @endforeach
-                    </div>
-                  @else
-                    <span class="text-muted small">No installment plans attached</span>
-                  @endif
-                </div>
-              </div>
+                </form>
+              @endcan
             </div>
           @else
-            <div class="alert alert-secondary py-2 px-3 d-flex align-items-center gap-2 mb-3">
-              <i class="ti tabler-info-circle text-muted"></i>
-              <span class="small">No payment plan applied yet. Click <b>Apply Plan</b> to choose a payment template and/or
-              installment templates, then customize the values.</span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="badge bg-label-secondary">No Plan Applied</span>
+              @can('payment_plan_apply')
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#applyPlanModal">
+                  <i class="ti tabler-plus me-1"></i> Apply Plan
+                </button>
+              @endcan
             </div>
-          @endif
-
-          @if(count($charges) || count($premiumCharges))
-            <div class="row g-3">
-              @foreach($charges as $fee)
-                <div class="col-md-6">
-                  <div
-                    class="border rounded-3 p-3 h-100 {{ $fee['surplus'] ? 'border-success border-opacity-25 bg-success bg-opacity-10' : 'bg-label-secondary' }}">
-                    <div class="d-flex align-items-start justify-content-between gap-2">
-                      <div class="d-flex align-items-center gap-2 min-w-0">
-                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
-                        <i class="ti {{ $fee['icon'] }} text-primary"></i>
-                      </span>
-                        <div class="min-w-0">
-                          <div class="fw-semibold small">{{ $fee['label'] }}</div>
-                          <div class="text-muted text-tiny">
-                            @if($fee['is_per'])
-                              {{ rtrim(rtrim(number_format($fee['raw'], 2, '.', ''), '0'), '.') }}
-                              % {{ $fee['surplus'] ? 'of gross' : 'of (gross + excluded)' }}
-                            @else
-                              {{ number_format($fee['raw'], 2) }} {{ $listingUnit }}
-                            @endif
-                          </div>
-                        </div>
-                      </div>
-                      <div class="text-end flex-shrink-0">
-                        <div class="fw-bold">{{ number_format($fee['amount'], 2) }} {{ $listingUnit }}</div>
-                        <span class="badge badge-xs {{ $fee['surplus'] ? 'bg-danger' : 'bg-primary' }}">
-                        {{ $fee['surplus'] ? 'Excluded' : 'Included' }}
-                      </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              @endforeach
-
-              @foreach($premiumCharges as $pc)
-                <div class="col-md-6">
-                  <div class="border rounded-3 p-3 h-100 border-success border-opacity-25 bg-success bg-opacity-10">
-                    <div class="d-flex align-items-start justify-content-between gap-2">
-                      <div class="d-flex align-items-center gap-2 min-w-0">
-                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
-                        <i class="ti {{ $pc['icon'] }} text-primary"></i>
-                      </span>
-                        <div class="min-w-0">
-                          <div class="fw-semibold small">{{ $pc['label'] }}</div>
-                          <div class="text-muted text-tiny">
-                            {{ rtrim(rtrim(number_format($pc['raw'], 2, '.', ''), '0'), '.') }}% of listed price
-                          </div>
-                        </div>
-                      </div>
-                      <div class="text-end flex-shrink-0">
-                        <div class="fw-bold">{{ number_format($pc['amount'], 2) }} {{ $listingUnit }}</div>
-                        <span class="badge badge-xs bg-danger">Premium</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              @endforeach
-            </div>
-
-            <div class="mt-3 border rounded-3 p-3 bg-label-secondary small text-muted">
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <i class="ti tabler-info-circle text-primary"></i>
-                <span class="fw-semibold text-dark">How the charges are applied</span>
-              </div>
-              <ul class="mb-0 ps-3">
-                <li><b class="text-danger">Premium</b> — an additional amount calculated based on the listed price and
-                  added to the listed price to determine the gross amount.
-                </li>
-
-                <li><b class="text-danger">Excluded</b> — an additional amount calculated based on the gross amount and
-                  added to it to determine the amount on which included charges are calculated.
-                </li>
-
-                <li><b class="text-primary">Included</b> — one-time charges calculated based on the gross amount,
-                  including the applicable excluded amount. These charges are already incorporated into the gross amount
-                  plus the excluded amount and do not increase the amount on which they are calculated.
-                </li>
-
-              </ul>
-            </div>
-
-          @else
-            <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
-              <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
-              <small>No charges are configured for this {{ strtolower($entityLabel) }} yet.</small>
-            </div>
-
           @endif
         </div>
 
-        {{-- Installments Section --}}
-        <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
-            <div class="d-flex align-items-center gap-2">
-              <i class="ti tabler-calendar-repeat text-primary fs-5"></i>
-              <h5 class="fw-bold mb-0">Installment Plans</h5>
-            </div>
-            @if($plan && !count($installmentPlans))
-              @can('installment_plan_add')
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                        data-bs-target="#addInstallmentModal">
-                  <i class="ti tabler-plus me-1"></i> Add Installment Plan
-                </button>
-              @endcan
-            @endif
-            @if(count($installmentPlans))
-              <span
-                class="badge bg-label-primary">{{ count($installmentPlans) }} {{ count($installmentPlans) > 1 ? 'plans' : 'plan' }} attached</span>
-            @endif
-          </div>
-
-          @if(count($installmentPlans))
-
-            {{-- Plan tabs --}}
-            <div class="d-flex flex-wrap gap-2 mb-4">
-              @foreach($installmentPlans as $planData)
-                <button type="button"
-                        class="btn btn-sm installment-tab {{ $planData['sequence'] === 1 ? 'btn-primary' : 'btn-outline-primary' }}"
-                        data-sequence="{{ $planData['sequence'] }}">
-
-                  {{ $planData['name'] }}
-                </button>
-              @endforeach
-              @if($plan)
-                @can('installment_plan_add')
-                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                          data-bs-target="#addInstallmentModal">
-                    <i class="ti tabler-plus me-1"></i> New Plan
-                  </button>
-                @endcan
-              @endif
-            </div>
-
-            {{-- Plan panes --}}
-            @foreach($installmentPlans as $planData)
-              <div class="installment-pane {{ $planData['sequence'] === 1 ? '' : 'd-none' }}"
-                   data-sequence="{{ $planData['sequence'] }}"
-                   data-name="{{ $planData['name'] }}"
-                   data-extra="{{ $planData['add_amount'] }}"
-                   data-balloon-amount="{{ $planData['balloon_amount'] }}"
-                   data-installment-remaining="{{ $planData['installment_remaining'] }}"
-                   data-grand-total="{{ $planData['grand_total'] }}"
-                   data-per-balloon="{{ $planData['per_balloon'] }}"
-                   data-per-installment="{{ $planData['per_installment'] }}"
-                   data-balloon-count="{{ $planData['balloon_count'] }}"
-                   data-normal-count="{{ $planData['normal_count'] }}"
-                   data-num="{{ $planData['number_of_installments'] }}">
-
-                {{-- Pane header: name, source, edit, remove --}}
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                  <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="fw-semibold text-heading">
-                      <i class="ti tabler-calendar-stats text-primary me-1"></i> {{ $planData['name'] }}
-                    </div>
-                    @if($planData['from_template'])
-                      <span class="badge bg-label-primary">
-                      <i class="ti tabler-file-invoice me-1"></i>{{ $planData['template_name'] }}
-                    </span>
-                    @else
-                      <span class="badge bg-label-info">
-                      <i class="ti tabler-pencil me-1"></i>Custom
-                    </span>
-                    @endif
+        {{-- Applied templates info --}}
+        @if($plan)
+          <div class="border rounded-3 p-3 mb-3 bg-label-secondary">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <small class="micro-label text-muted text-uppercase d-block mb-1">Payment Template</small>
+                @if($paymentTemplate)
+                  <div class="fw-semibold small">
+                    <i class="ti tabler-file-invoice text-primary me-1"></i>{{ $paymentTemplate->name }}
                   </div>
-                  <div class="d-flex align-items-center gap-2">
-                    @can('installment_plan_edit')
-                      <button type="button"
-                              class="btn btn-sm btn-outline-primary edit-installment-btn"
-                              data-action="{{ route('payment_plan.update-installment', [$plan, $planData['att']]) }}"
-                              data-installment="{{ $planData['edit_payload'] }}">
-                        <i class="ti tabler-edit me-1"></i> Edit
-                      </button>
-                    @endcan
-                    @can('installment_plan_delete')
-                      <form action="{{ route('payment_plan.detach-installment', [$plan, $planData['att']]) }}"
-                            method="POST"
-                            onsubmit="return confirmDelete(event, null)">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                          <i class="ti tabler-trash me-1"></i> Remove
-                        </button>
-                      </form>
-                    @endcan
+                @else
+                  <div class="fw-semibold small">
+                    <i class="ti tabler-pencil text-info me-1"></i>Custom values
                   </div>
-                </div>
-
-                {{-- Plan details chips --}}
-                <div class="row g-2 mb-3">
-                  <div class="col-sm-6 col-xl-3">
-                    <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                      <small class="micro-label text-muted text-uppercase d-block mb-1">Installments</small>
-                      <div class="fw-semibold">{{ $planData['number_of_installments'] }}
-                        @if($planData['installment_frequency'])
-                          <span class="text-muted fw-normal">· {{ ucfirst($planData['installment_frequency']) }}</span>
-                        @endif
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-sm-6 col-xl-3">
-                    <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                      <small class="micro-label text-muted text-uppercase d-block mb-1">Per Balloon</small>
-                      <div class="fw-semibold">
-                        @if($planData['per_balloon'] > 0)
-                          {{ number_format($planData['per_balloon'], 2) }} {{ $listingUnit }}
-                          @if($planData['balloon_count'] > 0)
-                            <span class="text-muted fw-normal">({{ $planData['balloon_count'] }}x)</span>
-                          @endif
+                @endif
+              </div>
+              <div class="col-md-8">
+                <small class="micro-label text-muted text-uppercase d-block mb-1">Installment Templates</small>
+                @if(count($installmentPlans))
+                  <div class="d-flex flex-wrap gap-2">
+                    @foreach($installmentPlans as $planData)
+                      <span class="badge {{ $planData['from_template'] ? 'bg-label-primary' : 'bg-label-info' }}">
+                        @if($planData['from_template'])
+                          <i class="ti tabler-file-invoice me-1"></i>{{ $planData['template_name'] }}
                         @else
-                          <span class="text-muted fw-normal">—</span>
+                          <i class="ti tabler-pencil me-1"></i>{{ $planData['name'] }} (Custom)
                         @endif
-                      </div>
-                    </div>
+                      </span>
+                    @endforeach
                   </div>
-                  <div class="col-sm-6 col-xl-3">
-                    <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                      <small class="micro-label text-muted text-uppercase d-block mb-1">Per Installment</small>
-                      <div class="fw-semibold">{{ number_format($planData['per_installment'], 2) }} {{ $listingUnit }}
-                        @if($planData['normal_count'] > 0)
-                          <span class="text-muted fw-normal">({{ $planData['normal_count'] }}x)</span>
-                        @endif
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-sm-6 col-xl-3">
-                    <div class="border rounded-3 p-3 h-100 bg-label-secondary">
-                      <small class="micro-label text-muted text-uppercase d-block mb-1">Total Amount</small>
-                      <div
-                        class="fw-semibold">{{ number_format($grossAmount + $excludedTotal + $planData['add_amount'], 2) }} {{ $listingUnit }}</div>
-                    </div>
-                  </div>
-                </div>
+                @else
+                  <span class="text-muted small">No installment plans attached</span>
+                @endif
+              </div>
+            </div>
+          </div>
+        @else
+          <div class="alert alert-secondary py-2 px-3 d-flex align-items-center gap-2 mb-3">
+            <i class="ti tabler-info-circle text-muted"></i>
+            <span class="small">No payment plan applied yet. Click <b>Apply Plan</b> to choose a payment template and/or
+              installment templates, then customize the values.</span>
+          </div>
+        @endif
 
-                {{-- Installment schedule --}}
-                <div class="border rounded-3 overflow-hidden">
-                  <div class="px-3 py-2 bg-primary bg-opacity-10 d-flex align-items-center justify-content-between">
-                    <span class="fw-semibold small text-primary">Installment Schedule</span>
-                    <span
-                      class="small text-muted">{{ $planData['number_of_installments'] }} {{ $planData['number_of_installments'] > 1 ? 'installments' : 'installment' }} · {{ ucfirst($planData['installment_frequency'] ?? '—') }}@if($planData['balloon_count'] > 0)
-                        · {{ $planData['balloon_count'] }} balloon{{ $planData['balloon_count'] > 1 ? 's' : '' }}
-                      @endif</span>
-                  </div>
-                  <div class="table-responsive schedule-scroll">
-                    <table class="table table-sm mb-0">
-                      <thead class="table-light">
-                      <tr>
-                        <th class="ps-3 col-seq">#</th>
-                        <th class="ps-3">Type</th>
-                        <th class="ps-3">Amount</th>
-                        <th class="ps-3">Cumulative</th>
-                      </tr>
-                      </thead>
-                      <tbody>
-                      @foreach($planData['schedule'] as $seq => $row)
-                        <tr class="{{ $row['type'] === 'balloon' ? 'bg-label-primary' : '' }}">
-                          <td class="ps-3">{{ $seq + 1 }}</td>
-                          <td class="ps-3 text-heading">
-                            @if($row['type'] === 'balloon')
-                              Balloon
-                              #{{ $row['balloon_no'] }}
-                              @if($planData['balloon_frequency'])
-                                <span
-                                  class="text-muted fw-normal">({{ ucfirst($planData['balloon_frequency']) }})</span>
-                              @endif
-                            @else
-                              Installment #{{ $row['no'] }}
-                            @endif
-                          </td>
-                          <td class="ps-3 fw-semibold">{{ number_format($row['amount'], 2) }} {{ $listingUnit }}</td>
-                          <td class="ps-3 text-muted">{{ number_format($row['cumulative'], 2) }} {{ $listingUnit }}</td>
-                        </tr>
-                      @endforeach
-                      <tr class="table-light">
-                        <td class="ps-3 text-heading fw-bold" colspan="2">Total Payable <span
-                            class="text-muted fw-normal">(Final Amount + Installment Extra)</span></td>
-                        <td class="ps-3 fw-bold text-primary">
-                          {{ number_format($grossAmount + $excludedTotal + $planData['add_amount'], 2) }} {{ $listingUnit }}
-                        </td>
-                        <td class="ps-3 text-muted">—</td>
-                      </tr>
-                      </tbody>
-                    </table>
+        @if(count($charges) || count($premiumCharges))
+          <div class="row g-3">
+            @foreach($charges as $fee)
+              <div class="col-md-6">
+                <div
+                  class="border rounded-3 p-3 h-100 {{ $fee['surplus'] ? 'border-success border-opacity-25 bg-success bg-opacity-10' : 'bg-label-secondary' }}">
+                  <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2 min-w-0">
+                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
+                        <i class="ti {{ $fee['icon'] }} text-primary"></i>
+                      </span>
+                      <div class="min-w-0">
+                        <div class="fw-semibold small">{{ $fee['label'] }}</div>
+                        <div class="text-muted text-tiny">
+                          @if($fee['is_per'])
+                            {{ rtrim(rtrim(number_format($fee['raw'], 2, '.', ''), '0'), '.') }}
+                            % {{ $fee['surplus'] ? 'of gross' : 'of gross' }}
+                          @else
+                            {{ number_format($fee['raw'], 2) }} {{ $listingUnit }}
+                          @endif
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-end flex-shrink-0">
+                      <div class="fw-bold">{{ number_format($fee['amount'], 2) }} {{ $listingUnit }}</div>
+                      <span class="badge badge-xs {{ $fee['surplus'] ? 'bg-danger' : 'bg-primary' }}">
+                        {{ $fee['surplus'] ? 'Excluded' : 'Included' }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             @endforeach
 
-          @else
-            <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
-              <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
+            @foreach($premiumCharges as $pc)
+              <div class="col-md-6">
+                <div class="border rounded-3 p-3 h-100 border-success border-opacity-25 bg-success bg-opacity-10">
+                  <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2 min-w-0">
+                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
+                        <i class="ti {{ $pc['icon'] }} text-primary"></i>
+                      </span>
+                      <div class="min-w-0">
+                        <div class="fw-semibold small">{{ $pc['label'] }}</div>
+                        <div class="text-muted text-tiny">
+                          {{ rtrim(rtrim(number_format($pc['raw'], 2, '.', ''), '0'), '.') }}% of listed price
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-end flex-shrink-0">
+                      <div class="fw-bold">{{ number_format($pc['amount'], 2) }} {{ $listingUnit }}</div>
+                      <span class="badge badge-xs bg-danger">Premium</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            @endforeach
+          </div>
 
-              <small class="text-center">
-                No installment plans are attached to this {{ strtolower($entityLabel) }} yet.
-                @if($plan && Auth()->user()->can('property_assign_owner'))
-                  <br>Click <b>Add Installment Plan</b> above to attach one.
-                @endif
-              </small>
-            </div>
+          @include('components.property._charges-explanation')
+
+        @else
+          <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
+            <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
+            <small>No charges are configured for this {{ strtolower($entityLabel) }} yet.</small>
+          </div>
+
+        @endif
+      </div>
+
+      {{-- Installments Section --}}
+      <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="ti tabler-calendar-repeat text-primary fs-5"></i>
+            <h5 class="fw-bold mb-0">Installment Plans</h5>
+          </div>
+          @if($plan && !count($installmentPlans))
+            @can('installment_plan_add')
+              <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                      data-bs-target="#addInstallmentModal">
+                <i class="ti tabler-plus me-1"></i> Add Installment Plan
+              </button>
+            @endcan
+          @endif
+          @if(count($installmentPlans))
+            <span
+              class="badge bg-label-primary">{{ count($installmentPlans) }} {{ count($installmentPlans) > 1 ? 'plans' : 'plan' }} attached</span>
           @endif
         </div>
-      </div>
 
-      {{-- Summary sidebar (MODIFIED) --}}
-      <div class="col-lg-4 order-1 order-lg-2">
-        <div class="summary-sticky">
-          <div class="card border-0 shadow-sm rounded-3 p-4 mb-3 bg-light">
-            <p class="text-uppercase small text-dark mb-2 fw-bold tracking-wide">Listed Value</p>
-            <div class="d-flex align-items-baseline gap-2">
-              <h3 class="fw-bold mb-0">{{ number_format($listingPrice, 0) }}</h3>
-              <span class="text-muted fs-6">{{ $listingUnit }}</span>
-            </div>
+        @if(count($installmentPlans))
+
+          {{-- Plan tabs --}}
+          <div class="d-flex flex-wrap gap-2 mb-4">
+            @foreach($installmentPlans as $planData)
+              <button type="button"
+                      class="btn btn-sm installment-tab {{ $planData['sequence'] === 1 ? 'btn-primary' : 'btn-outline-primary' }}"
+                      data-sequence="{{ $planData['sequence'] }}">
+
+                {{ $planData['name'] }}
+              </button>
+            @endforeach
+            @if($plan)
+              @can('installment_plan_add')
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#addInstallmentModal">
+                  <i class="ti tabler-plus me-1"></i> New Plan
+                </button>
+              @endcan
+            @endif
           </div>
 
-          <div class="card border-0 shadow-sm rounded-3 p-4 bg-gradient text-white plan-summary-card">
-            <p class="text-uppercase small mb-3 fw-bold plan-summary-title">Plan Summary</p>
+          {{-- Plan panes --}}
+          @foreach($installmentPlans as $planData)
+            <div class="installment-pane {{ $planData['sequence'] === 1 ? '' : 'd-none' }}"
+                 data-sequence="{{ $planData['sequence'] }}"
+                 data-name="{{ $planData['name'] }}"
+                 data-extra="{{ $planData['add_amount'] }}"
+                 data-balloon-amount="{{ $planData['balloon_amount'] }}"
+                 data-installment-remaining="{{ $planData['installment_remaining'] }}"
+                 data-grand-total="{{ $planData['grand_total'] }}"
+                 data-per-balloon="{{ $planData['per_balloon'] }}"
+                 data-per-installment="{{ $planData['per_installment'] }}"
+                 data-balloon-count="{{ $planData['balloon_count'] }}"
+                 data-normal-count="{{ $planData['normal_count'] }}"
+                 data-num="{{ $planData['number_of_installments'] }}">
 
-            <div class="d-flex justify-content-between mb-2">
-              <span class="small">Listed Price</span>
-              <span class="fw-semibold fs-6" id="summary_listed">{{ number_format($listingPrice, 0) }}</span>
+              {{-- Pane header: name, source, edit, remove --}}
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <div class="fw-semibold text-heading">
+                    <i class="ti tabler-calendar-stats text-primary me-1"></i> {{ $planData['name'] }}
+                  </div>
+                  @if($planData['from_template'])
+                    <span class="badge bg-label-primary">
+                      <i class="ti tabler-file-invoice me-1"></i>Template
+                    </span>
+                  @else
+                    <span class="badge bg-label-info">
+                      <i class="ti tabler-pencil me-1"></i>Custom
+                    </span>
+                  @endif
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  @can('installment_plan_edit')
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary edit-installment-btn"
+                            data-action="{{ route('payment_plan.update-installment', [$plan, $planData['att']]) }}"
+                            data-installment="{{ $planData['edit_payload'] }}">
+                      <i class="ti tabler-edit me-1"></i> Edit
+                    </button>
+                  @endcan
+                  @can('installment_plan_delete')
+                    <form action="{{ route('payment_plan.detach-installment', [$plan, $planData['att']]) }}"
+                          method="POST"
+                          onsubmit="return confirmDelete(event, null)">
+                      @csrf
+                      @method('DELETE')
+                      <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="ti tabler-trash me-1"></i> Remove
+                      </button>
+                    </form>
+                  @endcan
+                </div>
+              </div>
+
+              {{-- Plan details chips --}}
+              <div class="row g-2 mb-3">
+                <div class="col-sm-6 col-xl-3">
+                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Installments</small>
+                    <div class="fw-semibold">{{ $planData['number_of_installments'] }}
+                      @if($planData['installment_frequency'])
+                        <span
+                          class="text-muted fw-normal">· {{ ucfirst($planData['installment_frequency']) }}</span>
+                      @endif
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Per Balloon</small>
+                    <div class="fw-semibold">
+                      @if($planData['per_balloon'] > 0)
+                        {{ number_format($planData['per_balloon'], 2) }} {{ $listingUnit }}
+                        @if($planData['balloon_count'] > 0)
+                          <span class="text-muted fw-normal">({{ $planData['balloon_count'] }}x)</span>
+                        @endif
+                      @else
+                        <span class="text-muted fw-normal">—</span>
+                      @endif
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Per Installment</small>
+                    <div class="fw-semibold">{{ number_format($planData['per_installment'], 2) }} {{ $listingUnit }}
+                      @if($planData['normal_count'] > 0)
+                        <span class="text-muted fw-normal">({{ $planData['normal_count'] }}x)</span>
+                      @endif
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                  <div class="border rounded-3 p-3 h-100 bg-label-secondary">
+                    <small class="micro-label text-muted text-uppercase d-block mb-1">Total Amount</small>
+                    <div
+                      class="fw-semibold">{{ number_format($grossAmount + $planData['add_amount'] + $excludedTotal, 2) }} {{ $listingUnit }}</div>
+                  </div>
+                </div>
+              </div>
+
+              {{-- Installment schedule --}}
+              <div class="border rounded-3 overflow-hidden">
+                <div class="px-3 py-2 bg-primary bg-opacity-10 d-flex align-items-center justify-content-between">
+                  <span class="fw-semibold small text-primary">Installment Schedule</span>
+                  <span
+                    class="small text-muted">{{ $planData['number_of_installments'] }} {{ $planData['number_of_installments'] > 1 ? 'installments' : 'installment' }} · {{ ucfirst($planData['installment_frequency'] ?? '—') }}@if($planData['balloon_count'] > 0)
+                      · {{ $planData['balloon_count'] }} balloon{{ $planData['balloon_count'] > 1 ? 's' : '' }}
+                    @endif</span>
+                </div>
+                <div class="table-responsive schedule-scroll">
+                  <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                    <tr>
+                      <th class="ps-3 col-seq">#</th>
+                      <th class="ps-3">Type</th>
+                      <th class="ps-3">Amount</th>
+                      <th class="ps-3">Cumulative</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($planData['schedule'] as $seq => $row)
+                      <tr class="{{ $row['type'] === 'balloon' ? 'bg-label-primary' : '' }}">
+                        <td class="ps-3">{{ $seq + 1 }}</td>
+                        <td class="ps-3 text-heading">
+                          @if($row['type'] === 'balloon')
+                            Balloon
+                            #{{ $row['balloon_no'] }}
+                            @if($planData['balloon_frequency'])
+                              <span
+                                class="text-muted fw-normal">({{ ucfirst($planData['balloon_frequency']) }})</span>
+                            @endif
+                          @else
+                            Installment #{{ $row['no'] }}
+                          @endif
+                        </td>
+                        <td class="ps-3 fw-semibold">{{ number_format($row['amount'], 2) }} {{ $listingUnit }}</td>
+                        <td
+                          class="ps-3 text-muted">{{ number_format($row['cumulative'], 2) }} {{ $listingUnit }}</td>
+                      </tr>
+                    @endforeach
+                    <tr class="table-light">
+                      <td class="ps-3 text-heading fw-bold" colspan="2">Final Amount <span
+                          class="text-muted fw-normal">(With Installments)</span></td>
+                      <td class="ps-3 fw-bold text-primary">
+                        {{ number_format($grossAmount + $planData['add_amount'] + $excludedTotal, 2) }} {{ $listingUnit }}
+                      </td>
+                      <td class="ps-3 text-muted">—</td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
+          @endforeach
 
-            @if($premiumsTotal > 0)
-              <span class="small d-block">Feature Premiums <span class="opacity-75">(% of listed)</span></span>
-              <ul class="list-unstyled mb-1 ps-0 summary-list">
-                @foreach($premiumCharges as $pc)
-                  <li class="d-flex justify-content-between">
-                    <span>{{ $pc['label'] }}</span>
-                    <span>{{ number_format($pc['amount'], 0) }}</span>
-                  </li>
-                @endforeach
-              </ul>
-              <div class="d-flex justify-content-between fw-semibold small mb-1" id="summary_premiums">
-                <span>Total Premiums</span>
-                <span>{{ number_format($premiumsTotal, 0) }}</span>
-              </div>
-            @endif
+        @else
+          <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
+            <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
 
-            <div class="d-flex justify-content-between fw-semibold small">
-              <span class="small">Gross Amount</span>
-              <span id="summary_gross"
-                    class="mb-2 bg-label-secondary px-2 rounded text-dark">{{ number_format($grossAmount, 0) }}</span>
-            </div>
-
-            <hr class="opacity-25">
-
-            {{-- One Time Charges heading (same style as Feature Premiums) --}}
-            <span class="small d-block mb-1">One Time Charges <span
-                class="opacity-75">(excluded + included)</span></span>
-
-            {{-- Excluded and Included as sub-sections (NESTED under One Time Charges) --}}
-            <div class="ps-2 border-start border-2 opacity-90 mb-2">
-              <span class="small d-block mb-1">Excluded Charges <span class="opacity-75">(on top of gross)</span></span>
-              <ul class="list-unstyled mb-0 ps-0 summary-list">
-                @forelse($excludedCharges as $c)
-                  <li class="d-flex justify-content-between">
-                    <span>{{ $c['label'] }}</span>
-                    <span>{{ number_format($c['amount'], 0) }}</span>
-                  </li>
-                @empty
-                  <li class="opacity-50">None</li>
-                @endforelse
-              </ul>
-              <div class="d-flex justify-content-between fw-semibold small mt-1" id="summary_excluded">
-                <span>Total Excluded</span>
-                <span class="bg-label-secondary px-2 rounded text-dark">{{ number_format($excludedTotal, 0) }}</span>
-              </div>
-
-              <span class="small d-block mb-1 mt-2">Included Charges <span class="opacity-75">(in gross)</span></span>
-              <ul class="list-unstyled mb-0 ps-0 summary-list">
-                @forelse($includedCharges as $c)
-                  <li class="d-flex justify-content-between">
-                    <span>{{ $c['label'] }}</span>
-                    <span>{{ number_format($c['amount'], 0) }}</span>
-                  </li>
-                @empty
-                  <li class="opacity-50">None</li>
-                @endforelse
-              </ul>
-              <div class="d-flex justify-content-between fw-semibold small mt-1" id="summary_included">
-                <span>Total Included</span>
-                <span>{{ number_format($includedTotal, 0) }}</span>
-              </div>
-            </div>
-
-            {{-- Total one-time (excluded + included) before Remaining --}}
-            <div class="d-flex justify-content-between fw-semibold small">
-              <span>Total One-time</span>
-              <span id="summary_one_time">{{ number_format($totalOneTime, 0) }}</span>
-            </div>
-
-            <div class="d-flex justify-content-between fw-bold small mt-2">
-              <span class="small">Remaining Amount</span>
-              <span id="summary_remaining">{{ number_format($remainingAmount, 0) }}</span>
-            </div>
-
-            <hr class="opacity-25">
-
-            @if($defaultPlan)
-              <div class="d-flex justify-content-between ">
-                <span class="small">Extra in Case of Installment</span>
-                <span class="fw-semibold fs-6 bg-label-secondary px-2 rounded text-dark"
-                      id="summary_extra">{{ number_format($extraInstallment, 0) }}</span>
-              </div>
-
-              <div class="d-flex justify-content-between">
-                <span class="small">Total Balloon</span>
-                <span class="fw-semibold fs-6"
-                      id="summary_total_balloon">{{ number_format($defaultPlan['balloon_amount'], 0) }}</span>
-              </div>
-
-              <div class="d-flex justify-content-between mb-2">
-                <span class="small">Remaining for Installment</span>
-                <span class="fw-semibold fs-6"
-                      id="summary_installment_remaining">{{ number_format($defaultPlan['installment_remaining'], 0) }}</span>
-              </div>
-
-              <div class="d-flex justify-content-between fs-5 fw-bold mb-2 summary-final-row">
-                <span>Final Amount</span>
-                <span id="summary_final_amount"
-                      class="bg-label-secondary px-2 rounded text-dark">{{ number_format($grossAmount + $excludedTotal + $extraInstallment, 0) }}</span>
-              </div>
-            @elseif($plan)
-              <div class="small d-flex align-items-center gap-1 mb-2 opacity-75">
-                <i class="ti tabler-info-circle"></i> No installment plan attached — showing the payment plan only.
-              </div>
-            @endif
-
-            @if($defaultPlan)
-              <div class="small d-block opacity-75" id="summary_per_installment">
-                @if($summaryPerBalloon > 0)
-                  Per balloon: {{ number_format($summaryPerBalloon, 2) }} {{ $listingUnit }}
-                  · Per installment: {{ number_format($summaryPerInstallment, 2) }} {{ $listingUnit }}
-                @else
-                  Per installment: {{ number_format($summaryPerInstallment, 2) }} {{ $listingUnit }}
-                @endif
-                ({{ $defaultPlan['number_of_installments'] }} installments)
-              </div>
-            @elseif($plan)
-              <div class="small d-block opacity-75" id="summary_per_installment">
-                No installment plan attached.
-              </div>
-            @endif
-
-            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 summary-divider">
-              <span class="small">Viewing</span>
-              @if($plan)
-                <select id="summary_view_select"
-                        class="form-select form-select-sm border-0 bg-white text-dark fw-semibold d-inline-block summary-select">
-                  <option value="plan_only" @selected(!$defaultPlan)>Payment plan only</option>
-                  @foreach($installmentPlans as $p)
-                    <option
-                      value="{{ $p['sequence'] }}" @selected($defaultPlan && $p['sequence'] === 1)>{{ $p['name'] }}</option>
-                  @endforeach
-                </select>
-              @else
-                <span class="fw-semibold">—</span>
+            <small class="text-center">
+              No installment plans are attached to this {{ strtolower($entityLabel) }} yet.
+              @if($plan && Auth()->user()->can('property_reserve_owner'))
+                <br>Click <b>Add Installment Plan</b> above to attach one.
               @endif
-            </div>
+            </small>
           </div>
-        </div>
+        @endif
       </div>
     </div>
-  </div>
-@endif
 
-@include('_partials._modals.create_member_owner', ['ownerableType' => $ownerableType, 'ownerableId' => $ownerableId, 'propertySocietyId' => $propertySocietyId, 'memberSocieties' => $societyMembers, 'paymentPlan' => $plan, 'planInstallments' => collect($plan?->installmentAttachments ?? [])])
+    {{-- Summary sidebar --}}
+    <x-property.plan-structure-summary :summary="$planStructureSummary" :is-unit="$isUnit" :entity-label="$entityLabel"
+                                       :listing-unit="$listingUnit" />
+  </div>
+</div>
+
+@include('_partials._modals.reserve_property_ownership', ['ownerableType' => $ownerableType, 'ownerableId' => $ownerableId, 'propertySocietyId' => $propertySocietyId, 'paymentPlan' => $plan, 'planInstallments' => collect($plan?->installmentAttachments ?? [])])
 
 {{-- Apply payment plan modal (shown when no plan is applied) --}}
 @if(!$plan)
@@ -880,102 +482,102 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
           <div class="text-center mb-4">
-            <h4 class="mb-2 fw-bolder" id="modalTitle">Apply Payment Plan </h4>
-            <p class="text-muted mb-2"> Choose a payment template and/or installment templates, or enter custom charge
-              values directly for a full payment plan</p>
+            <h4 class="mb-2 fw-bolder" id="modalTitle">Apply Payment Plan</h4>
+            <p class="text-muted mb-0">
+              Choose a payment template and/or installment templates, or enter custom charge values directly
+              for a full payment plan
+            </p>
           </div>
 
           <form action="{{ route('payment_plan.apply_single') }}" method="POST">
             @csrf
             <input type="hidden" name="planable_type" value="{{ $planableType }}">
             <input type="hidden" name="planable_uuid" value="{{ $property->uuid }}">
-
             <input type="hidden" name="template_modified" id="template_modified" value="0">
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Payment Template</label>
-              <select name="payment_template_id" id="apply_payment_template" class="form-select">
-                <option value="">None (custom values)</option>
-                @foreach($paymentTemplateOptions as $pt)
-                  <option value="{{ $pt->id }}"
-                          data-booking-fee="{{ $pt->booking_fee }}"
-                          data-booking-fee-in-per="{{ $pt->booking_fee_in_per ? 1 : 0 }}"
-                          data-development-fee="{{ $pt->development_fee }}"
-                          data-development-fee-in-per="{{ $pt->development_fee_in_per ? 1 : 0 }}"
-                          data-development-fee-surplus="{{ $pt->development_fee_surplus ? 1 : 0 }}"
-                          data-down-payment="{{ $pt->down_payment }}"
-                          data-down-payment-in-per="{{ $pt->down_payment_in_per ? 1 : 0 }}"
-                          data-transfer-fee="{{ $pt->transfer_fee }}"
-                          data-transfer-fee-in-per="{{ $pt->transfer_fee_in_per ? 1 : 0 }}"
-                          data-transfer-fee-surplus="{{ $pt->transfer_fee_surplus ? 1 : 0 }}"
-                          data-confirmation-fee="{{ $pt->confirmation_fee }}"
-                          data-confirmation-fee-in-per="{{ $pt->confirmation_fee_in_per ? 1 : 0 }}"
-                          data-possession-fee="{{ $pt->possession_fee }}"
-                          data-possession-fee-in-per="{{ $pt->possession_fee_in_per ? 1 : 0 }}"
-                          data-possession-fee-surplus="{{ $pt->possession_fee_surplus ? 1 : 0 }}"
-                          data-corner-premium="{{ $pt->corner_premium }}"
-                          data-park-facing-premium="{{ $pt->park_facing_premium }}"
-                          data-main-boulevard-premium="{{ $pt->main_boulevard_premium }}">
-                    {{ $pt->name }}
-                  </option>
-                @endforeach
-              </select>
-              @if(!count($paymentTemplateOptions))
-                <small class="text-muted">No payment templates available. <a
-                    href="{{ route('payment-templates.index') }}">Create one</a>.</small>
-              @endif
+            {{-- Templates --}}
+            <h6 class="text-uppercase small fw-bold text-muted mb-2">Templates</h6>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="apply_payment_template">Payment Template</label>
+                <select name="payment_template_id" id="apply_payment_template" class="form-select">
+                  <option value="">None (custom values)</option>
+                  @foreach($paymentTemplateOptions as $pt)
+                    <option value="{{ $pt->id }}"
+                            data-booking-fee="{{ $pt->booking_fee }}"
+                            data-booking-fee-in-per="{{ $pt->booking_fee_in_per ? 1 : 0 }}"
+                            data-development-fee="{{ $pt->development_fee }}"
+                            data-development-fee-in-per="{{ $pt->development_fee_in_per ? 1 : 0 }}"
+                            data-development-fee-surplus="{{ $pt->development_fee_surplus ? 1 : 0 }}"
+                            data-down-payment="{{ $pt->down_payment }}"
+                            data-down-payment-in-per="{{ $pt->down_payment_in_per ? 1 : 0 }}"
+                            data-confirmation-fee="{{ $pt->confirmation_fee }}"
+                            data-confirmation-fee-in-per="{{ $pt->confirmation_fee_in_per ? 1 : 0 }}"
+                            data-possession-fee="{{ $pt->possession_fee }}"
+                            data-possession-fee-in-per="{{ $pt->possession_fee_in_per ? 1 : 0 }}"
+                            data-possession-fee-surplus="{{ $pt->possession_fee_surplus ? 1 : 0 }}"
+                            data-corner-premium="{{ $pt->corner_premium }}"
+                            data-park-facing-premium="{{ $pt->park_facing_premium }}"
+                            data-main-boulevard-premium="{{ $pt->main_boulevard_premium }}">
+                      {{ $pt->name }}
+                    </option>
+                  @endforeach
+                </select>
+                @if(!count($paymentTemplateOptions))
+                  <small class="text-muted d-block mt-1">No payment templates available. <a
+                      href="{{ route('payment-templates.index') }}">Create one</a>.</small>
+                @endif
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="select2Primary">
+                  Installment Templates <span class="text-muted fw-normal">(optional)</span>
+                </label>
+                @if(count($installmentTemplateOptions))
+                  <div class="select2-primary">
+                    <select id="select2Primary" name="installment_template_ids[]"
+                            class="select2 form-select" multiple>
+                      @foreach($installmentTemplateOptions as $it)
+                        <option value="{{ $it->id }}">{{ $it->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                @else
+                  <div class="border rounded-3 p-3">
+                    <small class="text-muted">No installment templates available. <a
+                        href="{{ route('installment-templates.index') }}">Create one</a>.</small>
+                  </div>
+                @endif
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Installment Templates <span
-                  class="text-muted">(optional)</span></label>
-              @if(count($installmentTemplateOptions))
-                <div class="select2-primary">
-                  <select id="select2Primary" name="installment_template_ids[]"
-                          class="select2 form-select" multiple>
-                    @foreach($installmentTemplateOptions as $it)
-                      <option value="{{ $it->id }}">{{ $it->name }}</option>
-                    @endforeach
-                  </select>
-                </div>
-              @else
-                <div class="border rounded-3 p-3 bg-label-secondary">
-                  <small class="text-muted">No installment templates available. <a
-                      href="{{ route('installment-templates.index') }}">Create one</a>.</small>
-                </div>
-              @endif
-            </div>
-
-            <div class="col-12">
-              <hr class="my-1">
-              <p class="section-caption fw-semibold small text-uppercase text-muted mb-3">
-                Custom Charge Values
-                <span
-                  class="caption-hint fw-normal">(optional — leave blank to use the selected template's values)</span>
-              </p>
-            </div>
+            {{-- Custom charge values --}}
+            <h6 class="text-uppercase small fw-bold text-muted mb-1">Custom Charge Values</h6>
+            <p class="text-muted small mb-3">Optional — leave blank to use the selected template's values</p>
 
             <div class="row g-3">
               @foreach($feeKeys as $fk)
                 @php $key = $fk['key']; @endphp
                 <div class="col-md-6">
-                  <div class="border rounded-3 p-3 bg-label-secondary h-100">
-                    <label class="form-label fw-semibold mb-2">{{ $fk['label'] }}</label>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                      <input type="number" name="{{ $key }}" class="form-control apply-charge-field" step="0.01" min="0"
+                  <div class="border rounded-3 p-3 h-100">
+                    <label class="fw-semibold d-block mb-2" for="apply_{{ $key }}">{{ $fk['label'] }}</label>
+                    <div class="d-flex align-items-center gap-3">
+                      <input type="number" name="{{ $key }}" id="apply_{{ $key }}"
+                             class="form-control apply-charge-field" step="0.01" min="0"
                              placeholder="{{ $listingUnit }} or %">
                       <div class="form-check form-switch mb-0 flex-shrink-0">
-                        <input type="checkbox" name="{{ $key }}_in_per" id="in_per_apply_{{ $key }}"
+                        <input type="checkbox" role="switch" name="{{ $key }}_in_per" id="in_per_apply_{{ $key }}"
                                class="form-check-input apply-charge-field" value="1">
-                        <label class="form-check-label small text-nowrap" for="in_per_apply_{{ $key }}">%</label>
+                        <label class="form-check-label text-nowrap" for="in_per_apply_{{ $key }}">Percentage (%)</label>
                       </div>
                     </div>
                     @if(in_array($key, $surplusKeys))
-                      <div class="form-check">
-                        <input type="checkbox" name="{{ $key }}_surplus" id="surplus_apply_{{ $key }}"
+                      <div class="form-check form-switch mt-3 mb-0">
+                        <input type="checkbox" role="switch" name="{{ $key }}_surplus" id="surplus_apply_{{ $key }}"
                                class="form-check-input apply-charge-field" value="1">
-                        <label class="form-check-label small" for="surplus_apply_{{ $key }}">Additional (on top of
-                          listed)</label>
+                        <label class="form-check-label" for="surplus_apply_{{ $key }}">Excluded (extra / billed on
+                          top)</label>
                       </div>
                     @endif
                   </div>
@@ -983,111 +585,218 @@
               @endforeach
             </div>
 
-            <div class="col-12">
-              <hr class="my-1">
-              <p class="section-caption fw-semibold small text-uppercase text-muted mb-2">
-                Feature Premiums (always % of listed price — extra, on top)
-              </p>
-            </div>
+            {{-- Feature premiums --}}
+            @if(count($featurePremiumKeys))
+              <h6 class="text-uppercase small fw-bold text-muted mt-4 mb-1">Feature Premiums</h6>
+              <p class="text-muted small mb-3">Always a % of the listed price — extra, on top</p>
 
-            <div class="row g-3">
-              @foreach($premiumKeys as $pk)
-                <div class="col-md-4">
-                  <div class="border rounded-3 p-3 bg-label-secondary h-100">
-                    <label class="form-label fw-semibold mb-2">{{ $pk['label'] }}</label>
-                    <div class="input-group">
-                      <input type="number" name="{{ $pk['key'] }}" class="form-control apply-charge-field" step="0.01"
-                             min="0" max="100"
-                             placeholder="%">
-                      <span class="input-group-text">%</span>
+              <div class="row g-3">
+                @foreach($featurePremiumKeys as $pk)
+                  <div class="col-md-4">
+                    <div class="border rounded-3 p-3 h-100">
+                      <label class="fw-semibold d-block mb-2" for="apply_{{ $pk['key'] }}">{{ $pk['label'] }}</label>
+                      <div class="input-group">
+                        <input type="number" name="{{ $pk['key'] }}" id="apply_{{ $pk['key'] }}"
+                               class="form-control apply-charge-field" step="0.01" min="0" max="100"
+                               placeholder="0">
+                        <span class="input-group-text">%</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              @endforeach
-            </div>
+                @endforeach
+              </div>
+            @endif
 
-            <div class="d-flex justify-content-end gap-2 mt-4">
+            <div class="d-flex justify-content-end gap-2 mt-5">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Apply Plan</button>
+              <button type="submit" class="btn btn-primary">
+                <i class="ti tabler-check me-1"></i>
+                Apply Plan
+              </button>
             </div>
           </form>
         </div>
       </div>
-
     </div>
   </div>
 
 @endif
 
 @if($plan)
-  {{-- Add installment plan modal (available whenever a payment plan exists) --}}
   <div class="modal fade" id="addInstallmentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-simple modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-simple modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-body p-0">
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 
           <div class="text-center mb-4">
             <h4 class="mb-2 fw-bolder">Add Installment Plan</h4>
-            <p class="text-muted mb-0">Attach installment template(s) to the existing payment plan for this
+            <p class="text-muted mb-0">Attach an existing template or create a custom installment plan for this
               {{ strtolower($entityLabel) }}.</p>
           </div>
 
-          <form action="{{ route('payment_plan.attach-installment', $plan) }}" method="POST">
-            @csrf
+          <ul class="nav nav-pills nav-fill gap-2 mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="addByTemplateTab" data-bs-toggle="pill"
+                      data-bs-target="#addByTemplatePane" type="button" role="tab">
+                <i class="ti tabler-file-invoice me-1"></i> By Template
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="addCustomTab" data-bs-toggle="pill"
+                      data-bs-target="#addCustomPane" type="button" role="tab">
+                <i class="ti tabler-pencil me-1"></i> Custom
+              </button>
+            </li>
+          </ul>
 
-            @if(count($installmentTemplateOptions))
-              <div class="mb-3">
-                <div class="select2-primary">
-                  <select id="addInstallmentSelect" name="installment_template_ids[]"
-                          class="select2 form-select installment-template-select" multiple
-                          data-preview="addInstallmentPreview">
-                    @foreach($installmentTemplateOptions as $it)
-                      <option value="{{ $it->id }}"
-                              data-name="{{ $it->name }}"
-                              data-number-of-installments="{{ $it->number_of_installments }}"
-                              data-frequency="{{ $it->installment_frequency }}"
-                              data-additional="{{ $it->additional_installment_amount }}"
-                              data-additional-in-per="{{ $it->additional_installment_amount_in_per ? 1 : 0 }}"
-                              data-balloon="{{ $it->balloon_payment }}"
-                              data-balloon-in-per="{{ $it->balloon_payment_in_per ? 1 : 0 }}"
-                              data-balloon-frequency="{{ $it->balloon_payment_frequency }}">
-                        {{ $it->name }}
-                      </option>
-                    @endforeach
-                  </select>
-                </div>
-                <div id="addInstallmentPreview" class="mt-3 d-none"
-                     data-price-base="{{ $listingPrice }}"
-                     data-included-total="{{ $includedTotal }}"
-                     data-excluded-total="{{ $excludedTotal }}">
-                  <div class="it-preview-list"></div>
-                </div>
-              </div>
-            @else
-              <div class="border rounded-3 p-3 bg-label-secondary">
-                <small class="text-muted">
-                  @if(count($allInstallmentTemplates))
-                    All available installment templates are already applied to this {{ strtolower($entityLabel) }}.
-                  @else
-                    No installment templates available. <a href="{{ route('installment-templates.index') }}">Create
-                      one</a>.
-                  @endif
-                </small>
-              </div>
-            @endif
+          <div class="tab-content p-0 shadow-none bg-transparent">
+            {{-- Attach from a template --}}
+            <div class="tab-pane fade show active" id="addByTemplatePane" role="tabpanel">
+              <form action="{{ route('payment_plan.attach-installment', $plan) }}" method="POST" id="addByTemplateForm">
+                @csrf
 
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Add Installment Plan</button>
+                @if(count($installmentTemplateOptions))
+                  <div class="mb-3">
+                    <div class="select2-primary">
+                      <select id="addInstallmentSelect" name="installment_template_ids[]"
+                              class="select2 form-select installment-template-select" multiple
+                              data-preview="addInstallmentPreview">
+                        @foreach($installmentTemplateOptions as $it)
+                          <option value="{{ $it->id }}"
+                                  data-name="{{ $it->name }}"
+                                  data-number-of-installments="{{ $it->number_of_installments }}"
+                                  data-frequency="{{ $it->installment_frequency }}"
+                                  data-additional="{{ $it->additional_installment_amount }}"
+                                  data-additional-in-per="{{ $it->additional_installment_amount_in_per ? 1 : 0 }}"
+                                  data-balloon="{{ $it->balloon_payment }}"
+                                  data-balloon-in-per="{{ $it->balloon_payment_in_per ? 1 : 0 }}"
+                                  data-balloon-frequency="{{ $it->balloon_payment_frequency }}">
+                            {{ $it->name }}
+                          </option>
+                        @endforeach
+                      </select>
+                    </div>
+                    <div id="addInstallmentPreview" class="mt-3 d-none"
+                         data-price-base="{{ $grossAmount }}"
+                         data-included-total="{{ $includedTotal }}"
+                         data-excluded-total="{{ $excludedTotal }}">
+                      <div class="it-preview-list"></div>
+                    </div>
+                  </div>
+                @else
+                  <div class="border rounded-3 p-3 bg-label-secondary mb-2">
+                    <small class="text-muted">
+                      @if(count($allInstallmentTemplates))
+                        All available installment templates are already applied to
+                        this {{ strtolower($entityLabel) }}
+                        .
+                      @else
+                        No installment templates available. <a href="{{ route('installment-templates.index') }}">Create
+                          one</a>.
+                      @endif
+                    </small>
+                  </div>
+                @endif
+
+              </form>
             </div>
-          </form>
-        </div>
-      </div>
 
+            {{-- Create a custom plan --}}
+            <div class="tab-pane fade mb-2" id="addCustomPane" role="tabpanel">
+              <form action="{{ route('payment_plan.store-installment', $plan) }}" method="POST"
+                    id="addCustomInstallmentForm">
+                @csrf
+
+                <div class="mb-3">
+                  <label class="form-label fw-semibold" for="ci_name">Plan Name</label>
+                  <input type="text" name="name" id="ci_name" class="form-control"
+                         placeholder="e.g. 3-Year Plan">
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Number of Installments <span
+                        class="text-danger">*</span></label>
+                    <input type="number" name="number_of_installments" id="ci_number_of_installments"
+                           class="form-control" min="1" max="360" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Frequency <span class="text-danger">*</span></label>
+                    <select name="installment_frequency" id="ci_installment_frequency" class="form-select"
+                            required>
+                      <option value="">Select</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="biannually">Biannually</option>
+                      <option value="annually">Annually</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-md-7">
+                    <label class="form-label fw-semibold">Additional Installment Amount <span
+                        class="text-danger">*</span></label>
+                    <input type="number" name="additional_installment_amount"
+                           id="ci_additional_installment_amount" class="form-control" step="0.01" min="0"
+                           required>
+                    <div class="invalid-feedback d-block" id="ci_additional_installment_amount_error"></div>
+                  </div>
+                  <div class="col-md-5 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                      <input type="checkbox" name="additional_installment_amount_in_per" value="1"
+                             id="ci_additional_installment_amount_in_per" class="form-check-input">
+                      <label class="form-check-label small"
+                             for="ci_additional_installment_amount_in_per">As Percentage (%)</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold">Balloon Payment</label>
+                    <input type="number" name="balloon_payment" id="ci_balloon_payment" class="form-control"
+                           step="0.01" min="0">
+                    <div class="invalid-feedback d-block" id="ci_balloon_payment_error"></div>
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                      <input type="checkbox" name="balloon_payment_in_per" value="1"
+                             id="ci_balloon_payment_in_per" class="form-check-input">
+                      <label class="form-check-label small" for="ci_balloon_payment_in_per">As Percentage
+                        (%)</label>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold">Balloon Frequency</label>
+                    <select name="balloon_payment_frequency" id="ci_balloon_payment_frequency"
+                            class="form-select">
+                      <option value="">Not applicable</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="biannually">Biannually</option>
+                      <option value="annually">Annually</option>
+                    </select>
+                    <div class="invalid-feedback d-block" id="ci_balloon_payment_frequency_error"></div>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="attachBtnByTemplate" form="addByTemplateForm">
+              <i class="ti tabler-paperclip me-1"></i> Attach
+            </button>
+            <button type="submit" class="btn btn-primary d-none" id="attachBtnCustom" form="addCustomInstallmentForm">
+              <i class="ti tabler-paperclip me-1"></i> Attach
+            </button>
+          </div>
+        </div> {{-- modal-body --}}
+      </div>
     </div>
   </div>
-
 
   {{-- Edit payment plan values modal --}}
   <div class="modal fade" id="editPlanModal" tabindex="-1" aria-hidden="true">
@@ -1107,7 +816,8 @@
             @csrf
 
             <div class="mb-3">
-              <label class="form-label fw-semibold">Payment Template <span class="text-muted">(optional)</span></label>
+              <label class="form-label fw-semibold">Payment Template <span
+                  class="text-muted">(optional)</span></label>
               <select name="payment_template_id" id="edit_payment_template" class="form-select">
                 <option value="">None (custom values)</option>
                 @foreach($paymentTemplateOptions as $pt)
@@ -1119,9 +829,6 @@
                           data-development-fee-surplus="{{ $pt->development_fee_surplus ? 1 : 0 }}"
                           data-down-payment="{{ $pt->down_payment }}"
                           data-down-payment-in-per="{{ $pt->down_payment_in_per ? 1 : 0 }}"
-                          data-transfer-fee="{{ $pt->transfer_fee }}"
-                          data-transfer-fee-in-per="{{ $pt->transfer_fee_in_per ? 1 : 0 }}"
-                          data-transfer-fee-surplus="{{ $pt->transfer_fee_surplus ? 1 : 0 }}"
                           data-confirmation-fee="{{ $pt->confirmation_fee }}"
                           data-confirmation-fee-in-per="{{ $pt->confirmation_fee_in_per ? 1 : 0 }}"
                           data-possession-fee="{{ $pt->possession_fee }}"
@@ -1147,7 +854,8 @@
                   <div class="border rounded-3 p-3 bg-label-secondary h-100">
                     <label class="form-label fw-semibold mb-2">{{ $fk['label'] }}</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
-                      <input type="number" name="{{ $key }}" id="{{ $key }}" class="form-control" step="0.01" min="0"
+                      <input type="number" name="{{ $key }}" id="{{ $key }}" class="form-control" step="0.01"
+                             min="0"
                              value="{{ $currentValue !== null ? $currentValue : '' }}"
                              placeholder="{{ $listingUnit }} or %">
                       <div class="form-check form-switch mb-0 flex-shrink-0">
@@ -1161,36 +869,38 @@
                       <div class="form-check">
                         <input type="checkbox" name="{{ $key }}_surplus" id="surplus_{{ $key }}"
                                class="form-check-input" value="1" {{ $feeIsSurplus($key) ? 'checked' : '' }}>
-                        <label class="form-check-label small" for="surplus_{{ $key }}">Additional (on top of
-                          listed)</label>
+                        <label class="form-check-label small" for="surplus_{{ $key }}">Excluded (extra /
+                          billed on top)</label>
                       </div>
                     @endif
                   </div>
                 </div>
               @endforeach
 
-              <div class="col-12">
-                <hr class="my-1">
-                <p class="section-caption fw-semibold small text-uppercase text-muted mb-2">
-                  Feature Premiums (always % of listed price — extra, on top)
-                </p>
-              </div>
-
-              @foreach($premiumKeys as $pk)
-                @php $currentPremium = $feeValue($pk['key']); @endphp
-                <div class="col-md-4">
-                  <div class="border rounded-3 p-3 bg-label-secondary h-100">
-                    <label class="form-label fw-semibold mb-2">{{ $pk['label'] }}</label>
-                    <div class="input-group">
-                      <input type="number" name="{{ $pk['key'] }}" id="{{ $pk['key'] }}" class="form-control"
-                             step="0.01" min="0" max="100"
-                             value="{{ $currentPremium !== null ? $currentPremium : '' }}" placeholder="%">
-                      <span class="input-group-text">%</span>
-                    </div>
-                    <div class="invalid-feedback d-block" id="{{ $pk['key'] }}_error"></div>
-                  </div>
+              @if(count($featurePremiumKeys))
+                <div class="col-12">
+                  <hr class="my-1">
+                  <p class="section-caption fw-semibold small text-uppercase text-muted mb-2">
+                    Feature Premiums (always % of listed price — extra, on top)
+                  </p>
                 </div>
-              @endforeach
+
+                @foreach($featurePremiumKeys as $pk)
+                  @php $currentPremium = $feeValue($pk['key']); @endphp
+                  <div class="col-md-4">
+                    <div class="border rounded-3 p-3 bg-label-secondary h-100">
+                      <label class="form-label fw-semibold mb-2">{{ $pk['label'] }}</label>
+                      <div class="input-group">
+                        <input type="number" name="{{ $pk['key'] }}" id="{{ $pk['key'] }}" class="form-control"
+                               step="0.01" min="0" max="100"
+                               value="{{ $currentPremium !== null ? $currentPremium : '' }}" placeholder="%">
+                        <span class="input-group-text">%</span>
+                      </div>
+                      <div class="invalid-feedback d-block" id="{{ $pk['key'] }}_error"></div>
+                    </div>
+                  </div>
+                @endforeach
+              @endif
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-4">
@@ -1256,7 +966,7 @@
                   <div class="form-check form-switch mb-2">
                     <input type="hidden" name="additional_installment_amount_in_per" value="0">
                     <input type="checkbox" id="ei_additional_installment_amount_in_per" class="form-check-input"
-                           onchange="document.querySelector('input[name=additional_installment_amount_in_per]').value = this.checked ? 1 : 0">
+                           onchange="this.form.querySelector('input[name=additional_installment_amount_in_per]').value = this.checked ? 1 : 0">
                     <label class="form-check-label small" for="ei_additional_installment_amount_in_per">As
                       Percentage
                       (%)</label>
@@ -1274,7 +984,7 @@
                   <div class="form-check form-switch mb-2">
                     <input type="hidden" name="balloon_payment_in_per" value="0">
                     <input type="checkbox" id="ei_balloon_payment_in_per" class="form-check-input"
-                           onchange="document.querySelector('input[name=balloon_payment_in_per]').value = this.checked ? 1 : 0">
+                           onchange="this.form.querySelector('input[name=balloon_payment_in_per]').value = this.checked ? 1 : 0">
                     <label class="form-check-label small" for="ei_balloon_payment_in_per">As Percentage
                       (%)</label>
                   </div>
@@ -1333,7 +1043,8 @@
             <label class="form-label fw-semibold">Print Mode</label>
             <div class="d-flex gap-3">
               <div class="form-check">
-                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_simple" value="simple"
+                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_simple"
+                       value="simple"
                        checked>
                 <label class="form-check-label" for="print_mode_simple">
                   <i class="ti tabler-file-text text-primary me-1"></i> Simple
@@ -1341,7 +1052,8 @@
                 </label>
               </div>
               <div class="form-check">
-                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_brief" value="brief">
+                <input class="form-check-input" type="radio" name="print_mode" id="print_mode_brief"
+                       value="brief">
                 <label class="form-check-label" for="print_mode_brief">
                   <i class="ti tabler-layout-list text-primary me-1"></i> Brief
                   <div class="text-muted small text-tiny">Detailed schedule cards</div>
@@ -1367,7 +1079,8 @@
               @endforeach
               <div class="form-check mt-2 pt-2 border-top">
                 <input class="form-check-input" type="checkbox" id="print_select_all_plans" checked>
-                <label class="form-check-label fw-semibold small" for="print_select_all_plans">Select All</label>
+                <label class="form-check-label fw-semibold small" for="print_select_all_plans">Select
+                  All</label>
               </div>
             </div>
           </div>
@@ -1384,93 +1097,8 @@
   </div>
 @endif
 
-@push('styles')
-  <style>
-    .planner {
-      --radius: 0.75rem;
-    }
 
-    .micro-label {
-      font-size: 0.62rem;
-      font-weight: 600;
-    }
-
-    .text-tiny {
-      font-size: 0.7rem;
-    }
-
-    .badge-xs {
-      font-size: 0.6rem;
-    }
-
-    .tracking-wide {
-      letter-spacing: 0.05em;
-    }
-
-    .section-caption {
-      font-size: 0.7rem;
-      letter-spacing: 0.04em;
-    }
-
-    .caption-hint {
-      text-transform: none;
-    }
-
-    .schedule-scroll {
-      max-height: 360px;
-      overflow-y: auto;
-    }
-
-    .col-seq {
-      width: 50px;
-    }
-
-    .summary-sticky {
-      top: 1.5rem;
-    }
-
-    @media (min-width: 992px) {
-      .summary-sticky {
-        position: sticky;
-      }
-    }
-
-    .plan-summary-card {
-      font-size: 0.95rem;
-    }
-
-    .plan-summary-title {
-      font-size: 0.82rem;
-      letter-spacing: 0.05em;
-      opacity: 0.85;
-    }
-
-    .summary-list {
-      font-size: 0.78rem;
-      opacity: 0.9;
-    }
-
-    .summary-final-row {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 0.35rem;
-      padding: 0.35rem 0.5rem;
-    }
-
-    .summary-divider {
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .summary-select {
-      width: auto;
-      max-width: 180px;
-    }
-
-    .bg-gradient {
-      background: linear-gradient(160deg, #7367f0 0%, #4f4f82 45%, #7367f0 100%) !important;
-      box-shadow: 0 8px 24px rgba(13, 110, 253, 0.2);
-    }
-  </style>
-@endpush
+@include('components.property._planning-styles')
 
 @push('scripts')
   <script>
@@ -1501,13 +1129,17 @@
         params.set('plans', selectedPlans.join(','));
       }
 
-      window.open(url + '?' + params.toString(), '_blank');
+      var printModal = document.getElementById('printPlanModal');
+      if (printModal && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getOrCreateInstance(printModal).hide();
+      }
+
+      printDocument(url + '?' + params.toString());
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      var grossAmount = {{ $grossAmount }};
-      var excludedTotal = {{ $excludedTotal }};
       var remainingAmount = {{ $remainingAmount }};
+      var totalOneTime = {{ $totalOneTime }};
 
       // ── Print plan modal ──
       var includeToggle = document.getElementById('print_include_installments');
@@ -1547,7 +1179,7 @@
           if (extraEl) extraEl.textContent = '0';
           if (totalBalloonEl) totalBalloonEl.textContent = '0';
           if (installmentRemainingEl) installmentRemainingEl.textContent = Number(remainingAmount).toLocaleString(undefined, { maximumFractionDigits: 0 });
-          if (finalAmountEl) finalAmountEl.textContent = Number(grossAmount + excludedTotal).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          if (finalAmountEl) finalAmountEl.textContent = Number(totalOneTime + remainingAmount).toLocaleString(undefined, { maximumFractionDigits: 0 });
           if (perEl) perEl.textContent = 'No installment plan selected.';
           return;
         }
@@ -1565,7 +1197,7 @@
         if (extraEl) extraEl.textContent = extra.toLocaleString(undefined, { maximumFractionDigits: 0 });
         if (totalBalloonEl) totalBalloonEl.textContent = totalBalloon.toLocaleString(undefined, { maximumFractionDigits: 0 });
         if (installmentRemainingEl) installmentRemainingEl.textContent = installmentRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 });
-        if (finalAmountEl) finalAmountEl.textContent = (grossAmount + excludedTotal + extra).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        if (finalAmountEl) finalAmountEl.textContent = (totalOneTime + remainingAmount + extra).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
         var perText = '';
         if (perBalloon > 0) {
@@ -1629,10 +1261,10 @@
         document.getElementById('ei_installment_frequency').value = data.installment_frequency || '';
         document.getElementById('ei_additional_installment_amount').value = data.additional_installment_amount;
         document.getElementById('ei_additional_installment_amount_in_per').checked = Boolean(data.additional_installment_amount_in_per);
-        document.querySelector('input[name=additional_installment_amount_in_per]').value = Boolean(data.additional_installment_amount_in_per) ? 1 : 0;
+        document.getElementById('editInstallmentForm').querySelector('input[name=additional_installment_amount_in_per]').value = Boolean(data.additional_installment_amount_in_per) ? 1 : 0;
         document.getElementById('ei_balloon_payment').value = data.balloon_payment || '';
         document.getElementById('ei_balloon_payment_in_per').checked = Boolean(data.balloon_payment_in_per);
-        document.querySelector('input[name=balloon_payment_in_per]').value = Boolean(data.balloon_payment_in_per) ? 1 : 0;
+        document.getElementById('editInstallmentForm').querySelector('input[name=balloon_payment_in_per]').value = Boolean(data.balloon_payment_in_per) ? 1 : 0;
         document.getElementById('ei_balloon_payment_frequency').value = data.balloon_payment_frequency || '';
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('editInstallmentModal')).show();
@@ -1643,7 +1275,7 @@
         { key: 'booking_fee', per: true, surplus: false },
         { key: 'development_fee', per: true, surplus: true },
         { key: 'down_payment', per: true, surplus: false },
-        { key: 'transfer_fee', per: true, surplus: true },
+        { key: '', per: true, surplus: true },
         { key: 'confirmation_fee', per: true, surplus: false },
         { key: 'possession_fee', per: true, surplus: true }
       ];
@@ -1805,8 +1437,84 @@
         });
       }
 
+      var addCustomForm = document.getElementById('addCustomInstallmentForm');
+      if (addCustomForm) {
+        var ciAddInput = document.getElementById('ci_additional_installment_amount');
+        var ciAddToggle = document.getElementById('ci_additional_installment_amount_in_per');
+        var ciBallInput = document.getElementById('ci_balloon_payment');
+        var ciBallToggle = document.getElementById('ci_balloon_payment_in_per');
+
+        var ciValidateAdd = function() {
+          return validatePercent(addCustomForm, 'ci_additional_installment_amount', ciAddToggle && ciAddToggle.checked);
+        };
+        var ciValidateBall = function() {
+          return validatePercent(addCustomForm, 'ci_balloon_payment', ciBallToggle && ciBallToggle.checked);
+        };
+
+        if (ciAddInput) ciAddInput.addEventListener('input', function() {
+          if (ciAddToggle && ciAddToggle.checked) ciValidateAdd();
+        });
+        if (ciAddToggle) ciAddToggle.addEventListener('change', ciValidateAdd);
+        if (ciBallInput) ciBallInput.addEventListener('input', function() {
+          if (ciBallToggle && ciBallToggle.checked) ciValidateBall();
+        });
+        if (ciBallToggle) ciBallToggle.addEventListener('change', ciValidateBall);
+
+        addCustomForm.addEventListener('submit', function(e) {
+          clearErrors(addCustomForm);
+
+          var balloonValue = ciBallInput ? ciBallInput.value.trim() : '';
+          var balloonFreq = document.getElementById('ci_balloon_payment_frequency');
+          if (balloonValue && (!balloonFreq || !balloonFreq.value)) {
+            showError(addCustomForm, 'ci_balloon_payment_frequency', 'Required when balloon payment is set');
+            e.preventDefault();
+            return false;
+          }
+
+          var ok = ciValidateAdd();
+          if (!ciValidateBall()) ok = false;
+          if (!ok) {
+            e.preventDefault();
+            return false;
+          }
+        });
+      }
+
+      var addInstallmentModalEl = document.getElementById('addInstallmentModal');
+      if (addInstallmentModalEl) {
+        document.addEventListener('DOMContentLoaded', function() {
+          var m = document.getElementById('addInstallmentModal');
+          if (m) {
+            m.addEventListener('shown.bs.tab', function(e) {
+              var t = e.target.getAttribute('data-bs-target');
+              var bt = document.getElementById('attachBtnByTemplate');
+              var bc = document.getElementById('attachBtnCustom');
+              if (t === '#addByTemplatePane') {
+                bt.classList.remove('d-none');
+                bc.classList.add('d-none');
+              } else if (t === '#addCustomPane') {
+                bt.classList.add('d-none');
+                bc.classList.remove('d-none');
+              }
+            });
+          }
+        });
+        addInstallmentModalEl.addEventListener('hidden.bs.modal', function() {
+          if (addCustomForm) {
+            addCustomForm.reset();
+            clearErrors(addCustomForm);
+          }
+          var templateSelect = document.getElementById('addInstallmentSelect');
+          if (templateSelect && window.jQuery) {
+            jQuery(templateSelect).val(null).trigger('change');
+          }
+          var templateTab = document.getElementById('addByTemplateTab');
+          if (templateTab) bootstrap.Tab.getOrCreateInstance(templateTab).show();
+        });
+      }
+
       if (editPlanForm) {
-        var planFeeKeys = ['booking_fee', 'development_fee', 'down_payment', 'transfer_fee', 'confirmation_fee', 'possession_fee'];
+        var planFeeKeys = ['booking_fee', 'development_fee', 'down_payment', '', 'confirmation_fee', 'possession_fee'];
         var planPremiumKeys = ['corner_premium', 'park_facing_premium', 'main_boulevard_premium'];
 
         var planValidateFee = function(key) {
@@ -1859,3 +1567,4 @@
     });
   </script>
 @endpush
+

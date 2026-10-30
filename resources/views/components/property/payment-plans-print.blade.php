@@ -24,7 +24,8 @@
 $additionalTotal = $data['excluded_total'];
       $onetimeTotal = $data['included_total'];
       $grossAmount = $data['gross_amount'];
-      $remainingAmount = $grossAmount + $additionalTotal - $onetimeTotal;
+      $totalOneTime = $additionalTotal + $onetimeTotal;
+      $remainingAmount = $grossAmount - $onetimeTotal;
       $finalAmount = $grossAmount + $additionalTotal;
     @endphp
 
@@ -117,7 +118,7 @@ $additionalTotal = $data['excluded_total'];
           @if(count($additionalRows))
             {{-- EXCLUDED CHARGES --}}
             <span class="fw-semibold text-heading d-block mb-1 mt-1">One Time Excluded Charges <span
-                class="text-muted fw-normal">(on top of gross)</span></span>
+                class="text-muted fw-normal">(Extra / On Top Of Gross)</span></span>
             <div class="table-responsive border rounded mb-2">
               <table class="table m-0">
                 <thead>
@@ -151,7 +152,7 @@ $additionalTotal = $data['excluded_total'];
 
           {{-- INCLUDED CHARGES --}}
           <span class="fw-semibold text-heading d-block mb-2 mt-1">One Time Included Charges <span
-              class="text-muted fw-normal">(in gross)</span></span>
+              class="text-muted fw-normal">(In Gross)</span></span>
           <div class="table-responsive border rounded">
             <table class="table m-0">
               <thead>
@@ -196,7 +197,7 @@ $additionalTotal = $data['excluded_total'];
           class="fw-bold text-dark">{{ number_format($remainingAmount, 2) }} {{ $data['listing_unit'] }}</span>
       </span>
         <span class="d-flex justify-content-between align-items-center ">
-        <span class="fw-bold text-heading">Final Amount</span>
+        <span class="fw-bold text-heading">Final Amount (Without Installments)</span>
         <span
           class="fw-bold text-dark">{{ number_format($finalAmount, 2) }} {{ $data['listing_unit'] }}</span>
       </span>
@@ -216,7 +217,7 @@ $additionalTotal = $data['excluded_total'];
               <th class="ps-3 py-2 align-middle">Per Balloon</th>
               <th class="ps-3 py-2 align-middle">Per Installment</th>
               <th class="ps-3 text-end py-2 align-middle">Extra</th>
-              <th class="ps-3 text-end py-2 align-middle">Total Payable</th>
+              <th class="ps-3 text-end py-2 align-middle">Final Amount</th>
             </tr>
             </thead>
             <tbody>
@@ -238,7 +239,7 @@ $additionalTotal = $data['excluded_total'];
                 <td
                   class="ps-3 text-end">{{ number_format($ir['additional_amount'], 2) }} {{ $data['listing_unit'] }}</td>
                 <td
-                  class="ps-3 fw-semibold text-end">{{ number_format($data['gross_amount'] + $data['excluded_total'] + $ir['additional_amount'], 2) }} {{ $data['listing_unit'] }}</td>
+                  class="ps-3 fw-semibold text-end">{{ number_format($data['gross_amount'] + $ir['additional_amount'] + $data['excluded_total'], 2) }} {{ $data['listing_unit'] }}</td>
               </tr>
             @endforeach
             </tbody>
@@ -316,7 +317,7 @@ $additionalTotal = $data['excluded_total'];
                 <!-- Subtitle and extra charges on same line -->
                 <div class="brief-card-subtitle text-muted px-3 pt-2 mb-0">
                   <span>
-                    {{ $plan['num'] }} installments ({{ $plan['frequency'] }})
+                    {{ $plan['num'] }} Installments ({{ ucfirst($plan['frequency']) }})
                     @if($plan['balloon_count'])
                       · {{ $plan['balloon_count'] }} balloon{{ $plan['balloon_count'] > 1 ? 's' : '' }}
                       @if($plan['balloon_frequency'])
@@ -385,9 +386,9 @@ $additionalTotal = $data['excluded_total'];
 
                 {{-- Total Payable (pinned to bottom) --}}
                 <div class="brief-card-total">
-                  <span class="label">Total Payable</span>
+                  <span class="label">Final Amount (With Installments)</span>
                   <span
-                    class="value">{{ number_format($data['gross_amount'] + $data['excluded_total'] + $plan['additional_amount'], 2) }} {{ $data['listing_unit'] }}</span>
+                    class="value">{{ number_format($data['gross_amount'] + $plan['additional_amount'] + $data['excluded_total'], 2) }} {{ $data['listing_unit'] }}</span>
                 </div>
               </div>
             @endforeach
@@ -409,7 +410,8 @@ $additionalTotal = $data['excluded_total'];
 @push('scripts')
   <script>
     window.addEventListener('load', function() {
-      window.print();
+      // Inside the app's hidden print frame the parent triggers printing.
+      if (window.self === window.top) window.print();
     });
   </script>
 @endpush

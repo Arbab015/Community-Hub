@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\SocietyAccessResolver;
-use App\Mail\OwnerAssignedMail;
+use App\Mail\PropertyReservedMail;
+use App\Models\InstallmentTemplate;
+use App\Models\OwnershipCancellationReversal;
 use App\Models\Property;
 use App\Models\PropertyOwner;
-use App\Models\PropertyOwnershipPaymentPlan;
+use App\Models\PropertyReservedPaymentPlan;
 use App\Models\PropertyUnit;
-use App\Models\InstallmentTemplate;
 use App\Models\Society;
 use App\Models\User;
 use App\Services\FileServices;
+use App\Support\PaymentLedgerService;
 use App\Support\PaymentPlanPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,7 +44,12 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Lookup existing member by email or contact.
+     * Lookup an existing member by email or contact.
+     *
+     * The check is global on purpose: any row of the `users` table counts as an
+     * existing member. The society a person belongs to is not part of the test,
+     * so a member of another society - or of none yet - can still be picked and
+     * is attached to the society of the property afterwards.
      */
     public function lookup(Request $request)
     {
@@ -56,22 +63,9 @@ class PropertyOwnerController extends Controller
             return response()->json(['found' => false]);
         }
 
-        $societyId = $request->integer('society') ?: null;
-
-        // Only treat the user as "already a society member" when they carry the
-        // "Society Member" role and belong to a society owned by the society
-        // owner of the property's block's society (property -> block -> society).
-        $ownerId = $societyId ? Society::whereKey($societyId)->value('owner_id') : null;
-        $ownedSocietyIds = $ownerId ? Society::where('owner_id', $ownerId)->pluck('id') : collect();
-        $alreadyMember = $ownedSocietyIds->isNotEmpty()
-            && $user->hasRole('Society Member')
-            && $user->memberSocieties()
-                ->whereIn('societies.id', $ownedSocietyIds)
-                ->exists();
-
         return response()->json([
             'found' => true,
-            'already_member' => $alreadyMember,
+            'existing' => true,
             'user' => [
                 'id' => $user->id,
                 'first_name' => $user->first_name,
@@ -83,21 +77,40 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Assign owner or create new member and assign as owner.
+     * Reserve a property/unit for ownership by an existing member or a newly
+     * created member. The member becomes the prospective owner and the current
+     * payment plan is committed as the reservation snapshot. Responds with JSON
+     * for the fast (AJAX) reservation modal, otherwise falls back to a redirect.
      */
     public function store(Request $request)
     {
-        // Resolve existing member if needed
-        if (! $request->filled('existing_user_id') && $request->filled('fetch_term')) {
+        $wantsJson = $request->expectsJson();
+
+        // A new member must never inherit a member resolved from a stale lookup.
+        if ($request->input('mode') === 'new') {
+            $request->merge(['existing_user_id' => null]);
+        }
+
+        // Resolve existing member from the lookup term only when the user chose
+        // to link an existing member and no id was already resolved client-side.
+        if ($request->input('mode') === 'existing' && ! $request->filled('existing_user_id') && $request->filled('fetch_term')) {
             $userId = $this->findMemberByTerm($request->input('fetch_term'))?->id;
             $request->merge(['existing_user_id' => $userId]);
         }
 
-        $validated = $this->validateOwnerRequest($request);
-        if (! $validated) {
+        $validator = Validator::make($request->all(), $this->rules());
+        if ($validator->fails()) {
+            if ($wantsJson) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please check the form and try again.',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
             return redirect()->back()
                 ->withInput()
-                ->withErrors(Validator::make($request->all(), $this->rules())->errors())
+                ->withErrors($validator->errors())
                 ->with('error', 'Please check the form and try again.');
         }
 
@@ -105,17 +118,23 @@ class PropertyOwnerController extends Controller
         $ownerable = null;
         $plainPassword = $request->filled('existing_user_id') ? null : $request->password;
 
-        // A property that already has an active owner is sold out and must be
-        // unlinked before a member can be linked (or a new member created).
+        // A property/unit that already has an active ownership is taken and must
+        // be cancelled before a new reservation can be made.
         $ownerable = $request->ownerable_type === PropertyUnit::class
-            ? PropertyUnit::find($request->ownerable_id)
-            : Property::find($request->ownerable_id);
+          ? PropertyUnit::find($request->ownerable_id)
+          : Property::find($request->ownerable_id);
 
         if (
             $ownerable
-            && $ownerable->ownerships()->whereNull('end_date')->exists()
+            && $ownerable->ownerships()->active()->exists()
         ) {
-            return redirect()->back()->with('error', 'This property is sold out. Unlink the current owner before linking another member.');
+            $message = 'This property is already reserved/sold out. End the current ownership before reserving it again.';
+
+            if ($wantsJson) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->with('error', $message);
         }
 
         try {
@@ -128,13 +147,13 @@ class PropertyOwnerController extends Controller
                   ? PropertyUnit::findOrFail($request->ownerable_id)
                   : Property::findOrFail($request->ownerable_id);
 
-                // Create the ownership record
+                // Create the ownership (reservation) record
                 $ownership = PropertyOwner::create([
                     'property_ownerable_type' => $ownerable->getMorphClass(),
                     'property_ownerable_id' => $ownerable->id,
                     'owner_id' => $user->id,
-                    'start_date' => now()->toDateString(),
-                    'end_date' => null,
+                    'started_at' => now()->toDateString(),
+                    'status' => \App\Enums\OwnershipStatus::Active->value,
                 ]);
 
                 // Set owner
@@ -145,16 +164,26 @@ class PropertyOwnerController extends Controller
                 // mutate or delete the seller's plan).
                 $this->snapshotPaymentPlan($ownerable, $ownership, $request);
 
-                // Close the listing (ownership means it is no longer for sale)
+                // Close the listing (a reserved/owned property is no longer for sale)
                 // instead of deleting it, so inquiries/history are preserved.
                 $ownerable->listing()?->update(['closed' => true]);
             });
 
-            // Send notification email
-            $this->notifyOwner($user, $ownerable, $plainPassword);
+            // Send reservation notification email
+            $this->notifyReservation($user, $ownerable, $plainPassword);
 
-            return redirect()->back()->with('success', 'Member linked as owner with payment plan successfully.');
+            $message = 'Property reserved for ownership successfully.';
+
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message]);
+            }
+
+            return redirect()->back()->with('success', $message);
         } catch (\Exception $e) {
+            if ($wantsJson) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
             return redirect()->back()
                 ->withInput()
                 ->with('error', $e->getMessage());
@@ -162,45 +191,218 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Unlink the current owner: end the open ownership, keep the committed-plan
-     * snapshot + payment ledger (history) and relist the property/unit for
-     * sale. The seller's source plan is untouched, so it is exactly what gets
-     * re-used after re-listing.
+     * Return everything the current owner paid against the committed plan.
+     *
+     * The cancellation modal uses this to prefill the refund figures: the charges
+     * paid, the FBR tax paid, and the gross paid total. A fixed reduction is taken
+     * as entered; a percentage reduction is calculated on the plan's FINAL PRICE
+     * (commission_base). Reads the plan's PAID transactions only - reversed/returned
+     * ones no longer count.
      */
-    public function unlinkOwner(Request $request)
+    public function cancellationSummary(Request $request)
+    {
+        $ownerable = $request->input('ownerable_type') === PropertyUnit::class
+          ? PropertyUnit::find($request->input('ownerable_id'))
+          : Property::find($request->input('ownerable_id'));
+
+        if (! $ownerable) {
+            return response()->json(['ok' => false, 'message' => 'Property/unit not found.'], 404);
+        }
+
+        $ownership = $ownerable->ownerships()->active()->first();
+        $snapshot = $ownership?->paymentPlan;
+
+        // A society member may only read the settlement summary of their own
+        // ownership.
+        $visibility = app(\App\Services\Property\PaymentVisibilityService::class);
+        if ($visibility->isRestricted($request->user())) {
+            abort_unless($snapshot && $visibility->canViewPlan($snapshot, $request->user()), 403);
+        }
+
+        $paid = $snapshot
+          ? $snapshot->paymentTransactions()->where('status', 'paid')->get()
+          : collect();
+
+        $amount = round((float) $paid->sum('charge_subtotal'), 2);
+        $tax = round((float) $paid->sum('tax_amount'), 2);
+        $paidTotal = round($amount + $tax, 2);
+        $finalPrice = round((float) ($snapshot?->final_price ?? 0), 2);
+
+        return response()->json([
+            'ok' => true,
+            'currency' => $snapshot?->price_unit ?? 'PKR',
+            'return_amount' => $amount,
+            'return_tax' => $tax,
+            'return_total' => $paidTotal,      // gross paid (charges + tax)
+            'payment_count' => $paid->count(),
+            'commission_base' => $finalPrice,  // percentage reduction is applied on the plan final price
+            'final_price' => $finalPrice,
+            'has_payment' => $paid->count() > 0,
+        ]);
+    }
+
+    /**
+     * Cancel the ownership reservation WITH a settlement: return the money the
+     * owner paid (charges + FBR tax) minus an optional commission / reduction.
+     *
+     * A fixed reduction is taken as entered; a percentage reduction is calculated
+     * on the payment plan's final price. The net refund can therefore be negative
+     * (e.g. nothing was paid but a reduction applies) - a negative figure means
+     * the amount is to be received from the owner:
+     *
+     *   net refund = return_total - commission_amount
+     *
+     * Payments are NEVER deleted - each paid transaction is flipped to a
+     * "returned" status so the whole trail stays auditable. A settlement record
+     * is written and a printable return + commission receipt is produced.
+     */
+    public function cancelReservationWithSettlement(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'ownerable_type' => 'required|in:'.Property::class.','.PropertyUnit::class,
             'ownerable_id' => 'required|integer',
+            'commission_mode' => 'nullable|in:none,amount,percentage',
+            'commission_value' => 'nullable|numeric|min:0|required_if:commission_mode,amount,percentage',
+            'remarks' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()->with('error', 'Invalid ownerable reference.');
+            return redirect()->back()->with('error', 'Please check the cancellation form.');
         }
 
         try {
-            DB::transaction(function () use ($request) {
-                $ownerable = $request->ownerable_type === PropertyUnit::class
-                    ? PropertyUnit::findOrFail($request->ownerable_id)
-                    : Property::findOrFail($request->ownerable_id);
+            $reversal = DB::transaction(function () use ($request) {
+                $ownerable = $request->input('ownerable_type') === PropertyUnit::class
+                  ? PropertyUnit::findOrFail($request->input('ownerable_id'))
+                  : Property::findOrFail($request->input('ownerable_id'));
 
-                // End the current ownership. The snapshot + ledger stay intact
-                // so payment history is preserved for the society owner.
-                $ownership = $ownerable->ownerships()->whereNull('end_date')->first();
-                if ($ownership) {
-                    $ownership->update(['end_date' => now()->toDateString()]);
+                $ownership = $ownerable->ownerships()->active()->first();
+                if (! $ownership) {
+                    throw new \RuntimeException('No active ownership found for this property/unit.');
                 }
 
-                // Back to an owner-less, for-sale state.
+                $snapshot = $ownership->paymentPlan;
+                if (! $snapshot) {
+                    throw new \RuntimeException('No committed payment plan found for this ownership.');
+                }
+
+                if ($snapshot->isTransfer()) {
+                    throw new \RuntimeException('A transfer-fee plan cannot be cancelled - the ownership was already transferred.');
+                }
+
+                if ($snapshot->status === 'completed') {
+                    throw new \RuntimeException('A completed ownership plan cannot be cancelled - use resale instead.');
+                }
+
+                if (in_array($snapshot->status, ['reversed', 'cancelled'], true)) {
+                    throw new \RuntimeException('This ownership reservation is already cancelled.');
+                }
+
+                $paid = $snapshot->paymentTransactions()->where('status', 'paid')->get();
+
+                // Gross amount the owner paid (charges + FBR tax).
+                $returnAmount = round((float) $paid->sum('charge_subtotal'), 2);
+                $returnTax = round((float) $paid->sum('tax_amount'), 2);
+                $returnTotal = round($returnAmount + $returnTax, 2);
+
+                // Commission / reduction (optional) - a percentage is applied on the
+                // payment plan's FINAL PRICE.
+                $mode = $request->input('commission_mode', 'none');
+                $value = round((float) $request->input('commission_value', 0), 2);
+                $base = round((float) ($snapshot->final_price ?? 0), 2);
+
+                $commissionType = null;
+                $commissionAmount = 0.0;
+
+                if ($mode === 'amount' && $value > 0) {
+                    $commissionType = 'amount';
+                    $commissionAmount = $value;
+                } elseif ($mode === 'percentage' && $value > 0) {
+                    if ($value > 100) {
+                        throw new \RuntimeException('A percentage reduction cannot be more than 100%.');
+                    }
+                    $commissionType = 'percentage';
+                    $commissionAmount = round($base * $value / 100, 2);
+                }
+
+                // Net refund (paid total - reduction). It may be negative when the
+                // reduction is more than what was paid (e.g. nothing was paid).
+                $commissionAmount = round($commissionAmount, 2);
+                $netRefund = round($returnTotal - $commissionAmount, 2);
+
+                // Flip every paid transaction to "returned" and close its ledger
+                // rows as "reversed" - nothing is ever deleted, only statused.
+                $service = app(PaymentLedgerService::class);
+                foreach ($paid as $txn) {
+                    $service->reversePayment($txn, [
+                        'status' => 'returned',
+                        'ledger_status' => 'reversed',
+                    ]);
+                }
+
+                $snapshot->update([
+                    'status' => $paid->count() > 0 ? 'reversed' : 'cancelled',
+                ]);
+
+                $reversal = OwnershipCancellationReversal::create([
+                    'plan_id' => $snapshot->id,
+                    'status' => 'returned',
+                    'type' => 'ownership_cancel_return',
+                    'reason' => $commissionAmount > 0
+                      ? 'Ownership reservation cancelled: the paid amount (charges + FBR tax) was settled after a reduction of '
+                      .number_format($commissionAmount, 2).' '.($snapshot->price_unit ?? 'PKR').'. Net refund: '
+                      .number_format($netRefund, 2).'.'
+                      : 'Ownership reservation cancelled: the full paid amount (charges + FBR tax) was returned to the owner.',
+                    'remarks' => $request->input('remarks'),
+                    'reversed_at' => now(),
+                    'reversed_by' => Auth::id(),
+                    'return_amount' => $returnAmount,
+                    'return_tax' => $returnTax,
+                    'return_total' => $returnTotal,          // gross paid; net = return_total - commission_amount
+                    'payment_count' => $paid->count(),
+                    'currency' => $snapshot->price_unit ?? 'PKR',
+                    'commission_type' => $commissionType,
+                    'commission_value' => $value,
+                    'commission_base' => $base,              // plan final price
+                    'commission_amount' => $commissionAmount,
+                ]);
+
+                // End the ownership and relist the property/unit.
+                $ownership->update([
+                    'ended_at' => now()->toDateString(),
+                    'status' => \App\Enums\OwnershipStatus::Cancelled->value,
+                ]);
                 $ownerable->owner_id = null;
                 $ownerable->save();
                 $ownerable->listing()?->update(['closed' => false]);
+
+                return $reversal;
             });
 
-            return redirect()->back()->with('success', 'Owner unlinked. The listing is back on the market.');
-        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('success', 'Ownership cancelled. Net amount settled and receipt generated.')
+                ->with('print_document_url', route('property_owners.cancellation.receipt', [
+                    'reversal' => $reversal,
+                    'print' => 1,
+                ]));
+        } catch (\Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Printable return + commission receipt for an ownership cancellation.
+     */
+    public function cancellationReceipt(Request $request, OwnershipCancellationReversal $reversal)
+    {
+        $reversal->loadMissing(['plan.propertyOwner', 'plan.propertyOwnerable', 'reversedBy']);
+
+        return view('components.property.ownership-cancellation-receipt', [
+            'reversal' => $reversal,
+            'plan' => $reversal->plan,
+            'ownerable' => $reversal->plan?->propertyOwnerable,
+            'autoPrint' => $request->boolean('print'),
+        ]);
     }
 
     /**
@@ -208,10 +410,15 @@ class PropertyOwnerController extends Controller
      * assignment. Reads ONLY from the immutable ownership snapshot, so the
      * printed contract exactly matches what the owner committed.
      */
-    public function printOwnerPlan(Request $request, PropertyOwnershipPaymentPlan $snapshot)
+    public function printOwnerPlan(Request $request, PropertyReservedPaymentPlan $snapshot)
     {
         $ownerable = $snapshot->propertyOwnerable;
         abort_unless($ownerable, 404);
+
+        // A society member may only print the committed plan of their own
+        // ownership.
+        app(\App\Services\Property\PaymentVisibilityService::class)
+            ->authorizePlan($snapshot, $request->user());
 
         $mode = 'brief';
 
@@ -234,21 +441,25 @@ class PropertyOwnerController extends Controller
      * Update the committed charge values on an ownership snapshot. Only the
      * snapshot row is touched; the seller's source plan stays untouched.
      */
-    public function updateOwnershipPlan(Request $request, PropertyOwnershipPaymentPlan $snapshot)
+    public function updateOwnershipPlan(Request $request, PropertyReservedPaymentPlan $snapshot)
     {
-        if ($snapshot->paymentTransactions()->exists()) {
-            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or unlink the ownership before editing.');
+        if ($snapshot->isTransfer()) {
+            return redirect()->back()->with('error', 'A transfer-fee plan cannot be edited.');
+        }
+
+        if ($snapshot->hasLivePayments()) {
+            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or cancel the reservation before editing.');
         }
 
         $chargeKeys = [
             'booking_fee',
             'development_fee',
             'down_payment',
-            'transfer_fee',
+
             'confirmation_fee',
             'possession_fee',
         ];
-        $surplusKeys = ['development_fee', 'transfer_fee', 'possession_fee'];
+        $surplusKeys = ['development_fee', 'possession_fee'];
         $premiumKeys = ['corner_premium', 'park_facing_premium', 'main_boulevard_premium'];
 
         $values = [];
@@ -285,10 +496,14 @@ class PropertyOwnerController extends Controller
      * plan already attached to the ownerable's payment plan) to an ownership
      * snapshot that does not have an installment plan yet.
      */
-    public function addOwnershipInstallment(Request $request, PropertyOwnershipPaymentPlan $snapshot)
+    public function addOwnershipInstallment(Request $request, PropertyReservedPaymentPlan $snapshot)
     {
-        if ($snapshot->paymentTransactions()->exists()) {
-            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or unlink the ownership before editing.');
+        if ($snapshot->isTransfer()) {
+            return redirect()->back()->with('error', 'A transfer-fee plan has no installment schedule.');
+        }
+
+        if ($snapshot->hasLivePayments()) {
+            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or cancel the reservation before editing.');
         }
 
         $source = (string) $request->input('installment_source', '');
@@ -363,10 +578,14 @@ class PropertyOwnerController extends Controller
     /**
      * Update the single installment plan on an ownership snapshot.
      */
-    public function updateOwnershipInstallment(Request $request, PropertyOwnershipPaymentPlan $snapshot)
+    public function updateOwnershipInstallment(Request $request, PropertyReservedPaymentPlan $snapshot)
     {
-        if ($snapshot->paymentTransactions()->exists()) {
-            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or unlink the ownership before editing.');
+        if ($snapshot->isTransfer()) {
+            return redirect()->back()->with('error', 'A transfer-fee plan has no installment schedule.');
+        }
+
+        if ($snapshot->hasLivePayments()) {
+            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or cancel the reservation before editing.');
         }
 
         $validator = Validator::make($request->all(), [
@@ -414,10 +633,14 @@ class PropertyOwnerController extends Controller
      * Remove the installment plan from an ownership snapshot, resetting all
      * installment fields to null/defaults.
      */
-    public function removeInstallment(PropertyOwnershipPaymentPlan $snapshot)
+    public function removeInstallment(PropertyReservedPaymentPlan $snapshot)
     {
-        if ($snapshot->paymentTransactions()->exists()) {
-            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or unlink the ownership before editing.');
+        if ($snapshot->isTransfer()) {
+            return redirect()->back()->with('error', 'A transfer-fee plan has no installment schedule.');
+        }
+
+        if ($snapshot->hasLivePayments()) {
+            return redirect()->back()->with('error', 'This plan already has recorded payments. Finish or cancel the reservation before editing.');
         }
 
         try {
@@ -451,6 +674,7 @@ class PropertyOwnerController extends Controller
         return [
             'ownerable_type' => 'required|in:'.Property::class.','.PropertyUnit::class,
             'ownerable_id' => 'required|integer',
+            'mode' => 'nullable|in:existing,new',
             'existing_user_id' => 'nullable|integer|exists:users,id',
             'society' => 'nullable|exists:societies,id',
             'fetch_term' => 'nullable|string|max:255',
@@ -476,21 +700,12 @@ class PropertyOwnerController extends Controller
             'permanent_address' => 'required_without:existing_user_id|string|max:255',
             'profession' => 'nullable|string|max:100',
             'dob' => 'nullable|date',
+            'is_filer' => 'nullable|boolean',
             'picture' => 'nullable|image|max:5120',
             'payment_plan_id' => 'nullable|exists:property_payment_plans,id',
             'with_installment' => 'nullable|boolean',
             'installment_attachment_id' => 'nullable|integer',
         ];
-    }
-
-    /**
-     * Validate owner request.
-     */
-    private function validateOwnerRequest(Request $request): bool
-    {
-        $validator = Validator::make($request->all(), $this->rules());
-
-        return ! $validator->fails();
     }
 
     /**
@@ -517,6 +732,7 @@ class PropertyOwnerController extends Controller
             'permanent_address' => $request->permanent_address,
             'profession' => $request->profession,
             'dob' => $request->dob,
+            'is_filer' => (bool) $request->boolean('is_filer'),
         ]);
 
         // Assign role
@@ -537,7 +753,11 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Sync member to society (only if user has access to society).
+     * Attach the member to the society of the property they now own.
+     *
+     * The lookup that found the member is global (any row of `users` counts) -
+     * the society is only written afterwards, because the new owner belongs to
+     * the society of the property they just received.
      */
     private function syncMemberSociety(User $user, Request $request): void
     {
@@ -545,10 +765,9 @@ class PropertyOwnerController extends Controller
             return;
         }
 
-        $access = SocietyAccessResolver::resolver(Auth::user());
         $societyId = $request->integer('society');
 
-        if ($access['ownedSocietyIds']?->contains($societyId)) {
+        if (Society::whereKey($societyId)->exists()) {
             $user->memberSocieties()->syncWithoutDetaching([$societyId]);
         }
     }
@@ -556,7 +775,7 @@ class PropertyOwnerController extends Controller
     /**
      * Snapshot the committed payment + installment plan onto the ownership.
      * The seller's source plan and installment attachments are left untouched,
-     * so un-assigning an owner restores the for-sale plan exactly as it was.
+     * so cancelling a reservation restores the for-sale plan exactly as it was.
      */
     private function snapshotPaymentPlan($ownerable, PropertyOwner $ownership, Request $request): void
     {
@@ -587,12 +806,12 @@ class PropertyOwnerController extends Controller
             'booking_fee',
             'development_fee',
             'down_payment',
-            'transfer_fee',
+
             'confirmation_fee',
             'possession_fee',
         ];
         $premiumKeys = ['corner_premium', 'park_facing_premium', 'main_boulevard_premium'];
-        $surplusKeys = ['development_fee', 'transfer_fee', 'possession_fee'];
+        $surplusKeys = ['development_fee', 'possession_fee'];
 
         $values = array_fill_keys($chargeKeys, null);
         $values = array_merge($values, array_fill_keys(array_map(fn ($k) => $k.'_in_per', $chargeKeys), false));
@@ -649,7 +868,7 @@ class PropertyOwnerController extends Controller
         $listing = $ownerable->listing;
         $priceUnit = $attributes('listed_unit') ?? $listing?->unit ?? 'PKR';
 
-        $snapshot = PropertyOwnershipPaymentPlan::create(array_merge([
+        $snapshot = PropertyReservedPaymentPlan::create(array_merge([
             'property_ownerable_type' => $ownerable->getMorphClass(),
             'property_ownerable_id' => $ownerable->id,
             'property_owner_id' => $ownership->id,
@@ -660,7 +879,7 @@ class PropertyOwnerController extends Controller
         ], $values, $installment));
 
         // final_price always matches the summary's "Final Amount":
-        // Gross + Excluded + (Extra in case of Installment, when attached).
+        // Gross + (Extra in case of Installment, when attached).
         $snapshot->update(['final_price' => $this->ownerFinalPrice($snapshot)]);
 
         // Build the collectible ledger (down payment/fees/installments/balloons)
@@ -669,10 +888,10 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Final price as computed by the presenter (Gross + Excluded + Extra).
+     * Final price as computed by the presenter (Gross + Extra).
      * Matches the summary sidebar and print "Final Amount" exactly.
      */
-    private function ownerFinalPrice(PropertyOwnershipPaymentPlan $snapshot): float
+    private function ownerFinalPrice(PropertyReservedPaymentPlan $snapshot): float
     {
         return (float) PaymentPlanPresenter::buildFromSnapshot($snapshot)['final_price'];
     }
@@ -687,9 +906,9 @@ class PropertyOwnerController extends Controller
     }
 
     /**
-     * Send owner assignment notification.
+     * Send the ownership-reservation notification email.
      */
-    private function notifyOwner(User $user, $ownerable, ?string $plainPassword): void
+    private function notifyReservation(User $user, $ownerable, ?string $plainPassword): void
     {
         if (! $user->email) {
             return;
@@ -697,14 +916,14 @@ class PropertyOwnerController extends Controller
 
         try {
             $plan = $ownerable->paymentPlan()->first();
-            Mail::to($user->email)->send(new OwnerAssignedMail(
+            Mail::to($user->email)->send(new PropertyReservedMail(
                 $user,
                 $this->getOwnerableLabel($ownerable),
                 $plan?->paymentTemplate?->name ?? ($plan ? 'Custom Plan' : null),
                 $plainPassword,
             ));
         } catch (\Exception) {
-            // Mail failure should not break owner assignment
+            // Mail failure should not break the reservation
         }
     }
 
@@ -713,29 +932,7 @@ class PropertyOwnerController extends Controller
      */
     private function findMemberByTerm(?string $term): ?User
     {
-        $term = trim((string) $term);
-        if (empty($term)) {
-            return null;
-        }
-
-        // Try exact email match
-        if (filter_var($term, FILTER_VALIDATE_EMAIL)) {
-            return User::where('email', $term)->first();
-        }
-
-        // Try exact contact match
-        $user = User::where('contact', $term)->first();
-        if ($user) {
-            return $user;
-        }
-
-        // Try contact without formatting
-        $digits = preg_replace('/\D+/', '', $term);
-        if ($digits) {
-            return User::whereRaw('REGEXP_REPLACE(contact, "[^0-9]", "") = ?', [$digits])->first();
-        }
-
-        return null;
+        return \App\Support\MemberLookup::find($term);
     }
 
     /**

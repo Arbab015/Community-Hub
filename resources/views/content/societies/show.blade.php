@@ -11,6 +11,7 @@
 @endsection
 
 @section('content')
+  {{-- HEADER + BREADCRUMB --}}
   <div
     class="d-flex align-items-center justify-content-between bg-light rounded-3 p-4 mb-4 overflow-hidden position-relative">
     <div>
@@ -19,19 +20,19 @@
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item">
-            <a href="{{ route('dashboard.analytics') }}">Home</a>
+            <a href="{{ route('dashboard.analytics') }}" class="text-dark opacity-75 text-decoration-none">Home</a>
           </li>
           <li class="breadcrumb-item">
-            <a href="{{ route('societies.index', $user_type) }}">Societies</a>
+            <a href="{{ route('societies.index', $user_type) }}"
+               class="text-dark opacity-75 text-decoration-none">Societies</a>
           </li>
-          <li class="breadcrumb-item active">{{ ucwords($society->name) }}</li>
+          <li class="breadcrumb-item active text-dark opacity-50">Society details</li>
         </ol>
       </nav>
     </div>
-    <i class="ti tabler-building-community text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
 
     {{-- Mobile offcanvas toggle — only visible on forum tabs --}}
-    <div class="d-none" id="forum_canvas_btn">
+    <div class="d-none position-relative" id="forum_canvas_btn" style="z-index: 2;">
       <button
         class="btn btn-sm btn-secondary opacity-75"
         type="button"
@@ -42,117 +43,135 @@
         <i class="icon-base ti tabler-layout-sidebar-right icon-md"></i>
       </button>
     </div>
+
+    <i class="ti tabler-building-community text-dark opacity-25 position-absolute end-0 me-4 breadcumb_section_pic"></i>
   </div>
 
+  {{-- ALERTS --}}
   @if (session('success'))
-    <div class="alert alert-success">
-      {{ session('success') }}
+    <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+      <i class="ti tabler-circle-check-filled"></i> {{ session('success') }}
     </div>
   @endif
-  {{-- Error Message (for general errors) --}}
   @if (session('error'))
-    <div class="alert alert-danger">
-      {{ session('error') }}
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+      <i class="ti tabler-alert-circle-filled"></i> {{ session('error') }}
     </div>
   @endif
-  {{-- Validation Errors (for form validation failures) --}}
+
+  {{-- GLOBAL VALIDATION SUMMARY --}}
   @if ($errors->any())
-    <div class="alert alert-danger">
-      <ul>
-        @foreach ($errors->all() as $error)
-          <li>{{ $error }}</li>
-        @endforeach
+    <div class="alert alert-danger alert-dismissible d-flex gap-3 mb-3" role="alert">
+      <i class="ti tabler-alert-circle-filled fs-4 flex-shrink-0 mt-1"></i>
+      <div>
+        <strong>Please fix the following errors:</strong>
+        <ul class="mb-0 mt-1 small">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+      </div>
+      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+  @endif
+
+  {{-- TITLE ROW --}}
+  @php
+    $society_address = collect([
+        $society->address ? ucfirst($society->address) : null,
+        $society->city ? ucfirst($society->city) : null,
+        $society->country ? ucfirst($society->country) : null,
+    ])->filter()->implode(', ');
+  @endphp
+
+  <div class="d-flex align-items-start gap-3 mb-3">
+    <div class="rounded-2 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0"
+         style="width:48px; height:48px;">
+      <i class="ti tabler-building-community text-primary fs-4"></i>
+    </div>
+    <div class="flex-grow-1 min-w-0">
+      <h6 class="mb-1 fw-semibold">{{ ucwords($society->name) }}</h6>
+      @if($society_address)
+        <span class="text-muted small">
+        {{ $society_address }}
+        </span>
+      @endif
+    </div>
+  </div>
+
+  {{-- TABS --}}
+  @if (auth()->user()->can('owner_societies') || auth()->user()->can('all_societies') )
+    <div class="col-12">
+      <ul class="nav nav-pills flex-column flex-sm-row gap-1 border rounded-3 p-1 bg-light">
+        <li class="nav-item">
+          <button class="nav-link active w-100 text-start" data-bs-toggle="pill" data-bs-target="#info">
+            <i class="ti tabler-info-circle me-2 d-none d-sm-inline-block"></i> Info
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#gallery">
+            <i class="ti tabler-photo me-2 d-none d-sm-inline-block"></i> Gallery
+          </button>
+        </li>
+
+        <!-- Forum Dropdown -->
+        <li class="nav-item dropdown">
+          <button class="nav-link dropdown-toggle w-100 text-start" data-bs-toggle="dropdown" type="button"
+                  aria-expanded="false">
+            <i class="ti tabler-inbox me-2 d-none d-sm-inline-block"></i> Forum
+          </button>
+          <ul class="dropdown-menu">
+            <li>
+              <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#discussions" type="button">
+                <i class="ti tabler-messages me-2"></i> Discussions
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#suggestions" type="button">
+                <i class="ti tabler-bulb me-2"></i> Suggestions
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#issues" type="button">
+                <i class="ti tabler-alert-octagon me-2"></i> Issues
+              </button>
+            </li>
+          </ul>
+        </li>
+
+        <li class="nav-item">
+          <button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#properties">
+            <i class="ti tabler-building-skyscraper me-2 d-none d-sm-inline-block"></i> Properties
+          </button>
+        </li>
       </ul>
     </div>
   @endif
 
-
-  @if (auth()->user()->can('owner_societies') || auth()->user()->can('all_societies') )
-    <div class="col-12">
-      <div class="card mb-4 shadow-sm rounded-3">
-        <div class="card-header p-2 ">
-          <ul class="nav nav-pills flex-wrap gap-1" role="tablist">
-
-            <li class="nav-item">
-              <button class="nav-link  active" data-bs-toggle="tab" data-bs-target="#info" type="button">
-                <i class="fa-solid fa-circle-info me-2"></i>
-                Info
-              </button>
-            </li>
-
-            <li class="nav-item">
-              <button class="nav-link " data-bs-toggle="tab" data-bs-target="#gallery" type="button">
-                <i class="fa-solid fa-image me-2"></i>
-                Gallery
-              </button>
-            </li>
-
-            <!-- Forum Dropdown -->
-            <li class="nav-item dropdown">
-              <button class="nav-link dropdown-toggle tab-danger" data-bs-toggle="dropdown" type="button">
-                <i class="fa-solid fa-inbox me-2"></i>
-                Forum
-              </button>
-
-              <ul class="dropdown-menu">
-                <li>
-                  <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#discussions"
-                          type="button">
-                    Discussions
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#suggestions"
-                          type="button">
-                    Suggestions
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" data-bs-toggle="tab" data-bs-target="#issues"
-                          type="button">
-                    Issues
-                  </button>
-                </li>
-              </ul>
-            </li>
-
-            <li class="nav-item">
-              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#properties" type="button">
-                <i class="ti tabler-building-skyscraper me-2"></i>
-                Properties
-              </button>
-            </li>
-
-          </ul>
-        </div>
-      </div>
-    </div>
-  @endif
-
-  {{-- show tabs content --}}
-  <div class="tab-content p-0">
-    <div class="tab-pane fade show active" id="info">
+  {{-- TAB CONTENT --}}
+  <div class="tab-content mt-3 p-0 mt-5">
+    <div class="tab-pane fade show active" id="info" role="tabpanel">
       @include('components.societies.info')
     </div>
-    <div class="tab-pane fade" id="gallery">
+    <div class="tab-pane fade" id="gallery" role="tabpanel">
       @include('components.gallery')
     </div>
 
     {{-- Forum tabs --}}
-    <div class="tab-pane fade" id="discussions">
+    <div class="tab-pane fade" id="discussions" role="tabpanel">
       @include('components.societies.forum', ['type' => 'discussions', 'category' => 'discussion'])
     </div>
-    <div class="tab-pane fade" id="suggestions">
+    <div class="tab-pane fade" id="suggestions" role="tabpanel">
       @include('components.societies.forum', ['type' => 'suggestions', 'category' => 'suggestion'])
     </div>
-    <div class="tab-pane fade" id="issues">
+    <div class="tab-pane fade" id="issues" role="tabpanel">
       @include('components.societies.forum', ['type' => 'issues', 'category' => 'issue'])
     </div>
 
-    <div class="tab-pane fade" id="properties">
+    <div class="tab-pane fade" id="properties" role="tabpanel">
       @include('components.societies.properties')
     </div>
-  </div>
+  </div>{{-- /.tab-content --}}
 
 @endsection
 

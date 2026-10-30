@@ -18,23 +18,7 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $fillable = [
-        'uuid',
-        'first_name',
-        'last_name',
-        'email',
-        'password',
-        'dob',
-        'country',
-        'cnic_passport',
-        'gender',
-        'marital_status',
-        'profession',
-        'contact',
-        'emergency_contact',
-        'present_address',
-        'permanent_address',
-    ];
+    protected $guarded = [];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -56,12 +40,23 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_filer' => 'boolean',
         ];
     }
 
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * First and last name joined, for receipts, reports and audit columns.
+     */
+    protected function fullName(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn () => trim(($this->first_name ?? '').' '.($this->last_name ?? '')) ?: null,
+        );
     }
 
     // Single main attachment (user picture)
@@ -107,7 +102,7 @@ class User extends Authenticatable
         return $this->hasMany(PropertyUnit::class, 'owner_id');
     }
 
-    // Ownership records where this user is the owner (via property_owners table)
+    // Ownership history records where this user is the owner.
     public function propertyOwnerships()
     {
         return $this->hasMany(PropertyOwner::class, 'owner_id');

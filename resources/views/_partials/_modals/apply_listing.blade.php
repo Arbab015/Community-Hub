@@ -53,6 +53,26 @@
           </select>
         </div>
 
+        <!-- PROPERTY CATEGORY -->
+        <div class="mb-3">
+          <label class="form-label text-uppercase fw-semibold">Property Category</label>
+          <select class="form-select" name="category" id="listing_category">
+            <option value="">All Categories</option>
+            <option value="commercial">Commercial</option>
+            <option value="non_commercial">Non-Commercial</option>
+          </select>
+        </div>
+
+        <!-- CONSTRUCTION STATUS -->
+        <div class="mb-3">
+          <label class="form-label text-uppercase fw-semibold">Construction Status</label>
+          <select class="form-select" name="construction_status" id="listing_construction_status">
+            <option value="">All Statuses</option>
+            <option value="1">Constructed</option>
+            <option value="0">Non-Constructed</option>
+          </select>
+        </div>
+
         <!-- PRICE (sell only) -->
         <div class="mb-3" id="listing_price_wrapper">
           <label class="form-label text-uppercase fw-semibold">Price (Rate per area)</label>

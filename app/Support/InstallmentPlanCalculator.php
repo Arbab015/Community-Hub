@@ -22,14 +22,17 @@ namespace App\Support;
  *   - per installment = (grand total - total balloon) / normal count
  *
  * Calculation flow:
- *   - gross amount       = listing price + additional (excluded) charges
- *   - one-time charges   = included charges
- *   - remaining amount   = gross amount - one-time charges
+ *   - gross amount       = listing price (= listed price + feature premiums)
+ *   - included charges   = one-time charges carved out of gross
+ *   - excluded charges   = extra one-time charges billed on top (not subtracted)
+ *   - remaining amount   = gross amount - included charges
  *   - extra installment  = additional installment amount (% of gross or fixed)
  *   - grand total        = remaining amount + extra installment
  *   - total balloon      = grand total x percentage (or a fixed amount)
  *   - per balloon        = total balloon / balloon count
  *   - per installment    = (grand total - total balloon) / normal count
+ *   - total payable      = included + excluded + grand total
+ *                       = gross amount + excluded charges + extra installment
  *
  * Per-installment and per-balloon amounts are always rounded UP (ceil) so no
  * payment ever carries awkward decimals like .08.
@@ -98,11 +101,15 @@ final class InstallmentPlanCalculator
      * Computes the full breakdown and an interleaved payment schedule.
      *
      * Calculation flow:
-     *   gross       = listing + additional (excluded) charges
-     *   remaining   = gross - one-time (included) charges
+     *   gross       = listing (gross) price
+     *   remaining   = gross - included charges (excluded charges are extra,
+     *                 billed separately on top, never subtracted)
      *   grand total = remaining + extra installment amount
      *   balloon     = % of grand total (or fixed)
      *   per balloon / per installment derived from grand total
+     *
+     * Total payable (final amount) = included + excluded + grand total
+     *                              = gross + excluded + extra installment.
      *
      * Expected input keys:
      *   listing_price, included_charges_total, excluded_charges_total,
@@ -133,12 +140,13 @@ final class InstallmentPlanCalculator
         $years = $num > 0 ? $num / $ipp : 0;
 
         // ── Core amounts ──
-        // Gross = listed price + additional (excluded) charges
-        $grossAmount = $listingPrice + $excludedTotal;
-        // One-time = included charges already part of listed price
+        // Gross = the listing (gross) price passed in
+        $grossAmount = $listingPrice;
+        // One-time charges carved out of gross = included charges only. Excluded
+        // charges are extra one-time charges billed on top, not subtracted.
         $oneTimeCharges = $includedTotal;
-        // Remaining = gross minus one-time charges
-        $remainingAmount = $grossAmount - $oneTimeCharges;
+        // Remaining = gross minus included charges
+        $remainingAmount = $grossAmount - $includedTotal;
         // Extra = installment-specific markup (% of gross or fixed)
         $extraInstallments = $additional;
         // Grand total = remaining + extra (the amount actually paid via installments)

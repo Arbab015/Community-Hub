@@ -10,6 +10,7 @@ use App\Models\Property;
 use App\Models\PropertyPaymentPlan;
 use App\Models\PropertyPaymentPlanInstallmentTemplate;
 use App\Models\PropertyUnit;
+use App\Services\PropertyRangeService;
 use App\Support\InstallmentPlanCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,12 +26,11 @@ class PropertyPaymentPlanController extends Controller
         'booking_fee',
         'development_fee',
         'down_payment',
-        'transfer_fee',
         'confirmation_fee',
         'possession_fee',
     ];
 
-    private const SURPLUS_KEYS = ['development_fee', 'transfer_fee', 'possession_fee'];
+    private const SURPLUS_KEYS = ['development_fee', 'possession_fee'];
 
     private const PREMIUM_KEYS = ['corner_premium', 'park_facing_premium', 'main_boulevard_premium'];
 
@@ -91,6 +91,8 @@ class PropertyPaymentPlanController extends Controller
                 $this->nullableId($request->payment_template_id),
                 $request->installment_template_ids ?? []
             );
+
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlagForProperties($result['applied'], $request->boolean('apply_to_units'));
 
             DB::commit();
 
@@ -237,9 +239,6 @@ class PropertyPaymentPlanController extends Controller
             'development_fee_surplus' => 'nullable|boolean',
             'down_payment' => ['nullable', 'numeric', 'min:0', $request->boolean('down_payment_in_per') ? 'max:100' : ''],
             'down_payment_in_per' => 'nullable|boolean',
-            'transfer_fee' => ['nullable', 'numeric', 'min:0', $request->boolean('transfer_fee_in_per') ? 'max:100' : ''],
-            'transfer_fee_in_per' => 'nullable|boolean',
-            'transfer_fee_surplus' => 'nullable|boolean',
             'confirmation_fee' => ['nullable', 'numeric', 'min:0', $request->boolean('confirmation_fee_in_per') ? 'max:100' : ''],
             'confirmation_fee_in_per' => 'nullable|boolean',
             'possession_fee' => ['nullable', 'numeric', 'min:0', $request->boolean('possession_fee_in_per') ? 'max:100' : ''],
@@ -252,7 +251,6 @@ class PropertyPaymentPlanController extends Controller
             'booking_fee.max' => $request->boolean('booking_fee_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
             'development_fee.max' => $request->boolean('development_fee_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
             'down_payment.max' => $request->boolean('down_payment_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
-            'transfer_fee.max' => $request->boolean('transfer_fee_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
             'confirmation_fee.max' => $request->boolean('confirmation_fee_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
             'possession_fee.max' => $request->boolean('possession_fee_in_per') ? 'Percentage must be between 0-100' : 'Amount cannot exceed 1,000,000',
         ]);
@@ -279,6 +277,8 @@ class PropertyPaymentPlanController extends Controller
                 'payment_template_id' => $paymentTemplateId,
             ], $this->listedPriceValues($paymentPlan->planable), $chargeValues));
 
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($paymentPlan->planable);
+
             return back()->with('success', 'Payment plan values updated.');
         } catch (\Exception $e) {
             return back()->with('error', 'An error occurred while updating the payment plan: '.$e->getMessage());
@@ -293,6 +293,8 @@ class PropertyPaymentPlanController extends Controller
     {
         try {
             $installmentAttachment->delete();
+
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($paymentPlan->planable);
 
             return back()->with('success', 'Installment plan removed.');
         } catch (\Exception $e) {
@@ -321,9 +323,6 @@ class PropertyPaymentPlanController extends Controller
             'development_fee_surplus' => 'nullable|boolean',
             'down_payment' => 'nullable|numeric|min:0',
             'down_payment_in_per' => 'nullable|boolean',
-            'transfer_fee' => 'nullable|numeric|min:0',
-            'transfer_fee_in_per' => 'nullable|boolean',
-            'transfer_fee_surplus' => 'nullable|boolean',
             'confirmation_fee' => 'nullable|numeric|min:0',
             'confirmation_fee_in_per' => 'nullable|boolean',
             'possession_fee' => 'nullable|numeric|min:0',
@@ -369,6 +368,8 @@ class PropertyPaymentPlanController extends Controller
                 );
             });
 
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($model);
+
             return back()->with('success', 'Payment plan applied successfully.');
         } catch (\Exception $e) {
             if (DB::transactionLevel() > 0) {
@@ -392,6 +393,8 @@ class PropertyPaymentPlanController extends Controller
 
         try {
             $paymentPlan->installmentTemplates()->syncWithoutDetaching($this->installmentSyncData($request->installment_template_ids));
+
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($paymentPlan->planable);
 
             return back()->with('success', 'Installment plan added.');
         } catch (\Exception $e) {
@@ -518,7 +521,7 @@ class PropertyPaymentPlanController extends Controller
 
     /**
      * Snapshots the property/unit's listed price + unit onto the plan so
-     * calculations survive the listing being removed later (e.g. owner assign).
+     * calculations survive the listing being removed later (e.g. ownership reservation).
      */
     private function listedPriceValues($model): array
     {
@@ -536,7 +539,10 @@ class PropertyPaymentPlanController extends Controller
     public function destroy(PropertyPaymentPlan $paymentPlan)
     {
         try {
+            $planable = $paymentPlan->planable;
             $paymentPlan->delete();
+
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($planable);
 
             return back()->with('success', 'Payment plan removed.');
         } catch (\Exception $e) {
@@ -550,6 +556,56 @@ class PropertyPaymentPlanController extends Controller
      * cleared so the template itself is never modified.
      */
     public function updateInstallment(Request $request, PropertyPaymentPlan $paymentPlan, PropertyPaymentPlanInstallmentTemplate $installmentAttachment)
+    {
+        if ($redirect = $this->validateInstallmentPayload($request)) {
+            return $redirect;
+        }
+
+        try {
+            $installmentAttachment->update(array_merge([
+                'installment_template_id' => null,
+                'name' => $request->input('name') ?: ($installmentAttachment->name ?: $installmentAttachment->installmentTemplate?->name),
+            ], $this->installmentValuesFromRequest($request)));
+
+            return back()->with('success', 'Installment plan updated.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while updating the installment plan: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Creates a brand-new custom installment plan (no source template) and
+     * attaches it to the payment plan.
+     */
+    public function storeInstallment(Request $request, PropertyPaymentPlan $paymentPlan)
+    {
+        if ($redirect = $this->validateInstallmentPayload($request)) {
+            return $redirect;
+        }
+
+        try {
+            $paymentPlan->installmentAttachments()->create(array_merge([
+                'installment_template_id' => null,
+                'name' => $request->input('name') ?: 'Installment Plan',
+            ], $this->installmentValuesFromRequest($request)));
+
+            app(PropertyRangeService::class)->syncBlockPaymentPlanFlag($paymentPlan->planable);
+
+            return back()->with('success', 'Custom installment plan created and attached.');
+        } catch (\Exception $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            return back()->with('error', 'An error occurred while creating the installment plan: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Shared validation for creating/updating an installment plan. Returns a
+     * redirect response when the balloon rules fail; throws for field errors.
+     */
+    private function validateInstallmentPayload(Request $request): ?\Illuminate\Http\RedirectResponse
     {
         $isAdditionalPercentage = $request->boolean('additional_installment_amount_in_per');
         $isBalloonPercentage = $request->boolean('balloon_payment_in_per');
@@ -572,29 +628,28 @@ class PropertyPaymentPlanController extends Controller
             return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency is required when balloon payment is set'])->withInput();
         }
 
-        if ($request->filled('balloon_payment') && $request->filled('balloon_payment_frequency')) {
-            if (! InstallmentPlanCalculator::balloonFrequencyValid($request->input('installment_frequency'), $request->input('balloon_payment_frequency'))) {
-                return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
-            }
+        if ($request->filled('balloon_payment') && $request->filled('balloon_payment_frequency')
+          && ! InstallmentPlanCalculator::balloonFrequencyValid($request->input('installment_frequency'), $request->input('balloon_payment_frequency'))) {
+            return back()->withErrors(['balloon_payment_frequency' => 'Balloon frequency must be less frequent than the installment frequency (e.g. quarterly balloons with monthly installments)'])->withInput();
         }
 
-        try {
-            $installmentAttachment->update([
-                'installment_template_id' => null,
-                'name' => $request->input('name') ?: ($installmentAttachment->name ?: $installmentAttachment->installmentTemplate?->name),
-                'number_of_installments' => $request->input('number_of_installments'),
-                'installment_frequency' => $request->input('installment_frequency'),
-                'additional_installment_amount' => $request->input('additional_installment_amount'),
-                'additional_installment_amount_in_per' => $request->boolean('additional_installment_amount_in_per'),
-                'balloon_payment' => $this->nullableNumber($request->input('balloon_payment')),
-                'balloon_payment_in_per' => $request->boolean('balloon_payment_in_per'),
-                'balloon_payment_frequency' => $request->input('balloon_payment_frequency'),
-            ]);
+        return null;
+    }
 
-            return back()->with('success', 'Installment plan updated.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'An error occurred while updating the installment plan: '.$e->getMessage());
-        }
+    /**
+     * Snapshot the submitted installment values (shared by create + update).
+     */
+    private function installmentValuesFromRequest(Request $request): array
+    {
+        return [
+            'number_of_installments' => $request->input('number_of_installments'),
+            'installment_frequency' => $request->input('installment_frequency'),
+            'additional_installment_amount' => $request->input('additional_installment_amount'),
+            'additional_installment_amount_in_per' => $request->boolean('additional_installment_amount_in_per'),
+            'balloon_payment' => $this->nullableNumber($request->input('balloon_payment')),
+            'balloon_payment_in_per' => $request->boolean('balloon_payment_in_per'),
+            'balloon_payment_frequency' => $request->input('balloon_payment_frequency'),
+        ];
     }
 
     private function nullableNumber($value): ?float
@@ -677,7 +732,7 @@ class PropertyPaymentPlanController extends Controller
 
         $marla = $sqft / $marlaSize;
 
-        return $marla > $min && ($max === null || $marla <= $max);
+        return $marla >= $min && ($max === null || $marla <= $max);
     }
 
     private function parseSizeRange(string $range): array

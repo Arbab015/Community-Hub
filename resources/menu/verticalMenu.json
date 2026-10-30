@@ -66,6 +66,13 @@
       "permission": "owner_properties"
     },
     {
+      "name": "My Payments",
+      "slug": "my_payments",
+      "icon": "menu-icon icon-base ti tabler-receipt",
+      "url": "payments/my_payments",
+      "permission": "my_payments_listing"
+    },
+    {
       "name": "Discussions",
       "slug": "discussions",
       "icon": "menu-icon icon-base ti tabler-message-2",
@@ -130,8 +137,32 @@
           "name": "Installment Templates",
           "route": "installment-templates.index",
           "permission": "installment_template_listing"
+        },
+        {
+          "name": "Transfer Fee",
+          "route": "transfer_fee.index",
+          "permission": "transfer_fee_listing"
+        },
+        {
+          "name": "Property Transfers",
+          "route": "property_transfers.index",
+          "permission": "property_transfer_listing"
         }
       ]
+    },
+    {
+      "name": "All Transactions",
+      "slug": "all_transactions",
+      "icon": "menu-icon icon-base ti tabler-report-money",
+      "url": "payments/all_transactions",
+      "permission": "all_transactions_listing"
+    },
+    {
+      "name": "Payment Late Fee Rules",
+      "slug": "payment_late_fee_rules",
+      "icon": "menu-icon icon-base ti tabler-alert-triangle",
+      "url": "payments/payment_late_fee_rules",
+      "permission": "payment_late_fee_rule_listing"
     },
     {
       "name": "Property Attributes",
@@ -139,6 +170,13 @@
       "icon": "menu-icon icon-base ti tabler-clipboard-list",
       "url": "property_attributes/index",
       "permission": "listing_attribute"
+    },
+    {
+      "name": "FBR Tax Rates",
+      "slug": "fbr_tax_rates",
+      "icon": "menu-icon icon-base ti tabler-calculator",
+      "url": "fbr-tax-rates/index",
+      "permission": "listing_fbr_tax_rate"
     },
     {
       "name": "Rules",
@@ -153,6 +191,13 @@
       "icon": "menu-icon icon-base ti tabler-message",
       "url": "messages/index",
       "permission": "contact_messages"
+    },
+    {
+      "name": "System Settings",
+      "slug": "system_settings",
+      "icon": "menu-icon icon-base ti tabler-settings",
+      "url": "system-settings/index",
+      "permission": "system_settings"
     }
   ]
 }

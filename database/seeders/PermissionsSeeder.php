@@ -107,10 +107,39 @@ class PermissionsSeeder extends Seeder
             'installment_plan_add', // add installment plan in the payment plan
             'installment_plan_edit',  // edit installment plan in the payment plan
             'installment_plan_delete', // remove or delete the installment plan
-            'property_assign_owner',
+            'property_reserve_owner',
 
             // payment collection / tracking
             'payment_collect', // record payments against a committed plan
+            'my_payments_listing',
+            'payment_history_switch',
+            'reschedule_payments',
+            'payment_history',
+
+            'payment_print_by_period',
+            'all_transactions_listing',
+            'refund_payment',
+            'cancel_reserve-ownership',
+
+            'listing_fbr_tax_rate',
+
+            'transfer_fee_listing',
+            'transfer_fee_create',
+            'transfer_fee_edit',
+            'transfer_fee_delete',
+
+            'payment_late_fee_rule_listing',
+            'payment_late_fee_rule_create',
+            'payment_late_fee_rule_edit',
+            'payment_late_fee_rule_delete',
+
+            'property_transfer_listing',
+            'property_transfer_create',
+            'property_transfer_approve',
+            'property_transfer_print',
+
+            'system_settings',
+
         ];
 
         foreach ($permissions as $permission) {
@@ -169,8 +198,27 @@ class PermissionsSeeder extends Seeder
             'installment_plan_add',
             'installment_plan_edit',
             'installment_plan_delete',
-            'property_assign_owner',
+            'property_reserve_owner',
 
+            'my_payments_listing',
+            'refund_payment',
+            'cancel_reserve-ownership',
+            'reschedule_payments',
+
+            'transfer_fee_listing',
+            'transfer_fee_create',
+            'transfer_fee_edit',
+            'transfer_fee_delete',
+
+            'payment_late_fee_rule_listing',
+            'payment_late_fee_rule_create',
+            'payment_late_fee_rule_edit',
+            'payment_late_fee_rule_delete',
+
+            'property_transfer_listing',
+            'property_transfer_create',
+
+            'property_transfer_approve',
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -268,9 +316,32 @@ class PermissionsSeeder extends Seeder
             'installment_plan_edit',
             'installment_plan_delete',
 
-            'property_assign_owner',
+            'property_reserve_owner',
 
             'payment_collect',
+            'reschedule_payments',
+            'payment_history_switch',
+            'payment_history',
+            'payment_print_by_period',
+            'all_transactions_listing',
+            'refund_payment',
+            'cancel_reserve-ownership',
+
+            'transfer_fee_listing',
+            'transfer_fee_create',
+            'transfer_fee_edit',
+            'transfer_fee_delete',
+
+            'payment_late_fee_rule_listing',
+            'payment_late_fee_rule_create',
+            'payment_late_fee_rule_edit',
+            'payment_late_fee_rule_delete',
+
+            'property_transfer_listing',
+            'property_transfer_approve',
+            'property_transfer_print',
+
+            'system_settings',
         ];
 
         $societyOwnerRole = Role::firstOrCreate(['name' => 'Society Owner']);
@@ -297,6 +368,13 @@ class PermissionsSeeder extends Seeder
             'unlist_property',
 
             'see_inquiries',
+
+            'my_payments_listing',
+            'payment_history',
+
+            'property_transfer_create',
+            'property_transfer_print',
+
         ])->get();
 
         $role = Role::firstOrCreate(['name' => 'Society Member']);

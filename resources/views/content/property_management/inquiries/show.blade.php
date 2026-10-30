@@ -20,7 +20,8 @@
           @if(!isset($isOwner))
             @if(isset($society) && $user_type)
               <li class="breadcrumb-item">
-                <a href="{{ route('societies.index', $user_type) }}" class="text-dark opacity-75 text-decoration-none">Societies</a>
+                <a href="{{ route('societies.index', $user_type) }}"
+                   class="text-dark opacity-75 text-decoration-none">Societies</a>
               </li>
               <li class="breadcrumb-item">
                 <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
@@ -136,23 +137,23 @@
           @endif
         </div>
         <div class="d-flex align-items-center gap-2">
-          @if($canUnlinkOwner)
-            <form action="{{ route('property_owners.unlink') }}" method="POST" onsubmit="return confirmDelete(event, null)">
-              @csrf
-              @method('DELETE')
-              <input type="hidden" name="ownerable_type" value="{{ $ownerContext['ownerableType'] ?? '' }}">
-              <input type="hidden" name="ownerable_id" value="{{ $ownerContext['ownerableId'] ?? '' }}">
-              <button type="submit" class="btn btn-sm btn-outline-danger" title="End this ownership and relist for sale">
-                <i class="ti tabler-user-off me-1"></i><span class="d-none d-sm-inline">Unlink Owner</span>
-              </button>
-            </form>
+          @if($canCancelReservation)
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#cancelOwnershipModal"
+                    title="Cancel this ownership reservation, return the paid amount and relist for sale">
+              <i class="ti tabler-user-off me-1"></i><span
+                class="d-none d-sm-inline">Cancel Ownership Reservation</span>
+            </button>
           @endif
           @if($canClearInquiries)
-            <form action="{{ route('inquiries.clear', $listing->uuid) }}" method="POST" onsubmit="return confirmDelete(event, null)">
+            <form action="{{ route('inquiries.clear', $listing->uuid) }}" method="POST"
+                  onsubmit="return confirmDelete(event, null)">
               @csrf
               @method('DELETE')
-              <button type="submit" class="btn btn-sm btn-outline-warning" title="Delete all inquiries for this listing">
-                <i class="ti tabler-trash me-1"></i><span class="d-none d-sm-inline">Clear Inquiries</span>
+              <button type="submit" class="btn btn-sm btn-outline-warning"
+                      title="Delete all inquiries for this listing">
+                <i class="ti tabler-trash me-1"></i><span
+                  class="d-none d-sm-inline">Clear Inquiries</span>
               </button>
             </form>
           @endif
@@ -175,7 +176,8 @@
               <span class="input-group-text bg-white">
                 <i class="ti tabler-search icon-sm text-primary"></i>
               </span>
-              <input type="text" id="inquirySearch" class="form-control" placeholder="Search by name, phone or email..."
+              <input type="text" id="inquirySearch" class="form-control"
+                     placeholder="Search by name, phone or email..."
                      autocomplete="off">
               <button type="button" id="inquirySearchClear" class="btn btn-outline-secondary d-none"
                       title="Clear search">
@@ -196,7 +198,8 @@
                 <div class="d-flex align-items-center gap-3">
                   <div class="flex-shrink-0">
                     @if($itemPic)
-                      <img src="{{ $itemPic }}" class="rounded-circle object-fit-cover" width="46" height="46"
+                      <img src="{{ $itemPic }}" class="rounded-circle object-fit-cover" width="46"
+                           height="46"
                            alt="{{ $inquiry->name }}">
                     @else
                       <div
@@ -224,7 +227,8 @@
                 <div class="d-flex align-items-center flex-wrap gap-2">
                   @unless($isSoldOut)
                     @if($itemMember)
-                      <button type="button" class="btn btn-sm btn-outline-secondary assign-member-btn"
+                      <button type="button"
+                              class="btn btn-sm btn-outline-secondary assign-member-btn"
                               data-ownerable-type="{{ $ownerContext['ownerableType'] ?? '' }}"
                               data-ownerable-id="{{ $ownerContext['ownerableId'] ?? '' }}"
                               data-member-id="{{ $itemMember->id }}"
@@ -232,21 +236,25 @@
                         <i class="ti tabler-link me-1"></i><span class="d-none d-sm-inline">Link As Owner</span>
                       </button>
                     @else
-                      <button type="button" class="btn btn-sm btn-outline-primary create-member-btn"
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary create-member-btn"
                               data-ownerable-type="{{ $ownerContext['ownerableType'] ?? '' }}"
                               data-ownerable-id="{{ $ownerContext['ownerableId'] ?? '' }}"
                               data-prefill-name="{{ $inquiry->name }}"
                               data-prefill-email="{{ $inquiry->email }}"
                               data-prefill-contact="{{ $inquiry->contact_number }}">
-                        <i class="ti tabler-user-plus me-1"></i><span class="d-none d-sm-inline">Create Member</span>
+                        <i class="ti tabler-user-plus me-1"></i><span
+                          class="d-none d-sm-inline">Create Member</span>
                       </button>
                     @endif
                   @endunless
                   <form action="{{ route('inquiries.dismiss', $inquiry->id) }}" method="POST">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(event, null)">
-                      <i class="ti tabler-trash"></i> <span class="d-none d-sm-inline ms-1">Delete</span>
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            onclick="confirmDelete(event, null)">
+                      <i class="ti tabler-trash"></i> <span
+                        class="d-none d-sm-inline ms-1">Delete</span>
                     </button>
                   </form>
                 </div>
@@ -286,13 +294,17 @@
     $ownerableType = $ownerContext['ownerableType'] ?? '';
     $ownerableId = $ownerContext['ownerableId'] ?? '';
     $propertySocietyId = $ownerContext['propertySocietyId'] ?? '';
-    $memberSocieties = $propertySocietyId
-        ? \App\Models\Society::find($propertySocietyId)?->members()->with('attachment')->get()
-        : collect();
     $ownerable = $listing?->listable;
     $ownerablePlan = $ownerable?->paymentPlan;
   @endphp
-  @include('_partials._modals.create_member_owner', ['ownerableType' => $ownerableType, 'ownerableId' => $ownerableId, 'propertySocietyId' => $propertySocietyId, 'memberSocieties' => $memberSocieties, 'paymentPlan' => $ownerablePlan, 'planInstallments' => collect($ownerablePlan?->installmentAttachments ?? [])])
+  @include('_partials._modals.reserve_property_ownership', ['ownerableType' => $ownerableType, 'ownerableId' => $ownerableId, 'propertySocietyId' => $propertySocietyId, 'paymentPlan' => $ownerablePlan, 'planInstallments' => collect($ownerablePlan?->installmentAttachments ?? [])])
+
+  @include('components.property._cancel-ownership-modal', [
+      'ownerableType' => $ownerableType,
+      'ownerableId' => $ownerableId,
+      'entityLabel' => $listing?->listable_type === \App\Models\Property::class ? 'Property' : 'Unit',
+      'canCancelReservation' => $canCancelReservation,
+  ])
 
 @endsection
 

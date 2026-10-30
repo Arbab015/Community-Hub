@@ -62,6 +62,7 @@
                 <th><input type="checkbox" class="form-check-input" id="select_all"></th>
                 <th>Name</th>
                 <th>Type</th>
+                <th>Construction</th>
                 @if ($show_actions)
                   <th>Actions</th>
                 @endif
@@ -98,6 +99,7 @@
           { data: 'checkbox', orderable: false, searchable: true },
           { data: 'name' },
           { data: 'is_commercial', orderable: false },
+          { data: 'is_constructed', orderable: false },
             @if ($show_actions)
           {
             data: 'actions', orderable: false, searchable: false

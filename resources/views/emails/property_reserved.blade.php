@@ -2,15 +2,15 @@
 <html>
 
 <head>
-  <title>Property Ownership Assigned</title>
+  <title>Property Ownership Reservation</title>
 </head>
 
 <body>
-  <h2><strong>Subject:</strong> Property Ownership Assigned</h2>
+  <h2><strong>Subject:</strong> Property Ownership Reservation</h2>
 
   <p>Dear {{ $member->first_name }} {{ $member->last_name ?? '' }},</p>
 
-<p>You have been assigned as the owner of <strong>{{ $propertyName }}</strong>.</p>
+<p>Congratulations! <strong>{{ $propertyName }}</strong> has been reserved for you as a prospective owner.</p>
 
   @if($planName)
   <p>Your selected payment plan is: <strong>{{ $planName }}</strong>.</p>

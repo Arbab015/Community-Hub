@@ -24,7 +24,7 @@ class BlockPaymentPlanPresenter
             ['key' => 'booking_fee', 'label' => 'Booking Fee'],
             ['key' => 'development_fee', 'label' => 'Development Fee'],
             ['key' => 'down_payment', 'label' => 'Down Payment'],
-            ['key' => 'transfer_fee', 'label' => 'Transfer Fee'],
+            //            ['key' =>  ],
             ['key' => 'confirmation_fee', 'label' => 'Confirmation Fee'],
             ['key' => 'possession_fee', 'label' => 'Possession Fee'],
         ];
@@ -33,23 +33,31 @@ class BlockPaymentPlanPresenter
             ['key' => 'park_facing_premium', 'label' => 'Park Facing Premium'],
             ['key' => 'main_boulevard_premium', 'label' => 'Main Boulevard Premium'],
         ];
-        $surplusKeys = ['development_fee', 'transfer_fee', 'possession_fee'];
+        $surplusKeys = ['development_fee', 'possession_fee'];
 
         $fmtRaw = fn ($n) => rtrim(rtrim(number_format((float) $n, 2, '.', ''), '0'), '.');
 
         // ── Step 1: Compute premiums (perks) — % of listed price ──
         $premiumRows = [];
         $premiumsTotal = 0;
+        $premiumOptions = [];
 
         foreach ($premiumKeys as $pk) {
-            if (! in_array($pk['key'], $features)) {
-                continue;
-            }
             $raw = (float) ($paymentTemplate?->{$pk['key']} ?? 0);
             if ($raw <= 0) {
                 continue;
             }
+            $selected = in_array($pk['key'], $features);
             $amount = $listingPrice * $raw / 100;
+            $premiumOptions[] = [
+                'label' => $pk['label'],
+                'percent' => $fmtRaw($raw),
+                'amount' => $amount,
+                'selected' => $selected,
+            ];
+            if (! $selected) {
+                continue;
+            }
             $premiumRows[] = [
                 'label' => $pk['label'],
                 'detail' => $fmtRaw($raw).'% of listed price',
@@ -62,7 +70,7 @@ class BlockPaymentPlanPresenter
         // ── Step 2: Gross Amount = Listed + Premiums ──
         $grossAmount = $listingPrice + $premiumsTotal;
 
-        // ── Step 3: Template fees — excluded (% of gross), included (% of gross+excluded) ──
+        // ── Step 3: Template fees — excluded (% of gross), included (% of gross) ──
         $feeRows = [];
         $includedTotal = 0;
         $excludedTotal = 0;
@@ -89,7 +97,7 @@ class BlockPaymentPlanPresenter
             $excludedTotal += $amount;
         }
 
-        $includedBase = $grossAmount + $excludedTotal;
+        $includedBase = $grossAmount;
         foreach ($feeKeys as $fk) {
             $raw = (float) ($paymentTemplate?->{$fk['key']} ?? 0);
             if ($raw <= 0) {
@@ -105,7 +113,7 @@ class BlockPaymentPlanPresenter
             $amount = $isPer ? $includedBase * $raw / 100 : $raw;
             $feeRows[] = [
                 'label' => $fk['label'],
-                'detail' => $isPer ? $fmtRaw($raw).'% of (gross + excluded)' : number_format($raw, 2).' '.$listingUnit,
+                'detail' => $isPer ? $fmtRaw($raw).'% of gross' : number_format($raw, 2).' '.$listingUnit,
                 'note' => 'Included',
                 'amount' => $amount,
             ];
@@ -115,11 +123,11 @@ class BlockPaymentPlanPresenter
         array_unshift($feeRows, [
             'label' => 'Listed Price',
             'detail' => 'Base price (rate x size)',
-            'note' => '',
+            //            'note' =>
             'amount' => $listingPrice,
         ]);
 
-        $totalPrice = $grossAmount + $excludedTotal;
+        $totalPrice = $grossAmount;
 
         $installmentRows = [];
         $templates = InstallmentTemplate::whereIn('id', (array) ($blockPlan->installment_template_ids ?? []))->orderBy('id')->get();
@@ -206,9 +214,11 @@ class BlockPaymentPlanPresenter
             'rate' => $rate,
             'price_unit' => $priceUnit,
             'is_commercial' => (bool) $blockPlan->is_commercial,
+            'is_constructed' => (bool) $blockPlan->is_constructed,
             'payment_template_name' => $paymentTemplate?->name,
             'fee_rows' => $feeRows,
             'premium_rows' => $premiumRows,
+            'premium_options' => $premiumOptions,
             'premiums_total' => $premiumsTotal,
             'included_total' => $includedTotal,
             'excluded_total' => $excludedTotal,

@@ -7,19 +7,19 @@
  *   - balloons per year:     quarterly=4, biannually=2, annually=1
  *   - balloon count = (years x balloonsPerYear) - 1  (final event is a normal installment)
  *   - balloon step = installmentsPerYear / balloonsPerYear
- *   - balloon base (deferred) = gross amount - included charges
+ *   - balloon base (deferred) = gross amount - included charges + extra (excluded are extra, on top)
  *   - total balloon = balloon base x percentage (or a fixed amount)
  *   - per balloon    = ceil(total balloon / balloon count)
  *   - per installment = ceil((balloon base - total balloon) / normal count)
  *
  * Amount breakdown exposed to every caller (kept in sync everywhere):
- *   - gross amount                 = listing price + additional charges + extra installments
+ *   - gross amount                 = listing price (gross)
  *   - remaining amount             = gross amount - included charges
  *   - additional charges           = excluded charges
  *   - extra installments           = additional amount
  *   - total balloon                = balloon base x percentage (or a fixed amount)
  *   - installment remaining        = balloon base - total balloon
- *   - final amount                 = balloon base + included charges (= plan base)
+ *   - final amount                 = balloon base + (excluded + included) charges (= total payable)
  */
 (function() {
   'use strict';
@@ -83,12 +83,15 @@
     const bpy = balloonFrequency ? balloonsPerYear(balloonFrequency) : 0;
     const years = num > 0 ? num / ipp : 0;
 
-    const grossAmount = listingPrice + excludedTotal + additional;
+    const grossAmount = listingPrice;
+    // Remaining = gross minus INCLUDED charges only. Excluded charges are extra
+    // one-time charges billed on top, never subtracted from the installment base.
     const remainingAmount = grossAmount - includedTotal;
     const additionalCharges = excludedTotal;
     const extraInstallments = additional;
+    const grandTotal = remainingAmount + extraInstallments;
 
-    const balloonBase = grossAmount - includedTotal;
+    const balloonBase = grandTotal;
 
     const errors = [];
     const hasBalloon = balloonRaw > 0;
@@ -153,12 +156,12 @@
       extra_installments: extraInstallments,
       total_balloon: totalBalloon,
       installment_remaining: balloonBase - totalBalloon,
-      final_amount: balloonBase + includedTotal,
+      final_amount: balloonBase + excludedTotal + includedTotal,
       balloon_count: balloonCnt,
       normal_count: normalCount,
       per_balloon: perBalloon,
       per_installment: perInstallment,
-      plan_total: grossAmount,
+      plan_total: grandTotal,
       schedule_total: cumulative,
       schedule: schedule
     };

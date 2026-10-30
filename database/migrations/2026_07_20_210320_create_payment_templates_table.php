@@ -26,10 +26,6 @@ return new class extends Migration
             $table->double('down_payment')->nullable();
             $table->boolean('down_payment_in_per')->nullable()->default(false);
 
-            $table->double('transfer_fee')->nullable();
-            $table->boolean('transfer_fee_in_per')->nullable()->default(false);
-            $table->boolean('transfer_fee_surplus')->nullable()->default(true);
-
             $table->double('confirmation_fee')->nullable();
             $table->boolean('confirmation_fee_in_per')->nullable()->default(false);
 

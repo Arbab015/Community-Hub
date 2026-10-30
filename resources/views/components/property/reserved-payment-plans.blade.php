@@ -1,130 +1,67 @@
 @php
-  $isUnit = $property instanceof \App\Models\PropertyUnit;
-  $entityLabel = $isUnit ? 'Unit' : 'Property';
-  $ownerableType = $isUnit ? 'App\\Models\\PropertyUnit' : 'App\\Models\\Property';
-  $ownerableId = $property->id;
-
-  $ownershipPlan = $property->ownershipPaymentPlans()
-      ->whereHas('propertyOwner', fn ($q) => $q->whereNull('end_date'))
-      ->latest('id')
-      ->first();
+  // All committed-plan data is prepared here so this file is self-contained.
+  $paymentPlanStructure = app(\App\Services\Property\PaymentPlanStructureService::class)->build($property);
+  extract($paymentPlanStructure, EXTR_OVERWRITE);
 
   if (! $ownershipPlan) return;
 
-  $data = \App\Support\PaymentPlanPresenter::buildFromSnapshot($ownershipPlan);
-  $unit = $data['listing_unit'];
+  $isPlanCompleted = $ownershipPlan->status === 'completed';
 
-  $allFeeRows = collect($data['fee_rows'] ?? [])->reject(fn ($r) => ($r['label'] ?? '') === 'Listed Price')->values();
-  $excludedFees = $allFeeRows->where('note', 'Excluded')->values();
-  $includedFees = $allFeeRows->where('note', 'Included')->values();
-  $premiumRows = $data['premium_rows'] ?? [];
-  $grossAmount = $data['gross_amount'];
-  $excludedTotal = $data['excluded_total'];
-  $includedTotal = $data['included_total'];
-  $remainingAmount = $data['total_price'] - $includedTotal;
+  // A transfer plan carries the society transfer fee only - it is not edited
+  // and it never gets an installment plan attached.
+  $isTransferPlan = (bool) $ownershipPlan->isTransfer();
 
-  $installment = $data['installment_rows'][0] ?? null;
-  $extraAmount = $installment['additional_amount'] ?? 0;
-  $totalBalloon = $installment['balloon'] ?? 0;
-  $installmentRemaining = $installment['installment_remaining'] ?? $remainingAmount;
+  // A plan is billed like a transfer plan when it is a transfer plan itself, or
+  // when its snapshot carries a transfer fee (even a frozen 0). Such a plan's
+  // whole value is the transfer fee: gross = final = fee, not the listed price.
+  $hasTransferFee = $isTransferPlan || $ownershipPlan->transfer_fee !== null;
+  $transferFeeAmount = $hasTransferFee
+      ? (float) ($isTransferPlan ? $data['final_price'] : $ownershipPlan->transfer_fee)
+      : 0.0;
+  $transferFeePercent = null;
 
-  $currentOwner = $property->owner;
-
-  // Installment templates matching this property's category (used by the edit
-  // modal prefiller). Also the base set for the "Add" dropdown below.
-  $allInstallmentTemplates = collect($installmentTemplates ?? collect())
-      ->filter(fn ($tpl) => (bool) $tpl->is_commercial === (($isUnit
-          ? optional($property->floor?->property)->category
-          : optional($property)->category) === 'commercial'))
-      ->values();
-
-  // Installment-plan sources for the "Add Installment Plan" modal.
-  // 1) Plans already attached to this property's payment plan
-  //    (property_installment_plans) — including custom ones (template id null).
-  // 2) Installment templates matching this property's category, minus the ones
-  //    already attached so the same template/plan name never repeats.
-  $sourcePlan = $property->paymentPlan;
-  $planAttachments = collect($sourcePlan?->installmentAttachments ?? []);
-
-  $attachedTemplateIds = $planAttachments->pluck('installment_template_id')->filter()->all();
-  $attachedNames = $planAttachments
-      ->map(fn ($att) => mb_strtolower(trim((string) (($att->name ?? '') ?: ($att->installmentTemplate?->name ?? '')))))
-      ->filter()
-      ->all();
-
-  $addInstallmentTemplateOptions = $allInstallmentTemplates
-      ->reject(fn ($tpl) => in_array($tpl->id, $attachedTemplateIds))
-      ->reject(fn ($tpl) => in_array(mb_strtolower(trim((string) $tpl->name)), $attachedNames))
-      ->values();
-
-  // Read a snapshot/template field, falling back to the linked template.
-  $needInstallmentValue = function ($att, $field) {
-      $value = $att->{$field} ?? null;
-      if ($value !== null && $value !== '') {
-          return $value;
+  if ($hasTransferFee) {
+      if ($ownershipPlan->transfer_fee_in_per && (float) $data['listing_price'] > 0) {
+          $transferFeeAmount = (float) $data['listing_price'] * (float) $ownershipPlan->transfer_fee / 100;
       }
 
-      return $att->installmentTemplate?->{$field} ?? null;
-  };
-
-  // Compact useful summary: "12x Monthly · +2 Balloon".
-  $installmentSummary = function ($num, $freq, $hasBalloon) {
-      $parts = [];
-      if ((int) $num > 0) {
-          $parts[] = (int) $num.'x '.ucfirst($freq ?: 'installments');
-      }
-      if ($hasBalloon) {
-          $parts[] = '+ Balloon';
-      }
-
-      return implode(' · ', $parts) ?: 'Installment Plan';
-  };
-
-  $addInstallmentOptions = collect();
-
-  // Attached plans first — marked as "applied" to the property's payment plan.
-  foreach ($planAttachments as $att) {
-      $attInfo = $installmentSummary(
-          $needInstallmentValue($att, 'number_of_installments'),
-          $needInstallmentValue($att, 'installment_frequency'),
-          (float) ($needInstallmentValue($att, 'balloon_payment') ?? 0) > 0
-      );
-      $addInstallmentOptions->push([
-          'source' => 'attachment:'.$att->id,
-          'name' => trim((string) (($att->name ?? '') ?: ($att->installmentTemplate?->name ?? ''))) ?: 'Installment Plan',
-          'info' => $attInfo,
-          'applied' => true,
-          'num' => (int) ($needInstallmentValue($att, 'number_of_installments') ?? 0),
-          'frequency' => $needInstallmentValue($att, 'installment_frequency') ?? '',
-          'additional' => $needInstallmentValue($att, 'additional_installment_amount') ?? 0,
-          'additional_in_per' => (int) ($needInstallmentValue($att, 'additional_installment_amount_in_per') ?? 0),
-          'balloon' => $needInstallmentValue($att, 'balloon_payment') ?? 0,
-          'balloon_in_per' => (int) ($needInstallmentValue($att, 'balloon_payment_in_per') ?? 0),
-          'balloon_frequency' => $needInstallmentValue($att, 'balloon_payment_frequency') ?? '',
-      ]);
+      $transferFeeAmount = round($transferFeeAmount, 2);
+      $transferFeePercent = (float) $data['listing_price'] > 0
+          ? $transferFeeAmount / (float) $data['listing_price'] * 100
+          : 0.0;
   }
 
-  // Available category-matched templates.
-  foreach ($addInstallmentTemplateOptions as $tpl) {
-      $tplInfo = $installmentSummary(
-          $tpl->number_of_installments,
-          $tpl->installment_frequency,
-          (float) ($tpl->balloon_payment ?? 0) > 0
-      );
-      $addInstallmentOptions->push([
-          'source' => 'template:'.$tpl->id,
-          'name' => $tpl->name,
-          'info' => $tplInfo,
-          'applied' => false,
-          'num' => (int) ($tpl->number_of_installments ?? 0),
-          'frequency' => $tpl->installment_frequency ?? '',
-          'additional' => $tpl->additional_installment_amount ?? 0,
-          'additional_in_per' => (int) ($tpl->additional_installment_amount_in_per ?? 0),
-          'balloon' => $tpl->balloon_payment ?? 0,
-          'balloon_in_per' => (int) ($tpl->balloon_payment_in_per ?? 0),
-          'balloon_frequency' => $tpl->balloon_payment_frequency ?? '',
-      ]);
-  }
+  // Build the shared summary structure from the committed snapshot so this blade
+  // and payments-planning render through the same plan-structure-summary component.
+  $planStructureSummary = [
+      'listingPrice'         => $data['listing_price'],
+      'listingUnit'          => $unit,
+      'premiumCharges'       => $hasTransferFee ? [] : $premiumRows,
+      'premiumsTotal'        => $hasTransferFee ? 0 : $data['premiums_total'],
+      'grossAmount'          => $hasTransferFee ? $transferFeeAmount : $grossAmount,
+      'excludedCharges'      => $hasTransferFee ? [] : $excludedFees,
+      'includedCharges'      => $hasTransferFee
+          ? [['label' => 'Transfer Fee', 'amount' => $transferFeeAmount, 'note' => 'Included']]
+          : $includedFees,
+      'excludedTotal'        => $hasTransferFee ? 0 : $excludedTotal,
+      'includedTotal'        => $hasTransferFee ? $transferFeeAmount : $includedTotal,
+      'totalOneTime'         => $hasTransferFee ? $transferFeeAmount : $excludedTotal + $includedTotal,
+      'remainingAmount'      => $hasTransferFee ? 0 : $remainingAmount,
+      'hasDefaultPlan'       => (bool) $installment,
+      'extraInstallment'     => $extraAmount,
+      'balloonAmount'        => $totalBalloon,
+      'installmentRemaining' => $installmentRemaining,
+      'finalAmount'          => $hasTransferFee ? $transferFeeAmount : $data['final_price'],
+      'perBalloon'           => $installment['per_balloon'] ?? 0,
+      'perInstallment'       => $installment['per_installment'] ?? 0,
+      'installmentCount'     => $installment['num'] ?? null,
+      'transferFee'          => $hasTransferFee ? [
+          'label' => 'Transfer Fee',
+          'amount' => $transferFeeAmount,
+          'percent' => $transferFeePercent,
+      ] : null,
+      'isTransferPlan'       => $hasTransferFee,
+  ];
 @endphp
 
 <div class="planner">
@@ -133,44 +70,169 @@
     {{-- Main column --}}
     <div class="col-lg-8 order-2 order-lg-1">
 
-      {{-- Owner / Member Section --}}
-      @if($currentOwner)
+      @if($owner)
+        @php
+          $transferSvc = app(\App\Services\Property\PropertyTransferService::class);
+          $transferState = $transferSvc->eligibility($property);
+          $transferPending = $transferState['pending'];
+          $canTransferNow = $transferState['can_transfer'];
+
+          // Fee card: approved transfer => frozen values; otherwise today's quote.
+          $tfTransfer = $transferState['plan']?->isTransfer() ? $transferState['plan']->propertyOwner?->incomingTransfer : null;
+          $tfFee = $tfTransfer ? [
+              'is_percentage' => (bool) $tfTransfer->transfer_fee_in_per,
+              'percent' => (float) $tfTransfer->transfer_fee,
+              'base' => (float) $tfTransfer->fee_base,
+              'amount' => (float) $tfTransfer->fee_amount,
+              'currency' => $tfTransfer->currency,
+              'matched' => true,
+          ] : $transferState['quote'];
+          $tfLabel = ! $tfFee['matched']
+              ? 'No transfer fee configured for this society — 0.00 '.$tfFee['currency']
+              : ($tfFee['is_percentage'] ? floatval($tfFee['percent']).'% of listed price = ' : '')
+                .number_format($tfFee['amount'], 2).' '.$tfFee['currency'];
+
+          // Fee card is visible only to the owner, society owner, super admin or a transfer party.
+          $tfUser = auth()->user();
+          $tfIsOwner = $tfUser->id === $owner->id;
+          $tfShow = $tfUser->hasRole('Super Admin')
+              || $tfIsOwner
+              || $tfUser->id === \App\Models\Society::find($tfFee['society_id'] ?? $transferState['quote']['society_id'])?->owner_id
+              || in_array($tfUser->id, [$transferPending?->requested_by_user_id, $transferPending?->recipient_user_id], true);
+        @endphp
+
         <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
+          {{-- Owner / Member --}}
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
             <div class="d-flex align-items-center gap-2">
               <i class="ti tabler-user text-primary fs-5"></i>
               <h5 class="fw-bold mb-0">Owner / Member</h5>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
-              <a href="{{ route('property_owners.plan.print', $ownershipPlan) }}?mode=brief" target="_blank"
+              <a href="{{ route('property_owners.plan.print', $ownershipPlan) }}?mode=brief"
+                 onclick="event.preventDefault(); printDocument(this.href)"
                  class="btn btn-sm btn-outline-primary" title="Print the committed payment plan for this owner">
                 <i class="ti tabler-printer me-1"></i> Print Owner Plan
               </a>
+              @if($isPlanCompleted && $transferPending)
+                @can('property_transfer_print')
+                  <a href="{{ route('property_transfers.print', ['transfer' => $transferPending, 'print' => 1]) }}"
+                     onclick="event.preventDefault(); printDocument(this.href)"
+                     class="btn btn-sm btn-outline-secondary" title="Print the pending transfer">
+                    <i class="ti tabler-printer me-1"></i> Print Pending Transfer
+                  </a>
+                @endcan
+              @endif
             </div>
           </div>
 
-          <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
-            <div class="d-flex align-items-center gap-2">
-              <i class="ti tabler-user-check"></i>
-              <span><b>Current Owner:</b> {{ $currentOwner->first_name }} {{ $currentOwner->last_name }} ({{ $currentOwner->email }})</span>
+          @if($isPlanCompleted)
+            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
+              <div class="d-flex align-items-center gap-2">
+                <i class="ti tabler-certificate"></i>
+                <span><b>Owner (fully paid):</b> {{ $owner->first_name }} {{ $owner->last_name }} ({{ $owner->email }})</span>
+              </div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-label-success d-inline-flex align-items-center gap-1">
+            <i class="ti tabler-circle-check-filled"></i> Payments Complete
+          </span>
+                @can('property_transfer_create')
+                  @if($transferPending)
+                    <span class="badge bg-label-warning d-inline-flex align-items-center gap-1">
+                <i class="ti tabler-hourglass-high"></i> Transfer Pending ({{ $transferPending->reference_no }})
+              </span>
+                  @elseif($canTransferNow)
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                            data-bs-target="#transferPropertyModal" title="Transfer this property to another member">
+                      <i class="ti tabler-exchange me-1"></i> Transfer Property
+                    </button>
+                  @endif
+                @endcan
+              </div>
             </div>
-            @if($canUnlinkOwner && Auth()->user()->can('property_assign_owner'))
-              <form action="{{ route('property_owners.unlink') }}" method="POST"
-                    onsubmit="return confirmDelete(event, null)">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="ownerable_type" value="{{ $ownerableType }}">
-                <input type="hidden" name="ownerable_id" value="{{ $ownerableId }}">
-                <button type="submit" class="btn btn-sm btn-outline-danger"
-                        title="End this ownership and relist for sale">
-                  <i class="ti tabler-user-off me-1"></i> Unlink Owner
+          @elseif($unCompletePayments)
+            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
+              <div class="d-flex align-items-center gap-2">
+                <i class="ti tabler-user-check"></i>
+                <span><b>Reserved Owner:</b> {{ $owner->first_name }} {{ $owner->last_name }} ({{ $owner->email }})</span>
+              </div>
+              @can('property_reserve_owner')
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-bs-toggle="modal" data-bs-target="#cancelOwnershipModal"
+                        title="Cancel this ownership reservation and relist for sale">
+                  <i class="ti tabler-user-off me-1"></i> Cancel Ownership Reservation
                 </button>
-              </form>
-            @endif
-          </div>
-        </div>
-      @endif
+              @endcan
+            </div>
+          @endif
 
+          {{-- Society Transfer Fee --}}
+          @if($tfShow)
+            <hr class="my-4">
+
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <i class="ti tabler-cash-banknote text-primary fs-5"></i>
+                <h5 class="fw-bold mb-0">Society Transfer Fee</h5>
+              </div>
+              <span class="badge bg-label-primary">
+          {{ ! $tfFee['matched'] ? 'Not configured' : ($tfFee['is_percentage'] ? 'Percentage' : 'Fixed') }}
+        </span>
+            </div>
+
+            <div class="fw-bold mb-1">{{ $tfLabel }}</div>
+
+            @if($tfFee['matched'] && $tfFee['is_percentage'])
+              <small class="text-muted d-block mb-3">
+                Base (listed price): {{ number_format($tfFee['base'], 2) }} {{ $tfFee['currency'] }}
+                — frozen on the transfer at submission.
+              </small>
+            @else
+              <div class="mb-3"></div>
+            @endif
+
+            @if($tfTransfer)
+              <div class="alert alert-info d-flex align-items-center gap-2 mb-0">
+                <i class="ti tabler-info-circle"></i>
+                <span class="small">
+            @if($tfIsOwner)
+                    This fee was charged to you when transfer <b>{{ $tfTransfer->reference_no }}</b> was approved — it
+                    is payable to the society now. Record it from the Payments tab.
+                  @else
+                    Transfer <b>{{ $tfTransfer->reference_no }}</b> was approved — this fee is payable to the society by
+                    the incoming owner.
+                  @endif
+          </span>
+              </div>
+            @elseif($transferPending)
+              <div class="alert alert-warning d-flex align-items-center gap-2 mb-0">
+                <i class="ti tabler-hourglass-high"></i>
+                <span class="small"><b>{{ $transferPending->reference_no }}</b> is pending — waiting for the society owner's approval.</span>
+              </div>
+            @elseif(! $canTransferNow)
+              <div class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
+                <i class="ti tabler-info-circle"></i>
+                <span class="small">{{ $transferSvc->eligibilityMessage($transferState['reasons']) }}</span>
+              </div>
+            @else
+              <div class="alert alert-success d-flex align-items-center gap-2 mb-0">
+                <i class="ti tabler-circle-check-filled"></i>
+                <span
+                  class="small">This property is ready to transfer — the fee above is what the society charges.</span>
+              </div>
+            @endif
+          @endif
+        </div>
+
+        @if($isPlanCompleted)
+          @include('_partials._modals.transfer_property', [
+            'ownerableType' => $ownerableType,
+            'ownerableId' => $ownerableId,
+            'ownerable' => $property,
+            'entityLabel' => $entityLabel,
+          ])
+        @endif
+      @endif
       {{-- Charges Section (read-only snapshot) --}}
       <div class="card border-0 shadow-sm rounded-3 p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
@@ -179,15 +241,17 @@
             <h5 class="fw-bold mb-0">Charges</h5>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge bg-label-success d-inline-flex align-items-center gap-1">
-              <i class="ti tabler-circle-check-filled"></i> Committed Plan
-            </span>
-            @can('payment_plan_edit')
-              <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                      data-bs-target="#editOwnershipPlanModal">
-                <i class="ti tabler-edit me-1"></i> Edit Values
-              </button>
-            @endcan
+           <span class="badge bg-label-success d-inline-flex align-items-center gap-1">
+             <i class="ti tabler-circle-check-filled"></i> {{ $isPlanCompleted ? 'Fully Paid Plan' : 'Committed Plan' }}
+           </span>
+            @if($unCompletePayments && ! $isTransferPlan)
+              @can('payment_plan_edit')
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#editOwnershipPlanModal">
+                  <i class="ti tabler-edit me-1"></i> Edit Values
+                </button>
+              @endcan
+            @endif
           </div>
         </div>
 
@@ -199,7 +263,7 @@
             </div>
             <div class="col-md-6">
               <small class="micro-label text-muted text-uppercase d-block mb-1">Final Price</small>
-              <div class="fw-semibold small">{{ number_format($data['total_price'], 2) }} {{ $unit }}</div>
+              <div class="fw-semibold small">{{ number_format($data['final_price'], 2) }} {{ $unit }}</div>
             </div>
           </div>
         </div>
@@ -211,9 +275,9 @@
                 <div class="border rounded-3 p-3 h-100 border-success border-opacity-25 bg-success bg-opacity-10">
                   <div class="d-flex align-items-start justify-content-between gap-2">
                     <div class="d-flex align-items-center gap-2 min-w-0">
-                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
-                        <i class="ti tabler-star text-primary"></i>
-                      </span>
+                     <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
+                       <i class="ti tabler-star text-primary"></i>
+                     </span>
                       <div class="min-w-0">
                         <div class="fw-semibold small">{{ $pc['label'] }}</div>
                         <div class="text-muted text-tiny">{{ $pc['detail'] }}</div>
@@ -237,9 +301,9 @@
                 <div class="border rounded-3 p-3 h-100 border-success border-opacity-25 bg-success bg-opacity-10">
                   <div class="d-flex align-items-start justify-content-between gap-2">
                     <div class="d-flex align-items-center gap-2 min-w-0">
-                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
-                        <i class="ti tabler-receipt text-primary"></i>
-                      </span>
+                     <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
+                       <i class="ti tabler-receipt text-primary"></i>
+                     </span>
                       <div class="min-w-0">
                         <div class="fw-semibold small">{{ $fee['label'] }}</div>
                         <div class="text-muted text-tiny">{{ $fee['detail'] }}</div>
@@ -247,7 +311,7 @@
                     </div>
                     <div class="text-end flex-shrink-0">
                       <div class="fw-bold">{{ number_format($fee['amount'], 2) }} {{ $unit }}</div>
-                      <span class="badge badge-xs bg-danger">Excluded (on top)</span>
+                      <span class="badge badge-xs bg-danger">Excluded</span>
                     </div>
                   </div>
                 </div>
@@ -258,9 +322,9 @@
                 <div class="border rounded-3 p-3 h-100 bg-label-secondary">
                   <div class="d-flex align-items-start justify-content-between gap-2">
                     <div class="d-flex align-items-center gap-2 min-w-0">
-                      <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
-                        <i class="ti tabler-receipt text-primary"></i>
-                      </span>
+                     <span class="rounded bg-primary bg-opacity-10 p-2 d-inline-flex flex-shrink-0">
+                       <i class="ti tabler-receipt text-primary"></i>
+                     </span>
                       <div class="min-w-0">
                         <div class="fw-semibold small">{{ $fee['label'] }}</div>
                         <div class="text-muted text-tiny">{{ $fee['detail'] }}</div>
@@ -281,6 +345,8 @@
             <small>No charges configured.</small>
           </div>
         @endif
+
+        @include('components.property._charges-explanation')
       </div>
 
       {{-- Installment Section (single plan) --}}
@@ -293,34 +359,38 @@
           <div class="d-flex align-items-center gap-2 flex-wrap">
             @if($installment)
               <span class="badge bg-label-primary">
-                <i class="ti tabler-check me-1"></i>{{ $installment['name'] }}
-              </span>
-              @can('installment_plan_edit')
-                <button type="button" class="btn btn-sm btn-outline-primary"
-                        data-bs-toggle="modal"
-                        data-bs-target="#editOwnershipInstallmentModal">
-                  <i class="ti tabler-edit me-1"></i> Edit Values
-                </button>
-              @endcan
-              @can('installment_plan_delete')
-                <form action="{{ route('ownership_payment_plans.installment.remove', $ownershipPlan) }}" method="POST"
-                      onsubmit="return confirmDelete(event, null)">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="btn btn-sm btn-outline-danger"
-                          title="Remove the installment plan and reset the installment values to none">
-                    <i class="ti tabler-trash me-1"></i> Remove Installment
+               <i class="ti tabler-check me-1"></i>{{ $installment['name'] }}
+             </span>
+              @if($unCompletePayments)
+                @can('installment_plan_edit')
+                  <button type="button" class="btn btn-sm btn-outline-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#editOwnershipInstallmentModal">
+                    <i class="ti tabler-edit me-1"></i> Edit Values
                   </button>
-                </form>
-              @endcan
+                @endcan
+                @can('installment_plan_delete')
+                  <form action="{{ route('ownership_payment_plans.installment.remove', $ownershipPlan) }}" method="POST"
+                        onsubmit="return confirmDelete(event, null)">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            title="Remove the installment plan and reset the installment values to none">
+                      <i class="ti tabler-trash me-1"></i> Remove Installment
+                    </button>
+                  </form>
+                @endcan
+              @endif
             @else
-              @can('installment_plan_add')
-                <button type="button" class="btn btn-sm btn-outline-primary"
-                        data-bs-toggle="modal"
-                        data-bs-target="#addOwnershipInstallmentModal">
-                  <i class="ti tabler-plus me-1"></i> Add Installment Plan
-                </button>
-              @endcan
+              @if($unCompletePayments && ! $isTransferPlan)
+                @can('installment_plan_add')
+                  <button type="button" class="btn btn-sm btn-outline-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#addOwnershipInstallmentModal">
+                    <i class="ti tabler-plus me-1"></i> Add Installment Plan
+                  </button>
+                @endcan
+              @endif
             @endif
           </div>
         </div>
@@ -379,7 +449,7 @@
                 @if($installment['balloon_count'] > 0)
                   · {{ $installment['balloon_count'] }} balloon{{ $installment['balloon_count'] > 1 ? 's' : '' }}
                 @endif
-              </span>
+             </span>
             </div>
             <div class="table-responsive schedule-scroll">
               <table class="table table-sm mb-0">
@@ -410,7 +480,7 @@
                   </tr>
                 @endforeach
                 <tr class="table-light">
-                  <td class="ps-3 text-heading fw-bold" colspan="2">Total Payable</td>
+                  <td class="ps-3 text-heading fw-bold" colspan="2">Final Amount:</td>
                   <td class="ps-3 fw-bold">{{ number_format($data['final_price'], 2) }} {{ $unit }}</td>
                   <td class="ps-3 text-muted">—</td>
                 </tr>
@@ -421,147 +491,30 @@
         @else
           <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
             <i class="ti tabler-calendar-x fs-2 opacity-50 mb-2"></i>
-            <small class="text-center">
-              No installment plan attached to this committed plan yet.
-              <br>Click <b>Add Installment Plan</b> above to attach one.
-            </small>
+            @if($isTransferPlan)
+              <small class="text-center">
+                This is a transfer plan - the society transfer fee is billed as a single payment,
+                there is no installment plan.
+              </small>
+            @else
+              <small class="text-center">
+                No installment plan attached to this committed plan yet.
+                <br>Click <b>Add Installment Plan</b> above to attach one.
+              </small>
+            @endif
           </div>
         @endif
       </div>
     </div>
 
-    {{-- Summary sidebar --}}
-    <div class="col-lg-4 order-1 order-lg-2">
-      <div class="summary-sticky">
-        <div class="card border-0 shadow-sm rounded-3 p-4 mb-3 bg-light">
-          <p class="text-uppercase small text-dark mb-2 fw-bold tracking-wide">Listed Value</p>
-          <div class="d-flex align-items-baseline gap-2">
-            <h3 class="fw-bold mb-0">{{ number_format($data['listing_price'], 0) }}</h3>
-            <span class="text-muted fs-6">{{ $unit }}</span>
-          </div>
-        </div>
-
-        <div class="card border-0 shadow-sm rounded-3 p-4 bg-gradient text-white plan-summary-card">
-          <p class="text-uppercase small mb-3 fw-bold plan-summary-title">Plan Summary</p>
-
-          <div class="d-flex justify-content-between mb-2">
-            <span class="small">Listed Price</span>
-            <span class="fw-semibold fs-6">{{ number_format($data['listing_price'], 0) }}</span>
-          </div>
-
-          @if(count($premiumRows))
-            <span class="small d-block">Feature Premiums <span class="opacity-75">(% of listed)</span></span>
-            <ul class="list-unstyled mb-1 ps-0 summary-list">
-              @foreach($premiumRows as $pc)
-                <li class="d-flex justify-content-between">
-                  <span>{{ $pc['label'] }}</span>
-                  <span>{{ number_format($pc['amount'], 0) }}</span>
-                </li>
-              @endforeach
-            </ul>
-            <div class="d-flex justify-content-between fw-semibold small mb-1">
-              <span>Total Premiums</span>
-              <span>{{ number_format($data['premiums_total'], 0) }}</span>
-            </div>
-          @endif
-
-          <div class="d-flex justify-content-between fw-semibold small">
-            <span class="small">Gross Amount</span>
-            <span class="mb-2 bg-label-secondary px-2 rounded text-dark">{{ number_format($grossAmount, 0) }}</span>
-          </div>
-
-          <hr class="opacity-25">
-
-          <span class="small d-block mb-1">One Time Charges <span class="opacity-75">(excluded + included)</span></span>
-
-          <div class="ps-2 border-start border-2 opacity-90 mb-2">
-            <span class="small d-block mb-1">Excluded Charges <span class="opacity-75">(on top of gross)</span></span>
-            <ul class="list-unstyled mb-0 ps-0 summary-list">
-              @forelse($excludedFees as $c)
-                <li class="d-flex justify-content-between">
-                  <span>{{ $c['label'] }}</span>
-                  <span>{{ number_format($c['amount'], 0) }}</span>
-                </li>
-              @empty
-                <li class="opacity-50">None</li>
-              @endforelse
-            </ul>
-            <div class="d-flex justify-content-between fw-semibold small mt-1">
-              <span>Total Excluded</span>
-              <span class="bg-label-secondary px-2 rounded text-dark">{{ number_format($excludedTotal, 0) }}</span>
-            </div>
-
-            <span class="small d-block mb-1 mt-2">Included Charges <span class="opacity-75">(in gross)</span></span>
-            <ul class="list-unstyled mb-0 ps-0 summary-list">
-              @forelse($includedFees as $c)
-                <li class="d-flex justify-content-between">
-                  <span>{{ $c['label'] }}</span>
-                  <span>{{ number_format($c['amount'], 0) }}</span>
-                </li>
-              @empty
-                <li class="opacity-50">None</li>
-              @endforelse
-            </ul>
-            <div class="d-flex justify-content-between fw-semibold small mt-1">
-              <span>Total Included</span>
-              <span>{{ number_format($includedTotal, 0) }}</span>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-between fw-semibold small">
-            <span>Total One-time</span>
-            <span>{{ number_format($excludedTotal + $includedTotal, 0) }}</span>
-          </div>
-
-          <div class="d-flex justify-content-between fw-bold small mt-2">
-            <span class="small">Remaining Amount</span>
-            <span>{{ number_format($remainingAmount, 0) }}</span>
-          </div>
-
-          <hr class="opacity-25">
-
-          @if($installment)
-            <div class="d-flex justify-content-between">
-              <span class="small">Extra in Case of Installment</span>
-              <span
-                class="fw-semibold fs-6 bg-label-secondary px-2 rounded text-dark">{{ number_format($extraAmount, 0) }}</span>
-            </div>
-
-            <div class="d-flex justify-content-between">
-              <span class="small">Total Balloon</span>
-              <span class="fw-semibold fs-6">{{ number_format($totalBalloon, 0) }}</span>
-            </div>
-
-            <div class="d-flex justify-content-between mb-2">
-              <span class="small">Remaining for Installment</span>
-              <span class="fw-semibold fs-6">{{ number_format($installmentRemaining, 0) }}</span>
-            </div>
-          @endif
-
-          <div class="d-flex justify-content-between align-items-center fs-5 fw-bold mb-2 summary-final-row">
-            <span>Final Amount</span>
-            <span class="bg-label-secondary px-2 rounded text-dark">{{ number_format($data['final_price'], 0) }}</span>
-          </div>
-
-          @if($installment)
-            <div class="small d-block opacity-75">
-              @if($installment['per_balloon'] > 0)
-                Per balloon: {{ number_format($installment['per_balloon'], 2) }} {{ $unit }}
-                · Per installment: {{ number_format($installment['per_installment'], 2) }} {{ $unit }}
-              @else
-                Per installment: {{ number_format($installment['per_installment'], 2) }} {{ $unit }}
-              @endif
-              ({{ $installment['num'] }} installments)
-            </div>
-          @endif
-        </div>
-      </div>
-    </div>
+    {{-- Summary sidebar (shared component) --}}
+    <x-property.plan-structure-summary :summary="$planStructureSummary" :is-unit="$isUnit"
+                                       :entity-label="$entityLabel" :listing-unit="$unit" />
   </div>
 </div>
 
 {{-- Edit Ownership Plan Modal --}}
-@if(Auth()->user()->can('payment_plan_edit'))
+@if($unCompletePayments && ! $isTransferPlan && Auth()->user()->can('payment_plan_edit'))
   <div class="modal fade" id="editOwnershipPlanModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-simple modal-dialog-centered">
       <div class="modal-content">
@@ -602,7 +555,6 @@
                   ['key' => 'booking_fee', 'label' => 'Booking Fee', 'surplus' => false],
                   ['key' => 'development_fee', 'label' => 'Development Fee', 'surplus' => true],
                   ['key' => 'down_payment', 'label' => 'Down Payment', 'surplus' => false],
-                  ['key' => 'transfer_fee', 'label' => 'Transfer Fee', 'surplus' => true],
                   ['key' => 'confirmation_fee', 'label' => 'Confirmation Fee', 'surplus' => false],
                   ['key' => 'possession_fee', 'label' => 'Possession Fee', 'surplus' => true],
               ] as $fk)
@@ -622,7 +574,7 @@
                       <div class="form-check">
                         <input type="checkbox" name="{{ $fk['key'] }}_surplus" class="form-check-input"
                                value="1" {{ $ownershipPlan->{$fk['key'].'_surplus'} ? 'checked' : '' }}>
-                        <label class="form-check-label small">Additional (on top of gross)</label>
+                        <label class="form-check-label small">Excluded (extra / billed on top)</label>
                       </div>
                     @endif
                   </div>
@@ -630,29 +582,27 @@
               @endforeach
             </div>
 
-            <hr class="my-2">
-            <p class="section-caption fw-semibold small text-uppercase text-muted mb-3">
-              Feature Premiums <span class="caption-hint fw-normal">(% of listed price)</span>
-            </p>
+            @if(count($featurePremiumKeys))
+              <hr class="my-2">
+              <p class="section-caption fw-semibold small text-uppercase text-muted mb-3">
+                Feature Premiums <span class="caption-hint fw-normal">(% of listed price)</span>
+              </p>
 
-            <div class="row g-3 mb-3">
-              @foreach([
-                  ['key' => 'corner_premium', 'label' => 'Corner Premium'],
-                  ['key' => 'park_facing_premium', 'label' => 'Park Facing Premium'],
-                  ['key' => 'main_boulevard_premium', 'label' => 'Main Boulevard Premium'],
-              ] as $pk)
-                <div class="col-md-4">
-                  <div class="border rounded-3 p-3 bg-label-secondary h-100">
-                    <label class="form-label fw-semibold mb-2">{{ $pk['label'] }}</label>
-                    <div class="input-group">
-                      <input type="number" name="{{ $pk['key'] }}" class="form-control" step="0.01" min="0" max="100"
-                             placeholder="%" value="{{ $ownershipPlan->{$pk['key']} }}">
-                      <span class="input-group-text">%</span>
+              <div class="row g-3 mb-3">
+                @foreach($featurePremiumKeys as $pk)
+                  <div class="col-md-4">
+                    <div class="border rounded-3 p-3 bg-label-secondary h-100">
+                      <label class="form-label fw-semibold mb-2">{{ $pk['label'] }}</label>
+                      <div class="input-group">
+                        <input type="number" name="{{ $pk['key'] }}" class="form-control" step="0.01" min="0" max="100"
+                               placeholder="%" value="{{ $ownershipPlan->{$pk['key']} }}">
+                        <span class="input-group-text">%</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              @endforeach
-            </div>
+                @endforeach
+              </div>
+            @endif
 
             <div class="d-flex justify-content-end gap-2 pt-3">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -668,7 +618,7 @@
 @endif
 
 {{-- Add Ownership Installment Modal --}}
-@if(! $installment && Auth()->user()->can('installment_plan_add'))
+@if($unCompletePayments && ! $installment && ! $isTransferPlan && Auth()->user()->can('installment_plan_add'))
   <div class="modal fade" id="addOwnershipInstallmentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-simple modal-dialog-centered">
       <div class="modal-content">
@@ -687,7 +637,8 @@
                 <label class="form-label fw-semibold">
                   Installment Plan
                   @if($addInstallmentOptions->contains('applied', true))
-                    <span class="text-muted fw-normal">(Applied = already attached to this property's payment plan)</span>
+                    <span
+                      class="text-muted fw-normal">(Applied = already attached to this property's payment plan)</span>
                   @endif
                 </label>
                 <select id="addOwnershipInstallmentSelect" name="installment_source"
@@ -746,7 +697,7 @@
 @endif
 
 {{-- Edit Ownership Installment Modal --}}
-@if($installment && Auth()->user()->can('installment_plan_edit'))
+@if($unCompletePayments && $installment && Auth()->user()->can('installment_plan_edit'))
   <div class="modal fade" id="editOwnershipInstallmentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-simple  modal-dialog-centered">
       <div class="modal-content">
@@ -863,6 +814,15 @@
     </div>
   </div>
 @endif
+
+@include('components.property._planning-styles')
+
+@include('components.property._cancel-ownership-modal', [
+  'ownerableType' => $ownerableType,
+  'ownerableId' => $ownerableId,
+  'entityLabel' => $entityLabel,
+  'canCancelReservation' => $unCompletePayments,
+])
 
 @push('scripts')
   <script>

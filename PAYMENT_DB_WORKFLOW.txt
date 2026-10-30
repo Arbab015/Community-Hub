@@ -498,16 +498,17 @@ Value-resolution priority (always):  plan/pivot row  ->  linked template  -> 0.
 3) gross = listed_price + premiums_total
 
 4) SURPLUS fees (development, transfer, possession) -> EXCLUDED:
-     amount = gross x %/100   (or fixed value);  added ON TOP of the price.
+     amount = gross x %/100   (or fixed value);  deducted FROM gross.
      excluded_total = sum of these.
 
 5) NON-SURPLUS fees (booking, down payment, confirmation) -> INCLUDED:
-     base = gross + excluded_total;
-     amount = base x %/100 (or fixed value);  part OF the total price.
+     base = gross;
+     amount = base x %/100 (or fixed value);  deducted FROM gross.
      included_total = sum of these.
 
-6) total_price   = gross + excluded_total
-   remaining     = total_price - included_total   (amount actually financed)
+6) total_price   = gross
+   one_time      = excluded_total + included_total
+   remaining     = gross - one_time   (amount actually financed)
 
 7) Per installment attachment (pivot row property_installment_plans):
    - extra = additional_installment_amount
@@ -569,16 +570,16 @@ FREQUENCY CONSTANTS (InstallmentPlanCalculator):
     - all fee/premium/installment values are stored as concrete values on the
       snapshot row; the only FKs (to property_owners, property_ownerable morph)
       never depend on templates.
-16. Un-link owner (PropertyOwnerController::unlinkOwner, property_owners.unlink):
+16. Cancel ownership reservation (PropertyOwnerController::cancelReservation, property_owners.cancel_reservation):
     - Ends the CURRENT (open) ownership (end_date = today).
-    - Deletes its property_ownership_payment_plans snapshot row.
+    - Deletes its reserved payment plans snapshot row.
     - Sets properties.owner_id / property_units.owner_id = NULL.
     - Reopens the listing (closed = 0), so it is public again.
     - The seller's source plan + installment pivots are NEVER touched; the
       re-listed property is exactly as it was before the failed sale.
-    - UI: "Unlink Owner" shows while the current snapshot's status is
-      active / in-progress. "Sold Out" badge shows when it is 'completed'
-      (final sale - no unlink, no owner assignment).
+    - UI: "Cancel Ownership Reservation" shows while the current snapshot's
+      status is active / in-progress. "Sold Out" badge shows when it is
+      'completed' (final sale - no cancellation, no owner assignment).
 
 
 17. Committed-plan edits never touch the seller's source plan:

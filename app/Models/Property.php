@@ -11,6 +11,10 @@ class Property extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'is_block_payment_plan_applied' => 'boolean',
+    ];
+
     public function uniqueIds(): array
     {
         return ['uuid'];
@@ -72,8 +76,8 @@ class Property extends Model
         return $this->morphMany(PropertyPaymentPlan::class, 'planable');
     }
 
-    public function ownershipPaymentPlans()
+    public function reservedPaymentPlans()
     {
-        return $this->morphMany(PropertyOwnershipPaymentPlan::class, 'property_ownerable');
+        return $this->morphMany(PropertyReservedPaymentPlan::class, 'property_ownerable');
     }
 }

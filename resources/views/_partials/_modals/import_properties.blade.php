@@ -2,9 +2,7 @@
   <div class="modal-dialog modal-md">
     <form class="modal-content" method="POST" action="{{ route('properties.import') }}" enctype="multipart/form-data"
           id="section-block">
-
       @csrf
-
       <div class="modal-header">
         <h5 class="modal-title">Import Properties</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

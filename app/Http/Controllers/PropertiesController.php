@@ -596,8 +596,8 @@ class PropertiesController extends Controller
 
                 $userScope = SocietyAccessResolver::resolver(auth()->user());
                 $scopedUploadUserId = ($userScope['isSocietyScoped'] ?? false)
-                    ? ($userScope['ownerId'] ?? auth()->id())
-                    : auth()->id();
+                  ? ($userScope['ownerId'] ?? auth()->id())
+                  : auth()->id();
 
                 if ($request->hasFile('main_pic')) {
                     $ids = app(FileServices::class)->compressAndStore(
@@ -954,7 +954,6 @@ class PropertiesController extends Controller
         ]);
 
         $result = ImportProperties::validate($fullPath, $block->id);
-        logger('result', $result);
         if (! $result['success']) {
             Storage::disk('public')->delete($path);
             $import->delete();
@@ -1095,7 +1094,7 @@ class PropertiesController extends Controller
     {
         try {
             $request->validate([
-                'ids'   => 'required|array',
+                'ids' => 'required|array',
                 'ids.*' => 'string|exists:properties,uuid',
             ]);
 

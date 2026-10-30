@@ -62,7 +62,7 @@
           <div class="dt-actions-bar">
             <div id="dt-right-actions" class="d-none">
               <div class="d-flex gap-2">
-                <button class="btn btn-primary" onclick="addBlockModel(event)">
+                <button class="btn btn-sm btn-primary" onclick="addBlockModel(event)">
                   Add Block
                 </button>
               </div>
@@ -160,13 +160,17 @@
 
     function applyPaymentPlanToBlocks() {
       var checkboxes = document.querySelectorAll('.checkbox:checked');
-      var ids = Array.from(checkboxes).map(function(cb) { return cb.value; });
+      var ids = Array.from(checkboxes).map(function(cb) {
+        return cb.value;
+      });
       if (!ids.length) return;
 
       document.getElementById('block_plan_selected_count').textContent = ids.length;
 
       var form = document.getElementById('apply_block_payment_plan_form');
-      form.querySelectorAll('input[name="block_ids[]"]').forEach(function(el) { el.remove(); });
+      form.querySelectorAll('input[name="block_ids[]"]').forEach(function(el) {
+        el.remove();
+      });
       ids.forEach(function(id) {
         var input = document.createElement('input');
         input.type = 'hidden';
@@ -187,7 +191,9 @@
 
       var form = document.getElementById('apply_listing_form');
       document.getElementById('listing_block_uuid').value = '';
-      form.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) { el.remove(); });
+      form.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) {
+        el.remove();
+      });
 
       uuids.forEach(function(uuid) {
         var input = document.createElement('input');
@@ -212,7 +218,9 @@
     });
 
     document.getElementById('applyListingModal').addEventListener('hidden.bs.modal', function() {
-      this.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) { el.remove(); });
+      this.querySelectorAll('input[name="block_uuids[]"]').forEach(function(el) {
+        el.remove();
+      });
     });
 
     function addBlockModel(e) {
@@ -229,23 +237,6 @@
     }
 
     document.addEventListener('click', function(e) {
-      var printBtn = e.target.closest('.block_print_plan_btn');
-      if (printBtn) {
-        var uuid = printBtn.dataset.uuid;
-
-        document.getElementById('block_print_loading').classList.add('d-none');
-        document.getElementById('block_print_status').classList.add('d-none');
-        document.getElementById('block_print_submit').classList.add('d-none');
-        document.getElementById('block_print_size').value = '';
-        document.getElementById('block_print_unit').value = 'marla';
-        document.getElementById('block_print_corner').checked = false;
-        document.getElementById('block_print_park_facing').checked = false;
-        document.getElementById('block_print_main_boulevard').checked = false;
-
-        document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid = uuid;
-        new bootstrap.Modal(document.getElementById('printBlockPaymentPlanModal')).show();
-      }
-
       var editBtn = e.target.closest('.edit_block_btn');
       if (editBtn) {
         document.getElementById('block_id').value = editBtn.dataset.id;
@@ -282,7 +273,9 @@
         modal.show();
 
         fetch('/blocks/' + uuid + '/details')
-          .then(function(res) { return res.json(); })
+          .then(function(res) {
+            return res.json();
+          })
           .then(function(res) {
             document.getElementById('price_ranges_loading').classList.add('d-none');
             document.getElementById('payment_plans_loading').classList.add('d-none');
@@ -314,6 +307,9 @@
                 var typeBadge = p.is_commercial
                   ? '<span class="badge bg-label-success">Commercial</span>'
                   : '<span class="badge bg-label-primary">Non-Commercial</span>';
+                var constructedBadge = p.is_constructed
+                  ? '<span class="badge bg-label-dark">Constructed</span>'
+                  : '<span class="badge bg-label-info">Non-Constructed</span>';
                 var tplBadge = p.payment_template
                   ? '<span class="badge bg-label-warning">' + p.payment_template.name + '</span>'
                   : '<span class="text-muted">\u2014</span>';
@@ -325,7 +321,7 @@
 
                 var row2 = '<tr>' +
                   '<td>' + sizeRange + '</td>' +
-                  '<td>' + typeBadge + '</td>' +
+                  '<td>' + typeBadge + constructedBadge + '</td>' +
                   '<td>' + tplBadge + '</td>' +
                   '<td>' + instBadges + '</td>' +
                   '</tr>';
@@ -343,71 +339,7 @@
       }
     });
 
-    document.getElementById('block_print_size').addEventListener('input', checkPaymentPlanAvailability);
-
-    ['block_print_unit', 'block_print_corner', 'block_print_park_facing', 'block_print_main_boulevard'].forEach(function(id) {
-      document.getElementById(id).addEventListener('change', checkPaymentPlanAvailability);
-    });
-    document.querySelectorAll('input[name="block_print_type"]').forEach(function(el) {
-      el.addEventListener('change', checkPaymentPlanAvailability);
-    });
-
-    function getSelectedFeatures() {
-      var features = [];
-      if (document.getElementById('block_print_corner').checked) features.push('corner_premium');
-      if (document.getElementById('block_print_park_facing').checked) features.push('park_facing_premium');
-      if (document.getElementById('block_print_main_boulevard').checked) features.push('main_boulevard_premium');
-      return features;
-    }
-
-    function checkPaymentPlanAvailability() {
-      var uuid = document.getElementById('printBlockPaymentPlanModal').dataset.blockUuid;
-      var size = document.getElementById('block_print_size').value;
-      var unit = document.getElementById('block_print_unit').value;
-      var typeEl = document.querySelector('input[name="block_print_type"]:checked');
-      var type = typeEl ? typeEl.value : 'non_commercial';
-      var features = getSelectedFeatures();
-
-      document.getElementById('block_print_submit').classList.add('d-none');
-      if (!uuid || !size || parseFloat(size) <= 0) {
-        document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
-        document.getElementById('block_print_status_text').textContent = 'Enter a property size to check availability.';
-        return;
-      }
-
-      document.getElementById('block_print_status').classList.remove('d-none', 'alert-success', 'alert-danger');
-      document.getElementById('block_print_status').classList.add('text-muted');
-      document.getElementById('block_print_loading').classList.remove('d-none');
-      document.getElementById('block_print_status_text').textContent = 'Checking availability...';
-
-      fetch('/blocks/' + uuid + '/print-plan/available?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit))
-        .then(function(res) { return res.json(); })
-        .then(function(res) {
-          document.getElementById('block_print_loading').classList.add('d-none');
-          if (res.available) {
-            document.getElementById('block_print_status').classList.remove('alert-danger', 'text-muted');
-            document.getElementById('block_print_status').classList.add('alert', 'alert-success');
-            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-circle-check me-1"></i>' + res.message;
-            var printUrl = '/blocks/' + uuid + '/print-plan?type=' + encodeURIComponent(type) + '&size=' + encodeURIComponent(size) + '&unit=' + encodeURIComponent(unit);
-            if (features.length > 0) {
-              printUrl += '&features=' + features.join(',');
-            }
-            document.getElementById('block_print_submit').classList.remove('d-none');
-            document.getElementById('block_print_submit').href = printUrl;
-          } else {
-            document.getElementById('block_print_status').classList.remove('text-muted');
-            document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
-            document.getElementById('block_print_status_text').innerHTML = '<i class="ti tabler-alert-triangle me-1"></i>' + res.message;
-          }
-        })
-        .catch(function() {
-          document.getElementById('block_print_loading').classList.add('d-none');
-          document.getElementById('block_print_status').classList.remove('text-muted');
-          document.getElementById('block_print_status').classList.add('alert', 'alert-danger');
-          document.getElementById('block_print_status_text').textContent = 'Could not verify availability. Please try again.';
-        });
-    }
-  </script>
+    </script>
 @endpush
 
 @push('styles')

@@ -46,7 +46,7 @@
               <label class="form-label fw-semibold small text-uppercase text-muted required">Type</label>
               <select name="type" id="type" class="form-select" required
                       data-old="{{ old('type', $property->type) }}">
-                <option value="" disabled>Select category first…</option>
+                <option value="" disabled> Select category first…</option>
               </select>
             </div>
 

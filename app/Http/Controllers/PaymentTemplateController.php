@@ -25,8 +25,11 @@ class PaymentTemplateController extends Controller
             return DataTables::of($query->get())
                 ->addColumn('checkbox', fn ($t) => '<input type="checkbox" class="form-check-input checkbox" value="'.$t->id.'">')
                 ->addColumn('is_commercial', fn ($t) => $t->is_commercial
-                    ? '<span class="badge bg-label-warning">Commercial</span>'
-                    : '<span class="badge bg-label-success">Residential</span>')
+                  ? '<span class="badge bg-label-warning">Commercial</span>'
+                  : '<span class="badge bg-label-success">Non-Commercial</span>')
+                ->addColumn('is_constructed', fn ($t) => $t->is_constructed
+                  ? '<span class="badge bg-label-dark">Constructed</span>'
+                  : '<span class="badge bg-label-info">Non-Constructed</span>')
                 ->addColumn('booking_fee', fn ($t) => $this->feeCell($t->booking_fee, $t->booking_fee_in_per))
                 ->addColumn('development_fee', fn ($t) => $this->feeCell($t->development_fee, $t->development_fee_in_per, $t->development_fee_surplus))
                 ->addColumn('down_payment', fn ($t) => $this->feeCell($t->down_payment, $t->down_payment_in_per))
@@ -43,6 +46,7 @@ class PaymentTemplateController extends Controller
                     $infoData = htmlspecialchars(json_encode([
                         'name' => $t->name,
                         'is_commercial' => (bool) $t->is_commercial,
+                        'is_constructed' => (bool) $t->is_constructed,
                         'booking_fee' => $t->booking_fee,
                         'booking_fee_in_per' => (int) $t->booking_fee_in_per,
                         'development_fee' => $t->development_fee,
@@ -68,6 +72,7 @@ class PaymentTemplateController extends Controller
                             'id' => $t->id,
                             'name' => $t->name,
                             'is_commercial' => (int) $t->is_commercial,
+                            'is_constructed' => (int) $t->is_constructed,
                             'booking_fee' => $t->booking_fee,
                             'booking_fee_in_per' => (int) $t->booking_fee_in_per,
                             'development_fee' => $t->development_fee,
@@ -95,7 +100,7 @@ class PaymentTemplateController extends Controller
 
                     return $info.' '.$edit.' '.$delete;
                 })
-                ->rawColumns(['checkbox', 'is_commercial', 'booking_fee', 'development_fee', 'down_payment', 'confirmation_fee', 'possession_fee', 'corner_premium', 'park_facing_premium', 'main_boulevard_premium', 'actions'])
+                ->rawColumns(['checkbox', 'is_commercial', 'is_constructed', 'booking_fee', 'development_fee', 'down_payment', 'confirmation_fee', 'possession_fee', 'corner_premium', 'park_facing_premium', 'main_boulevard_premium', 'actions'])
                 ->make(true);
         }
 
@@ -108,7 +113,6 @@ class PaymentTemplateController extends Controller
 
     public function store(Request $request)
     {
-        //        dd($request->all());
         try {
             $templateId = $request->input('id');
 
@@ -116,6 +120,7 @@ class PaymentTemplateController extends Controller
                 'id' => ['nullable', Rule::exists('payment_templates', 'id')],
                 'name' => ['required', 'string', 'min:3', 'max:100', Rule::unique('payment_templates', 'name')->where('owner_id', auth()->id())->ignore($templateId)],
                 'is_commercial' => ['nullable', 'boolean'],
+                'is_constructed' => ['nullable', 'boolean'],
                 'booking_fee' => ['nullable', 'numeric', 'min:0'],
                 'booking_fee_in_per' => ['nullable', 'boolean'],
                 'development_fee' => ['nullable', 'numeric', 'min:0'],
@@ -141,6 +146,7 @@ class PaymentTemplateController extends Controller
                 'owner_id' => auth()->id(),
                 'name' => $validated['name'],
                 'is_commercial' => $request->boolean('is_commercial'),
+                'is_constructed' => $request->boolean('is_constructed'),
                 'booking_fee' => $validated['booking_fee'] ?? null,
                 'booking_fee_in_per' => $request->boolean('booking_fee_in_per'),
                 'development_fee' => $validated['development_fee'] ?? null,

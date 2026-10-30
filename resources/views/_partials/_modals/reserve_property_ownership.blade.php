@@ -5,10 +5,10 @@
       . ($att->number_of_installments ? ' ('.$att->number_of_installments.' installments)' : '');
 @endphp
 
-<div class="modal fade" id="createMemberOwnerModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="reservePropertyOwnership" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
-      <form method="POST" action="{{ route('property_owners.store') }}" enctype="multipart/form-data" id="form">
+      <form method="POST" action="{{ route('reserve.property_owner.store') }}" enctype="multipart/form-data" id="form">
         @csrf
         <input type="hidden" name="ownerable_type" id="ownerable_type" value="{{ $ownerableType ?? '' }}">
         <input type="hidden" name="ownerable_id" id="ownerable_id" value="{{ $ownerableId ?? '' }}">
@@ -18,14 +18,14 @@
         @endif
 
         <div class="modal-header">
-          <h5 class="modal-title">Assign Owner</h5>
+          <h5 class="modal-title">Reserve Property </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
 
         <div class="modal-body">
           <p class="text-muted small mb-3">
-            Link an existing member or create a new one, then set them as the current owner. The property's own payment
-            plan is used.
+            Reserve this property for an existing member or create a new one. The property's own payment plan is used,
+            and the member is reserved as the prospective owner.
           </p>
 
           <div class="row g-4">
@@ -49,6 +49,9 @@
                     </button>
                   </div>
                   <input type="hidden" id="existing_user_id" name="existing_user_id" value="">
+                  <small class="form-text text-muted">
+                    Any existing member of the platform can be picked - they are attached to this society when the property is reserved.
+                  </small>
                 </div>
 
                 <div class="form-check my-3">
@@ -129,7 +132,8 @@
                     </div>
                     <div class="col-12">
                       <label class="form-label fw-semibold required">Permanent Address</label>
-                      <input type="text" name="permanent_address" class="form-control" placeholder="House #123, Street 4, Lahore" required>
+                      <input type="text" name="permanent_address" class="form-control"
+                             placeholder="House #123, Street 4, Lahore" required>
                     </div>
                   </div>
                 </div>
@@ -141,7 +145,7 @@
               <div class="border rounded-3 p-3 h-100">
                 <div id="member_info" class="alert alert-success d-flex align-items-center gap-2 mb-3 d-none">
                   <i class="ti tabler-user-check"></i>
-                  <span id="member_info_text"><b>Linking existing society member.</b></span>
+                  <span id="member_info_text"><b>Linking existing member.</b></span>
                 </div>
 
                 <h6 class="fw-bold mb-3"><i class="ti tabler-file-invoice me-1"></i>Payment Plan</h6>
@@ -170,7 +174,8 @@
                 <div class="form-check form-switch mb-2">
                   <input class="form-check-input" type="checkbox" id="with_installment" name="with_installment"
                          value="1">
-                  <label class="form-check-label" for="with_installment">Include an installment plan</label>
+                  <label class="form-check-label" for="with_installment">Include an installment plan <span
+                      class="text-muted">(optional)</span></label>
                 </div>
 
                 <div id="installment_wrap" style="display:none;">
@@ -199,7 +204,9 @@
 
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary"><i class="ti tabler-user-check me-1"></i>Assign Owner</button>
+          <button type="submit" id="reserve_submit_btn" class="btn btn-primary">
+            <i class="ti tabler-user-check me-1"></i><span class="reserve-btn-label">Reserve for Ownership</span>
+          </button>
         </div>
       </form>
     </div>
@@ -224,7 +231,7 @@
       const pwField = document.getElementById('password');
       const pwToggle = document.getElementById('toggle_password');
       const autofillPw = document.getElementById('autofill_password');
-      const modal = document.getElementById('createMemberOwnerModal');
+      const modal = document.getElementById('reservePropertyOwnership');
       const memberCol = document.getElementById('member_col');
       const planCol = document.getElementById('plan_col');
       const memberInfo = document.getElementById('member_info');
@@ -256,11 +263,11 @@
         if (icon) icon.className = isPassword ? 'ti tabler-eye-off' : 'ti tabler-eye';
       };
 
-      const showFetchStatus = (found, user = null, alreadyMember = false) => {
+      const showFetchStatus = (found, user = null) => {
         if (found && user) {
           existingUserId.value = user.id;
           fetchStatus.innerHTML = `<span class="text-success small"><i class="ti tabler-user-check"></i> Already exists: <strong>${user.first_name || ''} ${user.last_name || ''}</strong> — ${user.email || user.contact}</span>` +
-            (alreadyMember ? '&nbsp;<span class="badge bg-label-primary"><i class="ti tabler-user-check me-1"></i>Already Society Member</span>' : '');
+            '&nbsp;<span class="badge bg-label-primary"><i class="ti tabler-user-check me-1"></i>Existing Member</span>';
         } else {
           existingUserId.value = '';
           modeNew.checked = true;
@@ -276,6 +283,8 @@
         existingWrap.style.display = isNew ? 'none' : '';
         newWrap.style.display = isNew ? '' : 'none';
         fetchTerm.required = !isNew;
+
+        fetchTerm.disabled = isNew;
         if (isNew) existingUserId.value = '';
         setFieldsState(isNew);
       };
@@ -283,22 +292,24 @@
       // Fetch Member
       const fetchMember = () => {
         const term = fetchTerm.value.trim();
+
         if (!term) {
-          fetchStatus.innerHTML = '';
+          fetchStatus.className = 'text-danger fst-italic';
+          fetchStatus.textContent = 'Empty search field';
           existingUserId.value = '';
           return;
         }
 
+        fetchStatus.className = 'text-primary';
         fetchStatus.innerHTML = '<span class="text-muted small">Searching…</span>';
-        const url = new URL('{{ route("property_owners.lookup") }}', window.location.origin);
+        const url = new URL('{{ route("property_owners.lookup") }}');
         url.searchParams.append('term', term);
-        if (document.getElementById('society').value) {
-          url.searchParams.append('society', document.getElementById('society').value);
-        }
 
         fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(r => r.json())
-          .then(data => showFetchStatus(data.found, data.user, data.already_member))
+          // The lookup runs against the users table as a whole: whoever exists
+          // there can be reserved the property.
+          .then(data => showFetchStatus(data.found, data.user))
           .catch(() => fetchStatus.innerHTML = '<span class="text-danger small">Lookup failed. Try again.</span>');
       };
 
@@ -334,7 +345,7 @@
         modeExisting.closest('.form-check').style.display = '';
         existingWrap.style.display = '';
         newWrap.style.display = 'none';
-        modalTitle.textContent = 'Assign Owner';
+        modalTitle.textContent = 'Reserve Property Ownership';
       };
 
       // Prefill New Member
@@ -361,6 +372,7 @@
       const resetModal = () => {
         existingUserId.value = '';
         fetchTerm.value = '';
+        fetchTerm.disabled = false;
         fetchStatus.innerHTML = '';
         autofillPw.checked = false;
         pwField.readOnly = false;
@@ -372,6 +384,9 @@
           const el = getFormField(nm);
           if (el && nm !== 'picture') el.value = '';
         });
+
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        form.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
 
         memberInfo.classList.add('d-none');
       };
@@ -437,11 +452,68 @@
 
       pwToggle.addEventListener('click', togglePasswordVisibility);
 
+      // Fast AJAX submit — avoids the slow full-page round-trip on load.
+      const submitBtn = document.getElementById('reserve_submit_btn');
+      const setSubmitting = (submitting) => {
+        if (!submitBtn) return;
+        submitBtn.disabled = submitting;
+        if (submitting) {
+          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Reserving…';
+        } else {
+          submitBtn.innerHTML = '<i class="ti tabler-user-check me-1"></i><span class="reserve-btn-label">Reserve for Ownership</span>';
+        }
+      };
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setSubmitting(true);
+        const formData = new FormData(form);
+        const tokenInput = form.querySelector('input[name="_token"]');
+        if (tokenInput) formData.set('_token', tokenInput.value);
+
+        fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+              const fieldErrors = data.errors || {};
+              Object.keys(fieldErrors).forEach((field) => {
+                const input = form.querySelector(`[name="${field}"]`);
+                if (input) {
+                  input.classList.add('is-invalid');
+                  input.insertAdjacentHTML('afterend',
+                    '<div class="invalid-feedback d-block">' + (fieldErrors[field][0] || 'Invalid value') + '</div>');
+                }
+              });
+              notify(data.message || 'Please check the form and try again.', 'error');
+              setSubmitting(false);
+              return;
+            }
+
+            notify(data.message || 'Property reserved for ownership successfully.', 'success');
+            bootstrap.Modal.getInstance(modal)?.hide();
+            setTimeout(() => window.location.reload(), 900);
+          })
+          .catch(() => {
+            notify('Reservation failed. Please try again.', 'error');
+            setSubmitting(false);
+          });
+      });
+
       document.addEventListener('click', (e) => {
         const createBtn = e.target.closest('.create-member-btn');
         const assignBtn = e.target.closest('.assign-member-btn');
+        const reserveBtn = e.target.closest('.reserve-property-btn');
         if (createBtn) openModal(createBtn, true);
         else if (assignBtn) openModal(assignBtn, false);
+        else if (reserveBtn) openModal(reserveBtn, false);
       });
 
       // Initialize

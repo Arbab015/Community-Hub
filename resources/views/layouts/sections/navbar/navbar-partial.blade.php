@@ -35,8 +35,10 @@
   <!-- Search -->
   <div class="navbar-nav align-items-center">
     <div class="nav-item navbar-search-wrapper px-md-0 px-2 mb-0">
-      <a class="nav-item nav-link search-toggler d-flex align-items-center px-0" href="javascript:void(0);">
-        <span class="d-inline-block text-body-secondary fw-normal" id="autocomplete"></span>
+      <a class="nav-item nav-link search-toggler d-flex align-items-center px-0" href="javascript:void(0);"
+         data-bs-toggle="modal" data-bs-target="#propertySearchModal"
+         title="Search properties by name, number or owner">
+        <i class="icon-base ti tabler-search icon-22px text-heading"></i>
       </a>
     </div>
   </div>

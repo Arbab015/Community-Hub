@@ -14,6 +14,7 @@ class PropertyUnit extends Model
 
     protected $casts = [
         'amenities' => 'array',
+        'is_block_payment_plan_applied' => 'boolean',
     ];
 
     public function uniqueIds(): array
@@ -77,8 +78,8 @@ class PropertyUnit extends Model
         return $this->morphMany(PropertyPaymentPlan::class, 'planable');
     }
 
-    public function ownershipPaymentPlans()
+    public function reservedPaymentPlans()
     {
-        return $this->morphMany(PropertyOwnershipPaymentPlan::class, 'property_ownerable');
+        return $this->morphMany(PropertyReservedPaymentPlan::class, 'property_ownerable');
     }
 }

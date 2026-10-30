@@ -18,6 +18,11 @@ class PaymentTransaction extends Model
 
     protected $casts = [
         'amount_paid' => 'float',
+        'charge_subtotal' => 'float',
+        'tax_amount' => 'float',
+        'late_fee_amount' => 'float',
+        'tax_rate_percent' => 'float',
+        'tax_capped' => 'boolean',
         'paid_at' => 'datetime',
     ];
 
@@ -33,7 +38,7 @@ class PaymentTransaction extends Model
 
     public function ownershipPlan(): BelongsTo
     {
-        return $this->belongsTo(PropertyOwnershipPaymentPlan::class, 'ownership_payment_plan_id');
+        return $this->belongsTo(PropertyReservedPaymentPlan::class, 'ownership_payment_plan_id');
     }
 
     public function recordedBy(): BelongsTo
@@ -44,12 +49,27 @@ class PaymentTransaction extends Model
     public function ledgerRows(): BelongsToMany
     {
         return $this->belongsToMany(PropertyPaymentLedger::class, 'payment_transaction_allocations')
-            ->withPivot('amount_allocated')
+            ->withPivot('amount_allocated', 'tax_amount')
             ->withTimestamps();
     }
 
     public function allocations(): HasMany
     {
         return $this->hasMany(PaymentTransactionAllocation::class, 'payment_transaction_id');
+    }
+
+    /** One row per charge of this payment that carried a late fee (collected or waived). */
+    public function lateFees(): HasMany
+    {
+        return $this->hasMany(PaymentLateFee::class, 'payment_transaction_id');
+    }
+
+    /**
+     * What goes back to the customer when this payment is returned: charges and
+     * FBR tax, never the late fee.
+     */
+    public function getRefundableAmountAttribute(): float
+    {
+        return round(max(0.0, (float) $this->amount_paid - (float) $this->late_fee_amount), 2);
     }
 }

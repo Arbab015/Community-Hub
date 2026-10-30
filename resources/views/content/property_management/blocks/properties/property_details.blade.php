@@ -173,8 +173,6 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
   </div>
 
   <div class="tab-content mt-3 p-0 mt-5">
-
-    {{-- TAB 1: PROPERTY DETAILS --}}
     <div class="tab-pane fade show active" id="info" role="tabpanel">
       <div class="row g-4">
         <div class="col-xl-4 col-lg-4 col-md-5">
@@ -313,7 +311,7 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                     <label class="form-check-label fw-semibold mb-0 cursor-pointer" for="select_all">Select All</label>
                   </div>
                 </div>
-                
+
                 <span data-url="{{ route('attachments.bulk_delete') }}" id="bulk_btn"
                       class="btn btn-xs btn-outline-danger waves-effect d-none bulk_delete_btn d-flex align-items-center gap-1 bulk_btn">
                   <i class="fa-solid fa-trash fa-sm"></i> Delete
@@ -394,7 +392,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                 <span class="d-inline-block bg-primary rounded hr_bar"></span> Basic Information
               </h5>
               @can('edit_property')
-                <span class="text-primary cursor-pointer" data-bs-toggle="modal" data-bs-target="#edit_basic_property"
+                <span class="text-primary cursor-pointer" data-bs-toggle="modal"
+                      data-bs-target="#edit_basic_property"
                       title="Edit"><i class="fa-solid fa-pen-to-square"></i></span>
               @endcan
             </div>
@@ -578,10 +577,9 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 
           @endcan
 
-
-        </div>
-      </div>
-    </div>
+        </div>{{-- /right column --}}
+      </div>{{-- /row --}}
+    </div>{{-- /#info pane --}}
 
     {{-- TAB 2: GALLERY --}}
     <div class="tab-pane fade" id="gallery" role="tabpanel">
@@ -617,11 +615,13 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
               </button>
               <ul class="dropdown-menu dropdown-menu-end small">
                 <li>
-                  <a class="dropdown-item floor-option" href="javascript:void(0);" data-floor="all">All Floors</a>
+                  <a class="dropdown-item floor-option" href="javascript:void(0);" data-floor="all">All
+                    Floors</a>
                 </li>
                 @foreach($property->floors as $floor)
                   <li>
-                    <a class="dropdown-item floor-option" href="javascript:void(0);" data-floor="{{ $floor->id }}">
+                    <a class="dropdown-item floor-option" href="javascript:void(0);"
+                       data-floor="{{ $floor->id }}">
                       {{ ucfirst($floor_types->firstWhere('id', $floor->floor_type)?->title) }}
                     </a>
                   </li>
@@ -649,7 +649,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
           <div class="card border-0 shadow-sm rounded-3  mb-3" data-floor-id="{{ $floor->id }}">
 
             {{-- Floor header --}}
-            <div class="floor-header-border bg-label-primary d-flex justify-content-between flex-wrap gap-2 px-3 py-2">
+            <div
+              class="floor-header-border bg-label-primary d-flex justify-content-between flex-wrap gap-2 px-3 py-2">
               <div class="d-flex align-items-center gap-2">
                 <div
                   class="floor-icon-wrap d-flex align-items-center justify-content-center rounded-circle flex-shrink-0">
@@ -737,7 +738,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                class="form-control unit-search-input"
                                data-floor="{{ $floor->id }}"
                                placeholder="Search by unit name...">
-                        <span class="input-group-text cursor-pointer unit-search-btn" data-floor="{{ $floor->id }}"
+                        <span class="input-group-text cursor-pointer unit-search-btn"
+                              data-floor="{{ $floor->id }}"
                               title="Search">
                           <i class="ti tabler-search"></i>
                         </span>
@@ -819,21 +821,21 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                           <div class="d-flex align-items-center gap-3 text-muted small mb-2">
                             @if($unit->rooms->count())
                               <span class="d-flex align-items-center gap-1">
-              <i
-                class="ti tabler-door"></i> {{ $unit->rooms->count() }} {{ Str::plural('room', $unit->rooms->count()) }}
-            </span>
+                              <i
+                                class="ti tabler-door"></i> {{ $unit->rooms->count() }} {{ Str::plural('room', $unit->rooms->count()) }}
+                              </span>
                             @else
                               <span class="d-flex align-items-center gap-1">
-              <i class="ti tabler-ruler-2"></i> {{ round(GetArea::calculate($unit->dimensions)) }} sq ft
-            </span>
+                               <i class="ti tabler-ruler-2"></i> {{ round(GetArea::calculate($unit->dimensions)) }} sq ft
+                              </span>
                               @php
                                 $unit_amenities_count = count(is_array($unit->amenities) ? $unit->amenities : json_decode($unit->amenities ?? '[]', true));
                               @endphp
                               @if($unit_amenities_count)
                                 <span class="d-flex align-items-center gap-1">
-                <i
-                  class="ti tabler-check"></i> {{ $unit_amenities_count }} {{ Str::plural('amenity', $unit_amenities_count) }}
-              </span>
+                                 <i
+                                   class="ti tabler-check"></i> {{ $unit_amenities_count }} {{ Str::plural('amenity', $unit_amenities_count) }}
+                                 </span>
                               @endif
                             @endif
                           </div>
@@ -841,15 +843,16 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                           <div class="mb-3">
                        <span
                          class="badge rounded-pill {{ $unit->listing ? 'bg-success bg-opacity-10 text-success' : 'bg-label-secondary' }} d-inline-flex align-items-center gap-1">
-            <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
-            {{ $unit->listing ? 'Listed for '.ucfirst($unit->listing->listing_type) : 'Not listed' }}
+                       <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
+                       {{ $unit->listing ? 'Listed for '.ucfirst($unit->listing->listing_type) : 'Not listed' }}
                        </span>
                           </div>
 
                           <div class="d-flex align-items-center gap-2">
                             @if(isset($society) && $user_type)
-                              <a href="{{ route('society.unit.details', [$user_type, $society->uuid, $unit->uuid]) }}"
-                                 class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
+                              <a
+                                href="{{ route('society.unit.details', [$user_type, $society->uuid, $unit->uuid]) }}"
+                                class="btn btn-sm btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1">
                                 <i class="ti tabler-eye"></i> View
                               </a>
                             @else
@@ -879,11 +882,13 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
 
                                   @can('listing_property')
                                     <li>
-                                      <button type="button" class="dropdown-item d-flex align-items-center gap-2"
+                                      <button type="button"
+                                              class="dropdown-item d-flex align-items-center gap-2"
                                               data-bs-toggle="modal" data-bs-target="#sell_rent_modal"
                                               data-type="unit" data-id="{{ $unit->id }}"
                                               data-listing='@json($unit->listing)'>
-                                        <i class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
+                                        <i
+                                          class="ti {{ $unit->listing ? 'tabler-tag' : 'tabler-tag-off' }}"></i>
                                         {{ $unit->listing ? 'Update Listing' : 'List Unit' }}
                                       </button>
                                     </li>
@@ -911,9 +916,10 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                                       <hr class="dropdown-divider">
                                     </li>
                                     <li>
-                                      <a href="{{ route('property.destroy', ['section'=>'unit', $unit->uuid]) }}"
-                                         onclick="confirmDelete(event, null)"
-                                         class="dropdown-item d-flex align-items-center gap-2 text-danger">
+                                      <a
+                                        href="{{ route('property.destroy', ['section'=>'unit', $unit->uuid]) }}"
+                                        onclick="confirmDelete(event, null)"
+                                        class="dropdown-item d-flex align-items-center gap-2 text-danger">
                                         <i class="ti tabler-trash"></i> Delete Unit
                                       </a>
                                     </li>
@@ -1003,7 +1009,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                           @if($room->dimensions->count())
                             <div class="d-flex flex-wrap gap-1 mb-2">
                               @foreach($room->dimensions as $rd)
-                                <span class="dim-side-chip rounded px-2 py-1 d-inline-flex align-items-center gap-1">
+                                <span
+                                  class="dim-side-chip rounded px-2 py-1 d-inline-flex align-items-center gap-1">
                                 <span class="dim-side-name">{{ ucfirst($rd->name) }}</span>
                                 <span class="dim-side-unit">{{ $rd->size }} {{ $rd->unit }}</span>
                                 </span>
@@ -1030,7 +1037,8 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
                   @endforeach
                 </div>
                 @if($floor->rooms->count() > 4)
-                  <div class="text-center mt-4 floor-load-more-wrap" data-floor-id="{{ $floor->id }}" data-mode="rooms">
+                  <div class="text-center mt-4 floor-load-more-wrap" data-floor-id="{{ $floor->id }}"
+                       data-mode="rooms">
                     <button class="btn btn-xs btn-outline-primary floor-load-more-btn"
                             type="button"
                             data-floor-id="{{ $floor->id }}"
@@ -1051,24 +1059,37 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
         @endforeach
 
       @else
-        <div class="card border-0 shadow-sm rounded-3 p-5 d-flex flex-column align-items-center justify-content-center">
+        <div
+          class="card border-0 shadow-sm rounded-3 p-5 d-flex flex-column align-items-center justify-content-center">
           <i class="ti tabler-building-off fs-1 text-muted mb-3"></i>
           <p class="text-muted mb-0">No construction details available.</p>
         </div>
       @endif
-
     </div>
 
 
     {{-- TAB 3: Payments planning DETAILS --}}
     <div class="tab-pane fade" id="payments_planning" role="tabpanel">
-      @include('components.property.payments-planning' , ['property' => $property])
+      @php
+        $ownershipPlan = $property->reservedPaymentPlans()
+            ->whereHas('propertyOwner', fn ($q) => $q->active())
+            ->latest('id')
+            ->first();
+      @endphp
+      @if($ownershipPlan)
+
+        @include('components.property.reserved-payment-plans', ['property' => $property])
+      @else
+      
+        @include('components.property.payments-planning', ['property' => $property])
+      @endif
     </div>
     {{-- TAB 3: Payments --}}
     <div class="tab-pane fade" id="payments" role="tabpanel">
       @include('components.property.payments', ['property' => $property])
     </div>
-  </div>
+  </div>{{-- /.tab-content --}}
+
   @include('_partials._modals.edit_property')
   @include('_partials._modals.listing_property')
 
@@ -1498,6 +1519,48 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
     #bulk_action_bar .card {
       background: #fff;
       border: 1px solid #e2e2e7;
+    }
+
+    /* ===== Feature chips (Edit Basic Information modal) ===== */
+    .basic_info_modal .feature-chip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      border: 1px solid #dde1e8;
+      border-radius: 2rem;
+      background: #fff;
+      padding: .45rem .95rem;
+      font-size: .82rem;
+      font-weight: 600;
+      color: #384551;
+      cursor: pointer;
+      user-select: none;
+      transition: all .18s ease;
+    }
+
+    .basic_info_modal .feature-chip .feature-chip-icon {
+      color: #8592a3;
+      transition: color .18s ease;
+    }
+
+    .basic_info_modal .feature-chip-check {
+      display: none;
+      color: #696cff;
+    }
+
+    .basic_info_modal .feature-chip.active {
+      border-color: #696cff;
+      background: linear-gradient(135deg, #f3f4ff, #eef1ff);
+      box-shadow: 0 6px 16px -8px rgba(105, 108, 255, .5);
+    }
+
+    .basic_info_modal .feature-chip.active .feature-chip-icon {
+      color: #696cff;
+    }
+
+    .basic_info_modal .feature-chip.active .feature-chip-check {
+      display: inline-block;
     }
   </style>
 @endpush
@@ -2137,4 +2200,6 @@ $default_marla_size = $marla_size != 0.0 ? $marla_size : 272.25;
       });
     });
   </script>
+
+  @include('components.property._tab-activator')
 @endpush

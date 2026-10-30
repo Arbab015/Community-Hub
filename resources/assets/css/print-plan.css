@@ -68,7 +68,7 @@
   /* First installment page flows naturally after the Final Amount */
   .invoice-print .installment-page.first {
     page-break-before: auto;
-    padding-top: 0 !important;
+    padding-top: 2mm !important;
     margin-top: 0 !important;
   }
 

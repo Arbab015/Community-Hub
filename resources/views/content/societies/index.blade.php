@@ -53,7 +53,7 @@
     </div>
   @endif
 
-  <div class="card mb-4">
+  <div class="card mb-4 border-0 shadow-sm rounded-4">
     <div class="card-header d-flex justify-content-between align-items-center">
 
       <h5 class="mb-1 fw-semibold">
@@ -61,19 +61,19 @@
       </h5>
 
       <div class="d-flex align-items-center gap-3">
-        <button type="button" id="select_all_societies_btn" class="btn btn-sm btn-outline-secondary"
+        <button type="button" id="select_all_societies_btn" class="btn btn-sm btn-outline-secondary rounded-pill"
                 onclick="toggleSelectAllSocieties()">
           <i class="ti tabler-checkbox me-1"></i> Select All
         </button>
 
-        <button type="button" id="apply_payment_template_btn" class="btn btn-sm btn-primary d-none"
+        <button type="button" id="apply_payment_template_btn" class="btn btn-sm btn-primary rounded-pill d-none"
                 onclick="applyPaymentTemplateToSocieties()">
           <i class="ti tabler-file-invoice me-1"></i> Apply Payment Plan
         </button>
 
         @can('add_society')
           <a href="{{ route('society.create', $user_type) }}"
-             class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm">
+             class="btn btn-primary btn-sm rounded-pill d-flex align-items-center gap-1 shadow-sm">
             <i class="ti tabler-plus"></i>
             Create Society
           </a>
@@ -89,13 +89,13 @@
 
         <div class="row g-3">
           <div class="{{ $colClass }} mt-0">
-            <label class="form-label text-uppercase fw-semibold">Society Name</label>
+            <label class="form-label text-uppercase fw-semibold small">Society Name</label>
             <input type="text" class="form-control" name="name" id="search_content"
                    value="{{ request('name') }}" placeholder="Search by society name...">
           </div>
 
           <div class="{{ $colClass }} mt-0">
-            <label class="form-label text-uppercase fw-semibold">City</label>
+            <label class="form-label text-uppercase fw-semibold small">City</label>
             <select name="city" class="form-select"
                     onchange="document.getElementById('filterForm').submit()">
               <option value="">All</option>
@@ -108,7 +108,7 @@
           </div>
 
           <div class="{{ $colClass }} mt-0">
-            <label class="form-label text-uppercase fw-semibold">Status</label>
+            <label class="form-label text-uppercase fw-semibold small">Status</label>
             <select name="status" class="form-select"
                     onchange="document.getElementById('filterForm').submit()">
               <option value="">All</option>
@@ -119,7 +119,7 @@
 
           @if ($user_type != 'owner_societies')
             <div class="{{ $colClass }} mt-0">
-              <label class="form-label text-uppercase fw-semibold">Owner</label>
+              <label class="form-label text-uppercase fw-semibold small">Owner</label>
               <select name="owner" class="form-select"
                       onchange="document.getElementById('filterForm').submit()">
                 <option value="">All</option>
@@ -156,44 +156,45 @@
     </div>
   @endif
 
-  <div class="row g-3  pt-2 societies_cards mb-6 gap-1px" id="sortable-4">
+  <div class="row g-3 pt-2 societies_cards mb-6 gap-1px" id="sortable-4">
     @foreach ($societies as $society)
-      <div class="col-md-6 col-xl-4">
-        <div class="card h-100">
-          <div class="position-relative">
-            <input type="checkbox" class="form-check-input society-checkbox position-absolute top-0 start-0 m-2"
-                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="{{ $society->uuid }}">
-            <img class="card-img-top"
+      <div class="col-md-6 col-xl-3">
+        <div class="card society-card h-100 border-0 shadow-sm rounded-4 overflow-hidden">
+          <div class="position-relative overflow-hidden">
+            <input type="checkbox"
+                   class="form-check-input society-checkbox fs-5 position-absolute top-0 start-0 m-3 z-2 shadow"
+                   value="{{ $society->uuid }}">
+            <img class="card-img-top society-img object-fit-cover"
                  src="{{ $society->attachment ? asset('storage/' . $society->attachment->link) : asset('assets/img/my_images/dummy_society_image.png') }}"
-                 alt="{{ $society->name }}" height="170px" style="object-fit: cover;" />
+                 alt="{{ $society->name }}" height="170" />
           </div>
-          <div class="card-body py-2 px-4 d-flex flex-column">
-            <h5 class="card-title fs-6 mb-0 text-truncate " data-bs-toggle="tooltip" data-bs-placement="bottom"
-                data-bs-custom-class="tooltip-secondary"
-                data-bs-original-title="{{ $society->name }}, {{ $society->city }}">{{ ucwords($society->name) }}
-              , {{ ucwords($society->city)}} </h5>
+          <div class="card-body px-4 py-3 d-flex flex-column">
+            <h5 class="card-title fs-6 fw-semibold mb-1 text-truncate" data-bs-toggle="tooltip"
+                data-bs-placement="bottom" data-bs-custom-class="tooltip-secondary"
+                data-bs-original-title="{{ $society->name }}, {{ $society->city }}">{{ ucwords($society->name) }},
+              {{ ucwords($society->city) }}</h5>
             @if ($user_type == 'owner_societies')
               <p class="card-text mb-0">
-                <small class="text-body address-clamp" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                <small class="text-body-secondary address-clamp" data-bs-toggle="tooltip" data-bs-placement="bottom"
                        data-bs-custom-class="tooltip-secondary"
-                       data-bs-original-title="{{ $society->address }}">{{ ucwords($society->address) }} </small>
+                       data-bs-original-title="{{ $society->address }}">{{ ucwords($society->address) }}</small>
               </p>
-              <p class="card-text mb-2 ">
-                <small class="text-body">{{ ucfirst($society->country) }}</small>
+              <p class="card-text mb-2">
+                <small class="text-body-secondary">{{ ucfirst($society->country) }}</small>
               </p>
-            @endif
-            @if ($user_type != 'owner_societies')
-              <p class="card-text mb-2 ">
-                <small class="text-body"><b>Owner:</b> {{ ucfirst($society->owner->first_name) }}
+            @else
+              <p class="card-text mb-2">
+                <small class="text-body-secondary"><b>Owner:</b> {{ ucfirst($society->owner->first_name) }}
                   {{ ucfirst($society->owner->last_name) }}</small>
               </p>
             @endif
-            <div class="d-flex justify-content-between align-items-center mb-1 mt-auto">
+            <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top">
               <a href="{{ route('societies.show', [$user_type, $society->uuid]) }}"
-                 class="btn btn-outline-primary waves-effect btn-sm">
+                 class="btn btn-outline-primary btn-sm rounded-pill px-3">
                 <i class="fa-regular fa-eye me-1"></i> View Details
               </a>
-              <span class="badge {{ $society->status == 'active' ? 'bg-primary' : 'bg-secondary' }} bg-glow">
+              <span
+                class="badge rounded-pill {{ $society->status == 'active' ? 'bg-primary' : 'bg-secondary' }} bg-glow">
                 {{ ucfirst($society->status) }}
               </span>
             </div>
@@ -203,12 +204,10 @@
     @endforeach
   </div>
 
-
-
   @if ($total_societies > $total_skip)
     <div id="load_more" class="text-center">
-      <button class="btn btn-primary btn-sm" type="button" id="load_more_btn">
-        <span class="spinner-border me-1 d-none" role="status" aria-hidden="true" id="spinner"></span>
+      <button class="btn btn-primary rounded-pill px-4 shadow-sm" type="button" id="load_more_btn">
+        <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true" id="spinner"></span>
         <span id="load_more_text"> Load More </span>
       </button>
     </div>
@@ -216,8 +215,85 @@
   @include('_partials._modals.apply_payment_plan')
 @endsection
 
+@section('page-style')
+  <style>
+    .society-card {
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .society-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 .75rem 1.5rem rgba(47, 43, 61, .15) !important;
+    }
+
+    .society-img {
+      transition: transform .35s ease;
+    }
+
+    .society-card:hover .society-img {
+      transform: scale(1.06);
+    }
+
+    .society-checkbox {
+      cursor: pointer;
+    }
+
+    .society-card:has(.society-checkbox:checked) {
+      box-shadow: 0 0 0 2px var(--bs-primary) !important;
+    }
+  </style>
+@endsection
+
 @push('scripts')
   <script>
+    // ---------- Helpers ----------
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#039;'
+    }[ch]));
+
+    const titleCase = (value) => String(value ?? '').replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    const fieldValue = (selector) => {
+      const el = document.querySelector(selector);
+      return el ? el.value : '';
+    };
+
+    // Current filter values (same names the controller reads)
+    const getFilters = () => {
+      const filters = {
+        name: fieldValue('input[name="name"]'),
+        city: fieldValue('select[name="city"]'),
+        status: fieldValue('select[name="status"]')
+      };
+      @if ($user_type != 'owner_societies')
+        filters.owner = fieldValue('select[name="owner"]');
+      @endif
+        return filters;
+    };
+
+    // GET request that returns JSON (X-Requested-With makes $request->ajax() true in Laravel)
+    const getJson = async (url, params = {}) => {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') query.append(key, value);
+      });
+      const response = await fetch(`${url}?${query.toString()}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+      return response.json();
+    };
+
+    const showError = (message) => {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire('Error', message, 'error');
+      }
+    };
+
+    // ---------- Live search ----------
     let searchTimer;
     document.getElementById('search_content').addEventListener('keyup', function() {
       clearTimeout(searchTimer);
@@ -225,94 +301,99 @@
         document.getElementById('filterForm').submit();
       }, 1000);
     });
-    var skip = 6;
-    $(document).on('click', '#load_more_btn', function(e) {
-      e.preventDefault();
-      var spinner = $('#spinner');
-      spinner.removeClass('d-none');
-      $('#load_more_text').hide();
-      var btn = $(this);
-      btn.prop('disabled', true);
 
-      // Get current filter values
-      var data = {
-        skip: skip,
-        name: $('select[name="name"]').val(),
-        city: $('select[name="city"]').val(),
-        status: $('select[name="status"]').val(),
-        @if ($user_type != 'owner_societies')
-        owner: $('select[name="owner"]').val(),
-        @endif
-      };
-      $.ajax({
-        url: "{{ route('societies.index', $user_type) }}",
-        type: 'GET',
-        data: data, // Changed this line
-        success: function(response) {
-          skip = response.total_skip;
-          response.societies.forEach(function(society) {
-            var imageSrc = society.attachment ?
-              "{{ asset('storage/') }}/" + society.attachment.link :
-              "{{ asset('assets/img/my_images/dummy_society_image.png') }}";
-            var ownerInfo = '';
-            @if ($user_type != 'owner_societies')
-              ownerInfo = `<p class="card-text mb-2">
-        <small class="text-body"><b>Owner:</b> ${society.owner.first_name} ${society.owner.last_name}</small>
-      </p>`;
-            @else
-              ownerInfo = `<p class="card-text mb-0">
-        <small class="text-body address-clamp">${society.address}</small>
-      </p>
-      <p class="card-text mb-2">
-        <small class="text-body">${society.country}</small>
-      </p>`;
-            @endif
-            var statusBadgeClass = society.status == 'active' ? 'bg-primary' : 'bg-secondary';
-            var link = "{{ route('societies.show', [$user_type, '__UUID__']) }}".replace('__UUID__', society.uuid);
-            $('.societies_cards').append(`
-      <div class="col-md-6 col-xl-4">
-        <div class="card h-100">
-          <div class="position-relative">
-            <input type="checkbox" class="form-check-input society-checkbox position-absolute top-0 start-0 m-2"
-                   style="z-index:2;width:1.15em;height:1.15em;cursor:pointer;" value="${society.uuid}">
-            <img class="card-img-top" src="${imageSrc}" alt="${society.name}" height="170px" style="object-fit: cover;" />
-          </div>
-          <div class="card-body py-2 px-4 d-flex flex-column">
-            <h5 class="card-title fs-6 mb-0 text-truncate">${society.name}, ${society.city}</h5>
-            ${ownerInfo}
-            <div class="d-flex justify-content-between align-items-center mb-1 mt-auto">
-              <a href="${link}" class="btn btn-outline-primary waves-effect btn-sm">
-                <i class="fa-regular fa-eye me-1"></i> View Details
-              </a>
-              <span class="badge ${statusBadgeClass} bg-glow">
-                ${society.status.charAt(0).toUpperCase() + society.status.slice(1)}
-              </span>
+    // ---------- Load more ----------
+    let skip = 6;
+    const loadMoreBtn = document.getElementById('load_more_btn');
+
+    const buildSocietyCard = (society) => {
+      const imageSrc = society.attachment
+        ? "{{ asset('storage') }}/" + society.attachment.link
+        : "{{ asset('assets/img/my_images/dummy_society_image.png') }}";
+
+      let ownerInfo = '';
+      @if ($user_type != 'owner_societies')
+        ownerInfo = `
+          <p class="card-text mb-2">
+            <small class="text-body-secondary"><b>Owner:</b> ${escapeHtml(titleCase(society.owner.first_name))} ${escapeHtml(titleCase(society.owner.last_name))}</small>
+          </p>`;
+      @else
+        ownerInfo = `
+          <p class="card-text mb-0">
+            <small class="text-body-secondary address-clamp">${escapeHtml(titleCase(society.address))}</small>
+          </p>
+          <p class="card-text mb-2">
+            <small class="text-body-secondary">${escapeHtml(titleCase(society.country))}</small>
+          </p>`;
+      @endif
+
+      const statusBadgeClass = society.status === 'active' ? 'bg-primary' : 'bg-secondary';
+      const statusText = society.status.charAt(0).toUpperCase() + society.status.slice(1);
+      const link = "{{ route('societies.show', [$user_type, '__UUID__']) }}".replace('__UUID__', society.uuid);
+      const checked = selectedSocieties.has(society.uuid) ? 'checked' : '';
+
+      return `
+        <div class="col-md-6 col-xl-4">
+          <div class="card society-card h-100 border-0 shadow-sm rounded-4 overflow-hidden">
+            <div class="position-relative overflow-hidden">
+              <input type="checkbox" class="form-check-input society-checkbox fs-5 position-absolute top-0 start-0 m-3 z-2 shadow"
+                     value="${escapeHtml(society.uuid)}" ${checked}>
+              <img class="card-img-top society-img object-fit-cover" src="${imageSrc}" alt="${escapeHtml(society.name)}" height="170" />
+            </div>
+            <div class="card-body px-4 py-3 d-flex flex-column">
+              <h5 class="card-title fs-6 fw-semibold mb-1 text-truncate">${escapeHtml(titleCase(society.name))}, ${escapeHtml(titleCase(society.city))}</h5>
+              ${ownerInfo}
+              <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top">
+                <a href="${link}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                  <i class="fa-regular fa-eye me-1"></i> View Details
+                </a>
+                <span class="badge rounded-pill ${statusBadgeClass} bg-glow">${escapeHtml(statusText)}</span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    `);
+        </div>`;
+    };
+
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
+
+        const spinner = document.getElementById('spinner');
+        const loadMoreText = document.getElementById('load_more_text');
+
+        spinner.classList.remove('d-none');
+        loadMoreText.classList.add('d-none');
+        loadMoreBtn.disabled = true;
+
+        try {
+          const response = await getJson("{{ route('societies.index', $user_type) }}", {
+            skip: skip,
+            ...getFilters()
           });
+
+          skip = response.total_skip;
+
+          const container = document.querySelector('.societies_cards');
+          response.societies.forEach((society) => {
+            container.insertAdjacentHTML('beforeend', buildSocietyCard(society));
+          });
+
           if (response.total_societies > response.total_skip) {
-            $('#load_more').show();
-            spinner.addClass('d-none');
-            $('#load_more_text').show();
-            btn.prop('disabled', false);
+            document.getElementById('load_more').classList.remove('d-none');
           } else {
-            $('#load_more').hide();
+            document.getElementById('load_more').classList.add('d-none');
           }
-        },
-        error: function(xhr, status, error) {
-          spinner.addClass('d-none');
-          btn.prop('disabled', false);
-          if (typeof Swal !== 'undefined') {
-            Swal.fire('Error', 'Failed to load more societies', 'error');
-          }
+        } catch (error) {
+          showError('Failed to load more societies');
+        } finally {
+          spinner.classList.add('d-none');
+          loadMoreText.classList.remove('d-none');
+          loadMoreBtn.disabled = false;
         }
       });
-    });
+    }
 
-    // ---- Society multi-select for payment template application ----
+    // ---------- Society multi-select for payment template application ----------
     let selectedSocieties = new Set();
     let allSocietiesSelected = false;
 
@@ -338,12 +419,12 @@
         : '<i class="ti tabler-checkbox me-1"></i> Select All';
     }
 
-    function toggleSelectAllSocieties() {
+    async function toggleSelectAllSocieties() {
       const btn = document.getElementById('select_all_societies_btn');
 
       if (allSocietiesSelected) {
         selectedSocieties.clear();
-        document.querySelectorAll('.society-checkbox').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.society-checkbox').forEach((cb) => cb.checked = false);
         allSocietiesSelected = false;
         setSelectAllSocietiesBtn(false);
         updateSocietySelectionBar();
@@ -354,38 +435,20 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Selecting...';
 
-      var data = {
-        name: $('input[name="name"]').val(),
-        city: $('select[name="city"]').val(),
-        status: $('select[name="status"]').val(),
-        @if ($user_type != 'owner_societies')
-        owner: $('select[name="owner"]').val(),
-        @endif
-      };
+      try {
+        const response = await getJson("{{ route('societies.all_ids', $user_type) }}", getFilters());
 
-      let url = "{{ route('societies.all_ids', $user_type) }}";
-
-      $.ajax({
-        url: url,
-        type: 'GET',
-        data: data,
-        success: function(response) {
-          selectedSocieties = new Set(response.ids);
-          document.querySelectorAll('.society-checkbox').forEach(cb => cb.checked = true);
-          allSocietiesSelected = true;
-          setSelectAllSocietiesBtn(true);
-          updateSocietySelectionBar();
-        },
-        error: function() {
-          if (typeof Swal !== 'undefined') {
-            Swal.fire('Error', 'Failed to select all societies', 'error');
-          }
-        },
-        complete: function() {
-          btn.disabled = false;
-          if (!allSocietiesSelected) btn.innerHTML = originalHtml;
-        }
-      });
+        selectedSocieties = new Set(response.ids);
+        document.querySelectorAll('.society-checkbox').forEach((cb) => cb.checked = true);
+        allSocietiesSelected = true;
+        setSelectAllSocietiesBtn(true);
+        updateSocietySelectionBar();
+      } catch (error) {
+        btn.innerHTML = originalHtml;
+        showError('Failed to select all societies');
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     function updateSocietySelectionBar() {

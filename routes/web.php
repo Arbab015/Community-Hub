@@ -10,18 +10,20 @@ use App\Http\Controllers\dashboard\Analytics;
 use App\Http\Controllers\frontend\landingPageController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\PrepertyTransferFeeController;
 use App\Http\Controllers\PropertiesController;
+use App\Http\Controllers\PropertyQuickSearchController;
 use App\Http\Controllers\ReactionsController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\RulesController;
 use App\Http\Controllers\SocietiesController;
+use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\TagsController;
 use App\Http\Controllers\UnblockRequestsController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
 
-// Route::middleware(['guest'])->group(function () {
 Route::controller(LandingPageController::class)->group(function () {
     Route::get('/', 'index')->name('landing-page');
     Route::match(['get', 'post'], 'property/search', 'findProperty')->name('property.search');
@@ -77,8 +79,12 @@ Route::middleware(['auth'])->group(function () {
     Route::controller(\App\Http\Controllers\PropertyOwnerController::class)->group(function () {
         Route::get('property-owners/societies', 'societies')->name('property_owners.societies');
         Route::get('property-owners/lookup', 'lookup')->name('property_owners.lookup');
-        Route::post('property-owners', 'store')->name('property_owners.store');
-        Route::delete('property-owners/unlink', 'unlinkOwner')->name('property_owners.unlink');
+        Route::post('reserve-property-owners', 'store')->name('reserve.property_owner.store');
+        Route::get('property-owners/cancellation-summary', 'cancellationSummary')->name('property_owners.cancellation.summary');
+        Route::post('property-owners/cancel-reservation-settlement', 'cancelReservationWithSettlement')
+            ->name('property_owners.cancel_reservation_settlement')
+            ->middleware('permission:property_reserve_owner');
+        Route::get('property-owners/cancellation-receipt/{reversal:uuid}', 'cancellationReceipt')->name('property_owners.cancellation.receipt');
         Route::get('property-owners/plan-print/{snapshot:uuid}', 'printOwnerPlan')->name('property_owners.plan.print');
 
         Route::put('ownership-payment-plans/{snapshot:uuid}', 'updateOwnershipPlan')->name('ownership_payment_plans.update')->middleware('permission:payment_plan_edit');
@@ -87,17 +93,60 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('ownership-payment-plans/{snapshot:uuid}/installment', 'removeInstallment')->name('ownership_payment_plans.installment.remove')->middleware('permission:installment_plan_delete');
     });
 
+    Route::prefix('property-transfers')->name('property_transfers.')->controller(\App\Http\Controllers\PropertyTransferController::class)->group(function () {
+        Route::get('/', 'index')->name('index')->middleware('permission:property_transfer_listing');
+        Route::post('/', 'store')->name('store')->middleware('permission:property_transfer_create');
+        Route::post('{transfer:uuid}/approve', 'approve')->name('approve')->middleware('permission:property_transfer_approve');
+        Route::post('{transfer:uuid}/reject', 'reject')->name('reject')->middleware('permission:property_transfer_approve');
+        // Printing the slip needs the `property_transfer_print` permission; the
+        // two parties of a transfer may always print their own (enforced in
+        // the controller).
+        Route::get('{transfer:uuid}/print', 'print')->name('print');
+    });
+
     Route::controller(\App\Http\Controllers\PaymentTransactionController::class)->group(function () {
+        Route::prefix('payments')->where(['slug' => 'my_payments|all_transactions'])->group(function () {
+            Route::get('{slug}', 'index')->name('payments.index');
+            Route::get('{slug}/data', 'data')->name('payments.data');
+        });
+
         Route::post('ownership-payment-plans/{snapshot:uuid}/payments', 'store')
-            ->name('ownership_payment_plans.payments.store')
+            ->name('payment.store')
             ->middleware('permission:payment_collect');
 
-        Route::post('ownership-payment-plans/{snapshot:uuid}/payments/initiate', 'initiate')
-            ->name('ownership_payment_plans.payments.initiate')
+        Route::get('ownership-payment-plans/{snapshot:uuid}/payments/late-fee-preview', 'lateFeePreview')
+            ->name('payments.late_fee_preview')
+            ->middleware('permission:payment_collect');
+
+        Route::post('reserved-payment-plans/{snapshot:uuid}/payments/reschedule', 'reschedule')
+            ->name('payments.reschedule')
             ->middleware('permission:payment_collect');
         Route::post('payments/{row:uuid}/unpay', 'unpay')
             ->name('ownership_payment_plans.payments.unpay')
             ->middleware('permission:payment_collect');
+
+        // Un-pay charges picked in the ledger, one bulk payment at a time.
+        Route::post('ownership-payment-plans/{snapshot:uuid}/payments/reverse-charges', 'reverseCharges')
+            ->name('ownership_payment_plans.payments.reverse_charges')
+            ->middleware('permission:payment_collect');
+
+        // Reading payments: staff collect them, a society member is allowed to
+        // read the records of their own ownership (enforced in the controller).
+        Route::get('ownership-payment-plans/{snapshot:uuid}/payments/history', 'history')
+            ->name('ownership_payment_plans.payments.history')
+            ->middleware('permission:payment_collect|payment_history');
+
+        Route::get('payments/{transaction:uuid}/receipt', 'receipt')
+            ->name('ownership_payment_plans.payments.receipt')
+            ->middleware('permission:payment_collect|payment_history');
+
+        Route::get('payments/{transaction:uuid}/receipt/download', 'downloadReceipt')
+            ->name('ownership_payment_plans.payments.receipt.download')
+            ->middleware('permission:payment_collect|payment_history');
+
+        Route::get('ownership-payment-plans/{snapshot:uuid}/payments/report', 'printReport')
+            ->name('ownership_payment_plans.payments.report')
+            ->middleware('permission:payment_print_by_period');
     });
 
     Route::controller(RolesController::class)->group(function () {
@@ -226,7 +275,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('blocks/{block:uuid}/print-plan', 'printBlockPlan')
             ->name('blocks.print_plan');
 
-        Route::post('blocks/apply-plan', 'applyBlockPlan')
+        Route::post('blocks/apply-plan', 'applyPaymentPlan')
             ->name('blocks.apply_plan');
 
         Route::get('{user_type}/societies/{society:uuid}/blocks/{block:uuid}/properties/all-ids', 'allIds')->name('society.block.properties.all_ids');
@@ -264,6 +313,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('societies/{user_type}/society/{society_uuid}/properties/{uuid}', 'propertyDetailsFromSociety')->name('society.property.details');
 
+        // The navbar property search: name, property number or owner name.
+        Route::get('property/quick-search', PropertyQuickSearchController::class)
+            ->name('property.quick_search');
+
         Route::get('{section}/destroy/{uuid}', 'destroy')
             ->name('property.destroy')
             ->where('section', 'property|floor|unit|room')
@@ -292,9 +345,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('unit/details/{uuid}/{isOwner?}', 'show')->name('unit.details');
         Route::get('societies/{user_type}/society/{society_uuid}/unit/{uuid}', 'unitFromSociety')
             ->name('society.unit.details');
-
-        //        Route::get('unit/details/{uuid}/', 'ownerUnitDetails')->name('owner.unit.details');
-
         Route::post('unit/store', 'update')->name('unit.store')->middleware('permission:edit_property');
         Route::get('unit/{uuid}/{user_type?}', 'destroy')
             ->name('unit.destroy')
@@ -347,6 +397,34 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/installment-templates/bulkdetele', 'bulkDelete')->name('installment-templates.bulk_delete')->middleware('permission:installment_template_delete');
     });
 
+    Route::controller(\App\Http\Controllers\FbrTaxRateController::class)->group(function () {
+        Route::get('fbr-tax-rates/index', 'index')->name('fbr-tax-rates.index')->middleware('permission:listing_fbr_tax_rate');
+        Route::post('fbr-tax-rates/store', 'store')->name('fbr-tax-rates.store')->middleware('permission:listing_fbr_tax_rate');
+        Route::post('fbr-tax-rates/update', 'update')->name('fbr-tax-rates.update')->middleware('permission:listing_fbr_tax_rate');
+        Route::post('fbr-tax-rates/destroy', 'destroy')->name('fbr-tax-rates.destroy')->middleware('permission:listing_fbr_tax_rate');
+    });
+
+    Route::controller(PrepertyTransferFeeController::class)->group(function () {
+        Route::get('transfer-fee/index', 'index')->name('transfer_fee.index')->middleware('permission:transfer_fee_listing');
+        Route::post('transfer-fee/store', 'store')->name('transfer_fee.store');
+        Route::delete('transfer-fee/destroy/{id}', 'destroy')->name('transfer_fee.destroy')->middleware('permission:transfer_fee_delete');
+        Route::post('transfer-fee/bulk-delete', 'bulkDelete')->name('transfer_fee.bulk_delete')->middleware('permission:transfer_fee_delete');
+    });
+
+    Route::controller(\App\Http\Controllers\PaymentLateFeeRuleController::class)->group(function () {
+        Route::get('payments/payment_late_fee_rules', 'index')->name('late_fee_rules.index')->middleware('permission:payment_late_fee_rule_listing');
+        Route::post('payment_late_fee_rules/store', 'store')->name('late_fee_rules.store');
+        Route::delete('payment_late_fee_rules/destroy/{id}', 'destroy')->name('late_fee_rules.destroy')->middleware('permission:payment_late_fee_rule_delete');
+
+        Route::post('payment_late_fee_rules/bulk-delete', 'bulkDelete')->name('late_fee_rules.bulk_delete')->middleware('permission:payment_late_fee_rule_delete');
+
+    });
+
+    Route::controller(SystemSettingController::class)->group(function () {
+        Route::get('system-settings/index', 'index')->name('system-settings.index')->middleware('permission:system_settings');
+        Route::post('system-settings/update', 'update')->name('system-settings.update')->middleware('permission:system_settings');
+    });
+
     Route::controller(\App\Http\Controllers\PropertyPaymentPlanController::class)->group(function () {
         Route::post('payment_plan/apply', 'store')->name('payment_plan.apply')->middleware('permission:installment_template_listing');  // need to create new permission
 
@@ -365,6 +443,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('payment_plan/{paymentPlan}/installment/attach', 'attachInstallment')
             ->name('payment_plan.attach-installment')
             ->middleware('permission:installment_template_listing');
+
+        Route::post('payment_plan/{paymentPlan}/installment/store', 'storeInstallment')
+            ->name('payment_plan.store-installment')
+            ->middleware('permission:installment_plan_add');
 
         Route::delete('payment_plan/{paymentPlan}', 'destroy')->name('payment_plan.destroy')->middleware('permission:installment_template_listing');
 

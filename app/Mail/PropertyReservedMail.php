@@ -8,13 +8,16 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class OwnerAssignedMail extends Mailable
+class PropertyReservedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public $member;
+
     public $propertyName;
+
     public $planName;
+
     public $password;
 
     public function __construct($member, string $propertyName, ?string $planName, ?string $password = null)
@@ -28,14 +31,14 @@ class OwnerAssignedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Property Ownership Assigned — '.$this->propertyName,
+            subject: 'Property Ownership Reservation — '.$this->propertyName,
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.owner_assigned',
+            view: 'emails.property_reserved',
         );
     }
 

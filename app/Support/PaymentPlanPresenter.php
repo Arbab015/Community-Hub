@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Models\PropertyOwnershipPaymentPlan;
+use App\Models\PropertyReservedPaymentPlan;
 use App\Models\PropertyUnit;
 
 class PaymentPlanPresenter
@@ -260,7 +260,7 @@ class PaymentPlanPresenter
      * the snapshot are used - templates / source plans are never consulted,
      * so the printed contract always matches exactly what the owner committed.
      */
-    public static function buildFromSnapshot(PropertyOwnershipPaymentPlan $snapshot): array
+    public static function buildFromSnapshot(PropertyReservedPaymentPlan $snapshot): array
     {
         $property = $snapshot->propertyOwnerable;
         $isUnit = $property instanceof PropertyUnit;
@@ -268,6 +268,42 @@ class PaymentPlanPresenter
 
         $listingPrice = $snapshot->listed_price ?? $listing?->price ?? 0;
         $listingUnit = $snapshot->price_unit ?? $listing?->unit ?? 'PKR';
+
+        // A transfer plan is just the society transfer fee - one line, no
+        // installments. The listed price of the property is still reported: it
+        // is the base the fee was calculated from and it is shown next to the
+        // fee in the plan summary.
+        if ($snapshot->isTransfer()) {
+            $fee = (float) ($snapshot->final_price ?? 0);
+
+            $feeRows = [[
+                'label' => 'Transfer Fee',
+                'detail' => 'Society transfer fee',
+                'note' => 'Included',
+                'amount' => $fee,
+            ]];
+
+            return [
+                'is_unit' => $isUnit,
+                'listing_price' => $listingPrice,
+                'listing_unit' => $listingUnit,
+                'property_name' => $property ? self::planPropertyName($property, $isUnit) : null,
+                'property_address' => $property ? self::planPropertyAddress($property, $isUnit) : null,
+                'property_ref' => $property ? self::propertyReference($property, $isUnit) : '',
+                'property_no' => $isUnit
+                  ? (string) ($property?->floor?->property?->property_no ?? '')
+                  : (string) ($property?->property_no ?? ''),
+                'fee_rows' => $feeRows,
+                'included_total' => $fee,
+                'excluded_total' => 0,
+                'premium_rows' => [],
+                'premiums_total' => 0,
+                'gross_amount' => $fee,
+                'total_price' => $fee,
+                'installment_rows' => [],
+                'final_price' => $fee,
+            ];
+        }
 
         $feeKeys = [
             ['key' => 'booking_fee', 'label' => 'Booking Fee'],

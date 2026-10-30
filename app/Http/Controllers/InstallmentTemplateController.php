@@ -21,8 +21,11 @@ class InstallmentTemplateController extends Controller
                 return DataTables::of($query->get())
                     ->addColumn('checkbox', fn ($t) => '<input type="checkbox" class="form-check-input checkbox" value="'.$t->id.'">')
                     ->addColumn('is_commercial', fn ($t) => $t->is_commercial
-                        ? '<span class="badge bg-label-warning">Commercial</span>'
-                        : '<span class="badge bg-label-success">Residential</span>')
+                      ? '<span class="badge bg-label-warning">Commercial</span>'
+                      : '<span class="badge bg-label-success">Non Commercial</span>')
+                    ->addColumn('is_constructed', fn ($t) => $t->is_constructed
+                      ? '<span class="badge bg-label-dark">Constructed</span>'
+                      : '<span class="badge bg-label-info">Non-Constructed</span>')
                     ->addColumn('balloon_payment', fn ($t) => ! $t->balloon_payment ? '<i class="ti tabler-x text-danger"></i>' : ($t->balloon_payment_in_per ? $t->balloon_payment.'%' : $t->balloon_payment))
                     ->addColumn('balloon_payment_frequency', fn ($t) => ! $t->balloon_payment ? '<i class="ti tabler-x text-danger"></i>' : ucfirst($t->balloon_payment_frequency))
                     ->addColumn('additional_amount', fn ($t) => $t->additional_installment_amount_in_per ? $t->additional_installment_amount.'%' : $t->additional_installment_amount)
@@ -34,6 +37,7 @@ class InstallmentTemplateController extends Controller
                         $infoData = htmlspecialchars(json_encode([
                             'name' => $t->name,
                             'is_commercial' => (bool) $t->is_commercial,
+                            'is_constructed' => (bool) $t->is_constructed,
                             'number_of_installments' => $t->number_of_installments,
                             'installment_frequency' => $t->installment_frequency,
                             'additional_installment_amount' => $t->additional_installment_amount,
@@ -51,6 +55,7 @@ class InstallmentTemplateController extends Controller
                                 'id' => $t->id,
                                 'name' => $t->name,
                                 'is_commercial' => (int) $t->is_commercial,
+                                'is_constructed' => (int) $t->is_constructed,
                                 'number_of_installments' => $t->number_of_installments,
                                 'installment_frequency' => $t->installment_frequency,
                                 'additional_installment_amount' => $t->additional_installment_amount,
@@ -75,7 +80,7 @@ class InstallmentTemplateController extends Controller
 
                         return $info.' '.$edit.' '.$delete;
                     })
-                    ->rawColumns(['checkbox', 'is_commercial', 'balloon_payment', 'balloon_payment_frequency', 'additional_amount', 'actions'])
+                    ->rawColumns(['checkbox', 'is_commercial', 'is_constructed', 'balloon_payment', 'balloon_payment_frequency', 'additional_amount', 'actions'])
                     ->make(true);
             }
             $can_edit = $login_user->can('installment_template_create');
@@ -100,6 +105,8 @@ class InstallmentTemplateController extends Controller
             return response()->json([
                 'id' => $installmentTemplate->id,
                 'name' => $installmentTemplate->name,
+                'is_commercial' => (bool) $installmentTemplate->is_commercial,
+                'is_constructed' => (bool) $installmentTemplate->is_constructed,
                 'number_of_installments' => $installmentTemplate->number_of_installments,
                 'installment_frequency' => $installmentTemplate->installment_frequency,
                 'additional_installment_amount' => $installmentTemplate->additional_installment_amount,
@@ -134,6 +141,7 @@ class InstallmentTemplateController extends Controller
                         ->ignore($templateId),
                 ],
                 'is_commercial' => ['nullable', 'boolean'],
+                'is_constructed' => ['nullable', 'boolean'],
                 'number_of_installments' => ['required', 'integer', 'min:1', 'max:360'],
                 'installment_frequency' => ['required', 'in:monthly,quarterly,biannually,annually'],
                 'additional_installment_amount' => [
@@ -183,6 +191,7 @@ class InstallmentTemplateController extends Controller
                 'owner_id' => auth()->id(),
                 'name' => $validated['name'],
                 'is_commercial' => $request->boolean('is_commercial'),
+                'is_constructed' => $request->boolean('is_constructed'),
                 'number_of_installments' => $validated['number_of_installments'],
                 'installment_frequency' => $validated['installment_frequency'],
                 'additional_installment_amount' => $validated['additional_installment_amount'],
